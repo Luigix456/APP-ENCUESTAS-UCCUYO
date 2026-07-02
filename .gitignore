@@ -41,6 +41,10 @@ frontend/**/.vite/
 .env
 .env.*
 !.env.example
+appsettings.Local.json
+appsettings.*.Local.json
+secrets.json
+*.secrets.json
 
 # OS files
 Thumbs.db
