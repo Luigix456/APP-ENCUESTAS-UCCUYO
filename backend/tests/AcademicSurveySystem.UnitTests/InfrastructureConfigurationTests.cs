@@ -6,13 +6,22 @@ namespace AcademicSurveySystem.UnitTests;
 
 public sealed class InfrastructureConfigurationTests
 {
-    [Fact]
-    public void AddInfrastructure_Throws_WhenDefaultConnectionIsEmpty()
+    public static TheoryData<string?> InvalidConnectionStrings => new()
+    {
+        null,
+        string.Empty,
+        "   "
+    };
+
+    [Theory]
+    [MemberData(nameof(InvalidConnectionStrings))]
+    public void AddInfrastructure_ThrowsClearException_WhenDefaultConnectionIsInvalid(
+        string? connectionString)
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["ConnectionStrings:DefaultConnection"] = string.Empty
+                ["ConnectionStrings:DefaultConnection"] = connectionString
             })
             .Build();
 

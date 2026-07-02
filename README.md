@@ -1,8 +1,8 @@
-# Sistema Web de Gestion de Encuestas Academicas
+# Sistema Web de Gestión de Encuestas Académicas
 
-Aplicacion web para la gestion de encuestas academicas. El backend usa Clean Architecture y ya cuenta con la infraestructura inicial de persistencia configurada para Entity Framework Core y PostgreSQL.
+Aplicación web para la gestión de encuestas académicas. El backend usa Clean Architecture y cuenta con infraestructura inicial de persistencia configurada con Entity Framework Core y PostgreSQL.
 
-## Tecnologias iniciales
+## Tecnologías iniciales
 
 - .NET 8
 - ASP.NET Core Web API
@@ -40,18 +40,20 @@ Aplicacion web para la gestion de encuestas academicas. El backend usa Clean Arc
 
 - .NET SDK 8 o superior con soporte para `net8.0`
 - Node.js y npm
-- PostgreSQL local, si se desea probar la conexion real
-- Herramienta `dotnet-ef` para ejecutar comandos de migracion
+- PostgreSQL local para probar la conexión real
+- Herramienta `dotnet-ef` para ejecutar comandos de migración
 
 ## PostgreSQL
 
-Base local sugerida:
+Base local esperada:
 
 ```text
 academic_survey_db
 ```
 
-La cadena de conexion se lee desde `ConnectionStrings:DefaultConnection` y puede sobrescribirse con la variable de entorno `ConnectionStrings__DefaultConnection`.
+La cadena de conexión se lee desde `ConnectionStrings:DefaultConnection` y puede sobrescribirse con la variable de entorno `ConnectionStrings__DefaultConnection`.
+
+Las credenciales reales deben proporcionarse mediante variable de entorno. No se deben almacenar secretos reales ni credenciales de producción en el repositorio.
 
 PowerShell:
 
@@ -65,33 +67,78 @@ Bash:
 export ConnectionStrings__DefaultConnection="Host=localhost;Port=5432;Database=academic_survey_db;Username=postgres;Password=TU_PASSWORD"
 ```
 
-`appsettings.Development.json` contiene una cadena local de ejemplo. No se deben almacenar secretos reales ni credenciales de produccion en el repositorio.
+`appsettings.Development.json` contiene una cadena local de ejemplo para desarrollo.
 
-## Ejecutar backend
+## Ejecutar Backend
 
 ```bash
 cd backend
-dotnet restore
+dotnet restore AcademicSurveySystem.sln
 dotnet run --project src/AcademicSurveySystem.Api/AcademicSurveySystem.Api.csproj
 ```
 
-Health check:
+## Health Check
+
+Endpoint:
 
 ```text
 GET /api/health
 ```
 
-El endpoint valida que la API este activa y que `ApplicationDbContext` pueda conectarse a PostgreSQL.
+PowerShell:
+
+```powershell
+Invoke-RestMethod http://localhost:5047/api/health
+```
+
+Bash:
+
+```bash
+curl http://localhost:5047/api/health
+```
+
+El endpoint valida que la API esté activa y que `ApplicationDbContext` pueda conectarse a PostgreSQL.
+
+Resultado esperado cuando PostgreSQL está disponible y la cadena de conexión es válida:
+
+```text
+HTTP 200
+```
+
+```json
+{
+  "status": "Healthy",
+  "service": "AcademicSurveySystem.Api",
+  "checks": [
+    {
+      "name": "ApplicationDbContext",
+      "status": "Healthy"
+    }
+  ]
+}
+```
+
+Si PostgreSQL no está disponible o la cadena de conexión no es válida, el health check debe reflejar el estado real y devolver `HTTP 503`.
 
 ## Entity Framework Core
 
-Crear una migracion:
+La migración `InitialInfrastructure` es una migración vacía porque todavía no existen entidades de negocio. Al aplicarla, Entity Framework Core puede crear la tabla técnica `__EFMigrationsHistory` para registrar migraciones aplicadas.
+
+Crear una migración:
 
 ```bash
 dotnet ef migrations add NombreMigracion \
   --project src/AcademicSurveySystem.Infrastructure \
   --startup-project src/AcademicSurveySystem.Api \
   --output-dir Persistence/Migrations
+```
+
+Listar migraciones:
+
+```bash
+dotnet ef migrations list \
+  --project src/AcademicSurveySystem.Infrastructure \
+  --startup-project src/AcademicSurveySystem.Api
 ```
 
 Aplicar migraciones:
@@ -102,7 +149,7 @@ dotnet ef database update \
   --startup-project src/AcademicSurveySystem.Api
 ```
 
-Consultar informacion del DbContext:
+Consultar información del DbContext:
 
 ```bash
 dotnet ef dbcontext info \
@@ -110,7 +157,7 @@ dotnet ef dbcontext info \
   --startup-project src/AcademicSurveySystem.Api
 ```
 
-## Ejecutar frontend
+## Ejecutar Frontend
 
 ```bash
 cd frontend/academic-survey-system-web
@@ -118,6 +165,6 @@ npm install
 npm run dev
 ```
 
-## Estado actual
+## Estado Actual
 
-Infraestructura inicial de persistencia configurada. Todavia no existen entidades de negocio, autenticacion, usuarios, roles, permisos, repositorios, casos de uso ni funcionalidades del sistema.
+Infraestructura inicial de persistencia configurada. Todavía no existen entidades de negocio, autenticación, usuarios, roles, permisos, repositorios, casos de uso ni funcionalidades del sistema.
