@@ -4,13 +4,19 @@ namespace AcademicSurveySystem.Domain.Identity;
 
 public static class IdentityCatalog
 {
+    public static class RoleIds
+    {
+        public static readonly Guid AdministratorId =
+            new("11111111-1111-1111-1111-111111111111");
+    }
+
     public static readonly DateTimeOffset CatalogDateUtc =
         new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
 
     public static IReadOnlyCollection<RoleDefinition> Roles { get; } =
     [
         new(
-            new Guid("11111111-1111-1111-1111-111111111111"),
+            RoleIds.AdministratorId,
             "administrator",
             "Administrador",
             "Acceso completo a la administración y configuración del sistema."),

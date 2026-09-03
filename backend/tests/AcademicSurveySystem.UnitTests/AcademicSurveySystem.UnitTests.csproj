@@ -25,6 +25,7 @@
     <ProjectReference Include="..\..\src\AcademicSurveySystem.Domain\AcademicSurveySystem.Domain.csproj" />
     <ProjectReference Include="..\..\src\AcademicSurveySystem.Application\AcademicSurveySystem.Application.csproj" />
     <ProjectReference Include="..\..\src\AcademicSurveySystem.Infrastructure\AcademicSurveySystem.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\AcademicSurveySystem.Api\AcademicSurveySystem.Api.csproj" />
   </ItemGroup>
 
 </Project>
