@@ -11,6 +11,9 @@ Aplicación web para la gestión de encuestas académicas. El backend usa Clean 
 - Entity Framework Core 8
 - PostgreSQL
 - Npgsql.EntityFrameworkCore.PostgreSQL
+- BCrypt.Net-Next 4.2.0
+- Microsoft.AspNetCore.Authentication.JwtBearer 8.0.30
+- System.IdentityModel.Tokens.Jwt 8.22.0
 - React
 - Vite
 - TypeScript
@@ -69,6 +72,22 @@ export ConnectionStrings__DefaultConnection="Host=localhost;Port=5432;Database=a
 
 `appsettings.Development.json` contiene una cadena local de ejemplo para desarrollo.
 
+## Seguridad de Contraseñas
+
+Las contraseñas no se almacenan en texto plano. La infraestructura usa `BCrypt.Net-Next` 4.2.0 y guarda únicamente hashes BCrypt.
+
+La configuración no sensible del factor de trabajo se encuentra en `Security:PasswordHashing:WorkFactor`. El valor predeterminado es `12` y el rango permitido es de `10` a `16`.
+
+Política mínima para la contraseña del administrador inicial:
+
+- Mínimo 12 caracteres
+- Máximo 64 caracteres
+- Máximo 72 bytes en UTF-8
+- Al menos una letra mayúscula
+- Al menos una letra minúscula
+- Al menos un número
+- Al menos un carácter no alfanumérico
+
 ## Ejecutar Backend
 
 ```bash
@@ -124,10 +143,49 @@ Si PostgreSQL no está disponible o la cadena de conexión no es válida, el hea
 
 La migración `InitialInfrastructure` es una migración vacía porque todavía no existen entidades de negocio. Al aplicarla, Entity Framework Core puede crear la tabla técnica `__EFMigrationsHistory` para registrar migraciones aplicadas.
 
+La migración `AddIdentityCore` agrega el núcleo persistente de identidad y autorización. Esa migración no inserta usuarios ni contraseñas y no modifica la configuración de autenticación.
+
+La migración `SeedIdentityCatalog` agrega un catálogo inicial determinista de cuatro roles institucionales y catorce permisos. Los estudiantes no poseen rol porque responderán encuestas públicas y anónimas mediante sesiones QR.
+
+Tablas creadas por el núcleo de identidad:
+
+- `users`: usuarios internos del sistema. Almacena datos básicos, estado y `password_hash`; no almacena contraseñas en texto plano.
+- `roles`: roles asignables a usuarios.
+- `permissions`: permisos del sistema agrupados por módulo.
+- `user_roles`: relación muchos a muchos entre usuarios y roles.
+- `role_permissions`: relación muchos a muchos entre roles y permisos.
+
+Roles institucionales iniciales:
+
+| Rol | Finalidad |
+| --- | --- |
+| Administrador | Administración completa |
+| Encuestadora | Gestión de sesiones de encuesta |
+| Decana | Consulta institucional |
+| Director de carrera | Consulta limitada a su carrera |
+
 Crear una migración:
 
 ```bash
 dotnet ef migrations add NombreMigracion \
+  --project src/AcademicSurveySystem.Infrastructure \
+  --startup-project src/AcademicSurveySystem.Api \
+  --output-dir Persistence/Migrations
+```
+
+Crear la migración del núcleo de identidad:
+
+```bash
+dotnet ef migrations add AddIdentityCore \
+  --project src/AcademicSurveySystem.Infrastructure \
+  --startup-project src/AcademicSurveySystem.Api \
+  --output-dir Persistence/Migrations
+```
+
+Crear la migración del catálogo inicial de identidad:
+
+```bash
+dotnet ef migrations add SeedIdentityCatalog \
   --project src/AcademicSurveySystem.Infrastructure \
   --startup-project src/AcademicSurveySystem.Api \
   --output-dir Persistence/Migrations
@@ -149,6 +207,201 @@ dotnet ef database update \
   --startup-project src/AcademicSurveySystem.Api
 ```
 
+## Bootstrap del Administrador Inicial
+
+El primer administrador se crea únicamente mediante el comando explícito `--bootstrap-admin`. El inicio normal de la API no crea usuarios, no exige `InitialAdmin` y no ejecuta migraciones automáticamente.
+
+Orden recomendado:
+
+1. Configurar `ConnectionStrings__DefaultConnection`.
+2. Aplicar las migraciones con `dotnet ef database update`.
+3. Configurar las variables `InitialAdmin`.
+4. Ejecutar `--bootstrap-admin`.
+5. Eliminar las variables sensibles `InitialAdmin`.
+
+Variables requeridas:
+
+- `InitialAdmin__FirstName`
+- `InitialAdmin__LastName`
+- `InitialAdmin__Email`
+- `InitialAdmin__Password`
+
+PowerShell:
+
+```powershell
+$env:InitialAdmin__FirstName="Nombre"
+$env:InitialAdmin__LastName="Apellido"
+$env:InitialAdmin__Email="admin@institucion.edu.ar"
+$env:InitialAdmin__Password="REEMPLAZAR_CON_PASSWORD_SEGURA"
+
+dotnet run `
+  --project src/AcademicSurveySystem.Api `
+  -- --bootstrap-admin
+
+Remove-Item Env:InitialAdmin__Password
+Remove-Item Env:InitialAdmin__FirstName
+Remove-Item Env:InitialAdmin__LastName
+Remove-Item Env:InitialAdmin__Email
+```
+
+Bash:
+
+```bash
+export InitialAdmin__FirstName="Nombre"
+export InitialAdmin__LastName="Apellido"
+export InitialAdmin__Email="admin@institucion.edu.ar"
+export InitialAdmin__Password="REEMPLAZAR_CON_PASSWORD_SEGURA"
+
+dotnet run \
+  --project src/AcademicSurveySystem.Api \
+  -- --bootstrap-admin
+
+unset InitialAdmin__Password
+unset InitialAdmin__FirstName
+unset InitialAdmin__LastName
+unset InitialAdmin__Email
+```
+
+El comando es idempotente: si ya existe un usuario con rol `administrator`, finaliza correctamente sin crear otro administrador y sin restablecer contraseñas. Si el email configurado ya pertenece a un usuario que no es administrador, el comando falla y no eleva privilegios silenciosamente.
+
+## Autenticación JWT
+
+La API emite JWT firmados con HMAC SHA-256. La clave de firma no debe almacenarse en `appsettings.json`; debe configurarse mediante variable de entorno o secretos locales.
+
+Configuración base:
+
+```json
+{
+  "Jwt": {
+    "Issuer": "AcademicSurveySystem",
+    "Audience": "AcademicSurveySystem.Web",
+    "SigningKey": "",
+    "AccessTokenExpirationMinutes": 60
+  }
+}
+```
+
+Variables soportadas:
+
+- `Jwt__SigningKey`: obligatoria en el inicio normal de la API; mínimo 32 caracteres.
+- `Jwt__Issuer`: opcional.
+- `Jwt__Audience`: opcional.
+- `Jwt__AccessTokenExpirationMinutes`: opcional; mínimo 5 y máximo 1440.
+
+PowerShell:
+
+```powershell
+$env:Jwt__SigningKey="REEMPLAZAR_CON_CLAVE_SEGURA_DE_AL_MENOS_32_CARACTERES"
+```
+
+Bash:
+
+```bash
+export Jwt__SigningKey="REEMPLAZAR_CON_CLAVE_SEGURA_DE_AL_MENOS_32_CARACTERES"
+```
+
+El modo `--bootstrap-admin` no requiere `Jwt__SigningKey`, porque no inicia el servidor web ni emite tokens.
+
+### Login
+
+Endpoint:
+
+```text
+POST /api/auth/login
+```
+
+Request:
+
+```json
+{
+  "email": "admin@institucion.edu.ar",
+  "password": "REEMPLAZAR_CON_PASSWORD_DEL_ADMINISTRADOR"
+}
+```
+
+Respuesta exitosa de ejemplo, sin token real:
+
+```json
+{
+  "accessToken": "TOKEN_JWT_EMITIDO",
+  "tokenType": "Bearer",
+  "expiresAtUtc": "2026-09-03T18:00:00Z",
+  "user": {
+    "id": "00000000-0000-0000-0000-000000000000",
+    "firstName": "Nombre",
+    "lastName": "Apellido",
+    "email": "admin@institucion.edu.ar",
+    "roles": ["administrator"],
+    "permissions": ["identity.users.read"]
+  }
+}
+```
+
+Los errores de credenciales usan mensajes genéricos. Usuarios `Inactive` o `Blocked` reciben `HTTP 403` y no pueden iniciar sesión.
+
+Si BCrypt indica `SuccessRehashNeeded`, la API actualiza el `password_hash` con el factor de trabajo vigente sin exponer el hash anterior ni el nuevo.
+
+### Usuario Actual
+
+Endpoint:
+
+```text
+GET /api/auth/me
+```
+
+Requiere header:
+
+```text
+Authorization: Bearer TOKEN_JWT_EMITIDO
+```
+
+Este endpoint devuelve los datos del usuario desde claims del token y no consulta la base de datos en esta etapa.
+
+La autorización futura se realizará por permisos mediante claims `permission`, por ejemplo con `[RequirePermission("identity.users.read")]` o políticas `Permission:identity.users.read`.
+
+Todavía no existen refresh tokens, recuperación de contraseña, cambio de contraseña, registro público ni frontend de login.
+
+## Catálogo Académico
+
+El backend incluye el núcleo de dominio y persistencia del catálogo académico. Este núcleo todavía no expone endpoints, controladores, DTOs, casos de uso ni frontend académico.
+
+Entidades académicas implementadas:
+
+- `Career`: carrera, curso o trayecto académico.
+- `Subject`: materia perteneciente a una carrera.
+- `Teacher`: docente con email opcional.
+- `AcademicCycle`: ciclo lectivo anual o semestral.
+- `TeacherSubjectAssignment`: asignación de un docente a una materia durante un ciclo lectivo.
+
+Tablas creadas por la migración `AddAcademicCatalog`:
+
+- `careers`: almacena código, nombre, tipo y estado activo de carreras.
+- `subjects`: almacena materias por carrera, año y período.
+- `teachers`: almacena docentes y email opcional normalizado.
+- `academic_cycles`: almacena año, período y fechas de inicio/fin del ciclo.
+- `teacher_subject_assignments`: relaciona docente, materia y ciclo lectivo con una función docente.
+
+Las entidades usan `Guid` como identificador, `DateTimeOffset` en UTC para auditoría básica, `DateOnly` para fechas académicas del ciclo lectivo e `IsActive` para desactivación lógica. No se agregan filtros globales todavía.
+
+Crear la migración del catálogo académico:
+
+```bash
+dotnet ef migrations add AddAcademicCatalog \
+  --project src/AcademicSurveySystem.Infrastructure \
+  --startup-project src/AcademicSurveySystem.Api \
+  --output-dir Persistence/Migrations
+```
+
+Aplicar migraciones:
+
+```bash
+dotnet ef database update \
+  --project src/AcademicSurveySystem.Infrastructure \
+  --startup-project src/AcademicSurveySystem.Api
+```
+
+No existe seed académico: la migración no inserta carreras, materias, docentes, ciclos ni asignaciones reales.
+
 Consultar información del DbContext:
 
 ```bash
@@ -167,4 +420,4 @@ npm run dev
 
 ## Estado Actual
 
-Infraestructura inicial de persistencia configurada. Todavía no existen entidades de negocio, autenticación, usuarios, roles, permisos, repositorios, casos de uso ni funcionalidades del sistema.
+Infraestructura inicial de persistencia configurada. El núcleo persistente de identidad ya existe con `User`, `Role`, `Permission`, `UserRole` y `RolePermission`, más un catálogo inicial de cuatro roles y catorce permisos. Existe un comando explícito e idempotente para crear el primer administrador con contraseña hasheada. La API ya cuenta con login básico, emisión de JWT, endpoint protegido `/api/auth/me` y autorización por permisos. El dominio académico ya incluye carreras, materias, docentes, ciclos lectivos y asignaciones docente-materia-ciclo con persistencia EF Core. Todavía no existen endpoints académicos, frontend académico, encuestas, sesiones QR, respuestas, reportes, refresh tokens, registro público, administración de usuarios ni repositorios genéricos.

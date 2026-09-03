@@ -1,3 +1,4 @@
+using AcademicSurveySystem.Domain.Academic.Entities;
 using AcademicSurveySystem.Domain.Identity.Entities;
 using Microsoft.EntityFrameworkCore;
 
@@ -15,6 +16,12 @@ public sealed class ApplicationDbContext : DbContext
     public DbSet<Permission> Permissions => Set<Permission>();
     public DbSet<UserRole> UserRoles => Set<UserRole>();
     public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
+    public DbSet<Career> Careers => Set<Career>();
+    public DbSet<Subject> Subjects => Set<Subject>();
+    public DbSet<Teacher> Teachers => Set<Teacher>();
+    public DbSet<AcademicCycle> AcademicCycles => Set<AcademicCycle>();
+    public DbSet<TeacherSubjectAssignment> TeacherSubjectAssignments =>
+        Set<TeacherSubjectAssignment>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
