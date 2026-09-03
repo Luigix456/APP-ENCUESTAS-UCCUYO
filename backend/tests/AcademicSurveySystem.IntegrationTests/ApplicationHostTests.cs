@@ -1,3 +1,4 @@
+using AcademicSurveySystem.Application.Academic;
 using AcademicSurveySystem.Application.Common.Security;
 using AcademicSurveySystem.Application.Identity.Authentication;
 using AcademicSurveySystem.Application.Identity.InitialAdministrator;
@@ -72,6 +73,17 @@ public sealed class ApplicationStartupTests
     }
 
     [Fact]
+    public void ApiHost_ResolvesAcademicCatalogService()
+    {
+        using var factory = CreateFactory();
+        using var scope = factory.Services.CreateScope();
+
+        var academicCatalogService = scope.ServiceProvider.GetRequiredService<IAcademicCatalogService>();
+
+        Assert.NotNull(academicCatalogService);
+    }
+
+    [Fact]
     public void ApiHost_ResolvesInitialAdministratorBootstrapper()
     {
         using var factory = CreateFactory();
@@ -137,6 +149,61 @@ public sealed class ApplicationStartupTests
         using var client = factory.CreateClient();
 
         var response = await client.GetAsync("/api/auth/me");
+
+        Assert.Equal(System.Net.HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Careers_WithoutToken_ReturnsUnauthorized()
+    {
+        using var factory = CreateFactory();
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/academic/careers");
+
+        Assert.Equal(System.Net.HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task AcademicCycles_WithoutToken_ReturnsUnauthorized()
+    {
+        using var factory = CreateFactory();
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/academic/academic-cycles");
+
+        Assert.Equal(System.Net.HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Subjects_WithoutToken_ReturnsUnauthorized()
+    {
+        using var factory = CreateFactory();
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/academic/subjects");
+
+        Assert.Equal(System.Net.HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Teachers_WithoutToken_ReturnsUnauthorized()
+    {
+        using var factory = CreateFactory();
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/academic/teachers");
+
+        Assert.Equal(System.Net.HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task TeacherSubjectAssignments_WithoutToken_ReturnsUnauthorized()
+    {
+        using var factory = CreateFactory();
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/academic/teacher-subject-assignments");
 
         Assert.Equal(System.Net.HttpStatusCode.Unauthorized, response.StatusCode);
     }

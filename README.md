@@ -363,7 +363,7 @@ Todavía no existen refresh tokens, recuperación de contraseña, cambio de cont
 
 ## Catálogo Académico
 
-El backend incluye el núcleo de dominio y persistencia del catálogo académico. Este núcleo todavía no expone endpoints, controladores, DTOs, casos de uso ni frontend académico.
+El backend incluye el núcleo de dominio y persistencia del catálogo académico. Ya existen endpoints protegidos, controladores y DTOs para `Career`, `AcademicCycle`, `Subject`, `Teacher` y `TeacherSubjectAssignment`. Todavía no existe frontend académico.
 
 Entidades académicas implementadas:
 
@@ -402,6 +402,207 @@ dotnet ef database update \
 
 No existe seed académico: la migración no inserta carreras, materias, docentes, ciclos ni asignaciones reales.
 
+## Endpoints del Catálogo Académico
+
+Los endpoints académicos disponibles cubren `Career`, `AcademicCycle`, `Subject`, `Teacher` y `TeacherSubjectAssignment`. Todos requieren JWT válido y autorización por permisos.
+
+Permisos requeridos:
+
+- Lectura: `academic.catalog.read`
+- Escritura: `academic.catalog.manage`
+
+### Carreras
+
+Ruta base:
+
+```text
+/api/academic/careers
+```
+
+Endpoints:
+
+- `GET /api/academic/careers?includeInactive=false`
+- `GET /api/academic/careers/{id}`
+- `POST /api/academic/careers`
+- `PUT /api/academic/careers/{id}`
+- `PATCH /api/academic/careers/{id}/activate`
+- `PATCH /api/academic/careers/{id}/deactivate`
+
+Crear carrera:
+
+```json
+{
+  "code": "tuds",
+  "name": "Tecnicatura Universitaria en Desarrollo de Software",
+  "type": "Undergraduate"
+}
+```
+
+Actualizar carrera:
+
+```json
+{
+  "name": "Tecnicatura Universitaria en Desarrollo de Software",
+  "type": "Undergraduate"
+}
+```
+
+### Ciclos Lectivos
+
+Ruta base:
+
+```text
+/api/academic/academic-cycles
+```
+
+Endpoints:
+
+- `GET /api/academic/academic-cycles?includeInactive=false`
+- `GET /api/academic/academic-cycles/{id}`
+- `POST /api/academic/academic-cycles`
+- `PUT /api/academic/academic-cycles/{id}`
+- `PATCH /api/academic/academic-cycles/{id}/activate`
+- `PATCH /api/academic/academic-cycles/{id}/deactivate`
+
+Crear ciclo lectivo:
+
+```json
+{
+  "year": 2026,
+  "period": "Annual",
+  "startDate": "2026-03-01",
+  "endDate": "2026-12-15"
+}
+```
+
+Actualizar ciclo lectivo:
+
+```json
+{
+  "period": "Annual",
+  "startDate": "2026-03-01",
+  "endDate": "2026-12-15"
+}
+```
+
+### Materias
+
+Ruta base:
+
+```text
+/api/academic/subjects
+```
+
+Endpoints:
+
+- `GET /api/academic/subjects?includeInactive=false&careerId=`
+- `GET /api/academic/subjects/{id}`
+- `POST /api/academic/subjects`
+- `PUT /api/academic/subjects/{id}`
+- `PATCH /api/academic/subjects/{id}/activate`
+- `PATCH /api/academic/subjects/{id}/deactivate`
+
+Crear materia:
+
+```json
+{
+  "careerId": "00000000-0000-0000-0000-000000000000",
+  "code": "programacion-i",
+  "name": "Programación I",
+  "year": 1,
+  "period": "FirstSemester"
+}
+```
+
+Actualizar materia:
+
+```json
+{
+  "name": "Programación I",
+  "year": 1,
+  "period": "FirstSemester"
+}
+```
+
+### Docentes
+
+Ruta base:
+
+```text
+/api/academic/teachers
+```
+
+Endpoints:
+
+- `GET /api/academic/teachers?includeInactive=false`
+- `GET /api/academic/teachers/{id}`
+- `POST /api/academic/teachers`
+- `PUT /api/academic/teachers/{id}`
+- `PATCH /api/academic/teachers/{id}/activate`
+- `PATCH /api/academic/teachers/{id}/deactivate`
+
+Crear docente:
+
+```json
+{
+  "firstName": "Juan",
+  "lastName": "Pérez",
+  "email": "juan.perez@institucion.edu.ar"
+}
+```
+
+Actualizar docente:
+
+```json
+{
+  "firstName": "Juan",
+  "lastName": "Pérez",
+  "email": "juan.perez@institucion.edu.ar"
+}
+```
+
+El email es opcional. Para quitarlo, enviar `null` o un string vacío.
+
+### Asignaciones Docente-Materia-Ciclo
+
+Ruta base:
+
+```text
+/api/academic/teacher-subject-assignments
+```
+
+Endpoints:
+
+- `GET /api/academic/teacher-subject-assignments?includeInactive=false&teacherId=&subjectId=&academicCycleId=`
+- `GET /api/academic/teacher-subject-assignments/{id}`
+- `POST /api/academic/teacher-subject-assignments`
+- `PUT /api/academic/teacher-subject-assignments/{id}`
+- `PATCH /api/academic/teacher-subject-assignments/{id}/activate`
+- `PATCH /api/academic/teacher-subject-assignments/{id}/deactivate`
+
+Crear asignación:
+
+```json
+{
+  "teacherId": "00000000-0000-0000-0000-000000000000",
+  "subjectId": "00000000-0000-0000-0000-000000000000",
+  "academicCycleId": "00000000-0000-0000-0000-000000000000",
+  "teachingRole": "Titular"
+}
+```
+
+Actualizar asignación:
+
+```json
+{
+  "teachingRole": "Adjunto"
+}
+```
+
+Los endpoints devuelven `400` para errores de validación, `404` si el recurso no existe, `409` ante conflictos de unicidad y `500` para fallos no esperados sin exponer stack traces.
+
+Todavía no existe frontend académico.
+
 Consultar información del DbContext:
 
 ```bash
@@ -420,4 +621,4 @@ npm run dev
 
 ## Estado Actual
 
-Infraestructura inicial de persistencia configurada. El núcleo persistente de identidad ya existe con `User`, `Role`, `Permission`, `UserRole` y `RolePermission`, más un catálogo inicial de cuatro roles y catorce permisos. Existe un comando explícito e idempotente para crear el primer administrador con contraseña hasheada. La API ya cuenta con login básico, emisión de JWT, endpoint protegido `/api/auth/me` y autorización por permisos. El dominio académico ya incluye carreras, materias, docentes, ciclos lectivos y asignaciones docente-materia-ciclo con persistencia EF Core. Todavía no existen endpoints académicos, frontend académico, encuestas, sesiones QR, respuestas, reportes, refresh tokens, registro público, administración de usuarios ni repositorios genéricos.
+Infraestructura inicial de persistencia configurada. El núcleo persistente de identidad ya existe con `User`, `Role`, `Permission`, `UserRole` y `RolePermission`, más un catálogo inicial de cuatro roles y catorce permisos. Existe un comando explícito e idempotente para crear el primer administrador con contraseña hasheada. La API ya cuenta con login básico, emisión de JWT, endpoint protegido `/api/auth/me` y autorización por permisos. El dominio académico ya incluye carreras, materias, docentes, ciclos lectivos y asignaciones docente-materia-ciclo con persistencia EF Core. Ya existen endpoints académicos protegidos para `Career`, `AcademicCycle`, `Subject`, `Teacher` y `TeacherSubjectAssignment`. Todavía no existe frontend académico, encuestas, sesiones QR, respuestas ni reportes.

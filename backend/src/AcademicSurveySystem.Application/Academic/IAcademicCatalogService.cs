@@ -1,0 +1,141 @@
+using AcademicSurveySystem.Application.Academic.AcademicCycles;
+using AcademicSurveySystem.Application.Academic.Careers;
+using AcademicSurveySystem.Application.Academic.Common;
+using AcademicSurveySystem.Application.Academic.Subjects;
+using AcademicSurveySystem.Application.Academic.Teachers;
+using AcademicSurveySystem.Application.Academic.TeacherSubjectAssignments;
+using AcademicSurveySystem.Application.Common.Results;
+
+namespace AcademicSurveySystem.Application.Academic;
+
+public interface IAcademicCatalogService
+{
+    Task<ApplicationResult<IReadOnlyCollection<CareerDto>>> GetCareersAsync(
+        bool includeInactive,
+        CancellationToken cancellationToken);
+
+    Task<ApplicationResult<CareerDto>> GetCareerByIdAsync(
+        Guid id,
+        CancellationToken cancellationToken);
+
+    Task<ApplicationResult<CareerDto>> CreateCareerAsync(
+        CreateCareerRequest request,
+        CancellationToken cancellationToken);
+
+    Task<ApplicationResult> UpdateCareerAsync(
+        Guid id,
+        UpdateCareerRequest request,
+        CancellationToken cancellationToken);
+
+    Task<ApplicationResult> ActivateCareerAsync(
+        Guid id,
+        CancellationToken cancellationToken);
+
+    Task<ApplicationResult> DeactivateCareerAsync(
+        Guid id,
+        CancellationToken cancellationToken);
+
+    Task<ApplicationResult<IReadOnlyCollection<AcademicCycleDto>>> GetAcademicCyclesAsync(
+        bool includeInactive,
+        CancellationToken cancellationToken);
+
+    Task<ApplicationResult<AcademicCycleDto>> GetAcademicCycleByIdAsync(
+        Guid id,
+        CancellationToken cancellationToken);
+
+    Task<ApplicationResult<AcademicCycleDto>> CreateAcademicCycleAsync(
+        CreateAcademicCycleRequest request,
+        CancellationToken cancellationToken);
+
+    Task<ApplicationResult> UpdateAcademicCycleAsync(
+        Guid id,
+        UpdateAcademicCycleRequest request,
+        CancellationToken cancellationToken);
+
+    Task<ApplicationResult> ActivateAcademicCycleAsync(
+        Guid id,
+        CancellationToken cancellationToken);
+
+    Task<ApplicationResult> DeactivateAcademicCycleAsync(
+        Guid id,
+        CancellationToken cancellationToken);
+
+    Task<ApplicationResult<IReadOnlyCollection<SubjectDto>>> GetSubjectsAsync(
+        bool includeInactive,
+        Guid? careerId,
+        CancellationToken cancellationToken);
+
+    Task<ApplicationResult<SubjectDto>> GetSubjectByIdAsync(
+        Guid id,
+        CancellationToken cancellationToken);
+
+    Task<ApplicationResult<SubjectDto>> CreateSubjectAsync(
+        CreateSubjectRequest request,
+        CancellationToken cancellationToken);
+
+    Task<ApplicationResult> UpdateSubjectAsync(
+        Guid id,
+        UpdateSubjectRequest request,
+        CancellationToken cancellationToken);
+
+    Task<ApplicationResult> ActivateSubjectAsync(
+        Guid id,
+        CancellationToken cancellationToken);
+
+    Task<ApplicationResult> DeactivateSubjectAsync(
+        Guid id,
+        CancellationToken cancellationToken);
+
+    Task<ApplicationResult<IReadOnlyCollection<TeacherDto>>> GetTeachersAsync(
+        bool includeInactive,
+        CancellationToken cancellationToken);
+
+    Task<ApplicationResult<TeacherDto>> GetTeacherByIdAsync(
+        Guid id,
+        CancellationToken cancellationToken);
+
+    Task<ApplicationResult<TeacherDto>> CreateTeacherAsync(
+        CreateTeacherRequest request,
+        CancellationToken cancellationToken);
+
+    Task<ApplicationResult> UpdateTeacherAsync(
+        Guid id,
+        UpdateTeacherRequest request,
+        CancellationToken cancellationToken);
+
+    Task<ApplicationResult> ActivateTeacherAsync(
+        Guid id,
+        CancellationToken cancellationToken);
+
+    Task<ApplicationResult> DeactivateTeacherAsync(
+        Guid id,
+        CancellationToken cancellationToken);
+
+    Task<ApplicationResult<IReadOnlyCollection<TeacherSubjectAssignmentDto>>> GetTeacherSubjectAssignmentsAsync(
+        bool includeInactive,
+        Guid? teacherId,
+        Guid? subjectId,
+        Guid? academicCycleId,
+        CancellationToken cancellationToken);
+
+    Task<ApplicationResult<TeacherSubjectAssignmentDto>> GetTeacherSubjectAssignmentByIdAsync(
+        Guid id,
+        CancellationToken cancellationToken);
+
+    Task<ApplicationResult<TeacherSubjectAssignmentDto>> CreateTeacherSubjectAssignmentAsync(
+        CreateTeacherSubjectAssignmentRequest request,
+        CancellationToken cancellationToken);
+
+    Task<ApplicationResult> UpdateTeacherSubjectAssignmentAsync(
+        Guid id,
+        UpdateTeacherSubjectAssignmentRequest request,
+        CancellationToken cancellationToken);
+
+    Task<ApplicationResult> ActivateTeacherSubjectAssignmentAsync(
+        Guid id,
+        CancellationToken cancellationToken);
+
+    Task<ApplicationResult> DeactivateTeacherSubjectAssignmentAsync(
+        Guid id,
+        CancellationToken cancellationToken);
+}

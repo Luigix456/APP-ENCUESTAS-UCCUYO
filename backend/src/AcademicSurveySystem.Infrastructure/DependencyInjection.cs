@@ -1,7 +1,9 @@
+using AcademicSurveySystem.Application.Academic;
 using AcademicSurveySystem.Application.Common.Security;
 using AcademicSurveySystem.Application.Common.Authentication;
 using AcademicSurveySystem.Application.Identity.Authentication;
 using AcademicSurveySystem.Application.Identity.InitialAdministrator;
+using AcademicSurveySystem.Infrastructure.Academic;
 using AcademicSurveySystem.Infrastructure.Authentication;
 using AcademicSurveySystem.Infrastructure.Identity;
 using AcademicSurveySystem.Infrastructure.Identity.Authentication;
@@ -93,6 +95,7 @@ public static class DependencyInjection
         services.AddSingleton<IJwtTokenGenerator, JwtTokenGenerator>();
         services.AddScoped<IAuthenticationUserStore, EfAuthenticationUserStore>();
         services.AddScoped<IAuthenticationService, AuthenticationService>();
+        services.AddScoped<IAcademicCatalogService, AcademicCatalogService>();
         services.AddScoped<IInitialAdministratorStore, EfInitialAdministratorStore>();
         services.AddScoped<IInitialAdministratorBootstrapper, InitialAdministratorBootstrapper>();
 
