@@ -3,6 +3,13 @@ using AcademicSurveySystem.Domain.Academic.Enums;
 
 namespace AcademicSurveySystem.Application.Academic.AcademicCycles;
 
+/// <summary>
+/// Datos para crear un ciclo lectivo.
+/// </summary>
+/// <param name="Year">Año del ciclo lectivo.</param>
+/// <param name="Period">Período académico del ciclo.</param>
+/// <param name="StartDate">Fecha de inicio del ciclo.</param>
+/// <param name="EndDate">Fecha de finalización del ciclo.</param>
 public sealed record CreateAcademicCycleRequest(
     int? Year,
     string? Period,

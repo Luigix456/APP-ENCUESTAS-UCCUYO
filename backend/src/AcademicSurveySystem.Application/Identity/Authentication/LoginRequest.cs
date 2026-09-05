@@ -2,6 +2,11 @@ using System.Net.Mail;
 
 namespace AcademicSurveySystem.Application.Identity.Authentication;
 
+/// <summary>
+/// Credenciales usadas para solicitar un token JWT.
+/// </summary>
+/// <param name="Email">Email del usuario interno.</param>
+/// <param name="Password">Contraseña del usuario interno.</param>
 public sealed record LoginRequest(string Email, string Password)
 {
     public IReadOnlyCollection<string> Validate()

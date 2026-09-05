@@ -7,6 +7,9 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace AcademicSurveySystem.Api.Controllers;
 
+/// <summary>
+/// Endpoints de autenticación JWT y consulta del usuario actual.
+/// </summary>
 [ApiController]
 [Route("api/auth")]
 public sealed class AuthController : ControllerBase
@@ -21,8 +24,16 @@ public sealed class AuthController : ControllerBase
         _authenticationService = authenticationService;
     }
 
+    /// <summary>
+    /// Inicia sesión y emite un token JWT.
+    /// </summary>
     [HttpPost("login")]
     [AllowAnonymous]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> Login(
         LoginRequest? request,
         CancellationToken cancellationToken)
@@ -69,8 +80,14 @@ public sealed class AuthController : ControllerBase
         };
     }
 
+    /// <summary>
+    /// Devuelve los datos del usuario autenticado desde el token JWT.
+    /// </summary>
+    /// <remarks>Requiere JWT Bearer válido.</remarks>
     [HttpGet("me")]
     [Authorize]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public IActionResult Me()
     {
         var userIdValue = User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value

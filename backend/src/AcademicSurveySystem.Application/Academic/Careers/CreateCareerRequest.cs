@@ -3,6 +3,12 @@ using AcademicSurveySystem.Domain.Academic.Enums;
 
 namespace AcademicSurveySystem.Application.Academic.Careers;
 
+/// <summary>
+/// Datos para crear una carrera, curso o trayecto académico.
+/// </summary>
+/// <param name="Code">Código único de la carrera.</param>
+/// <param name="Name">Nombre visible de la carrera.</param>
+/// <param name="Type">Tipo de carrera.</param>
 public sealed record CreateCareerRequest(
     string? Code,
     string? Name,

@@ -3,6 +3,12 @@ using AcademicSurveySystem.Application.Common.Results;
 
 namespace AcademicSurveySystem.Application.Academic.Teachers;
 
+/// <summary>
+/// Datos para actualizar un docente.
+/// </summary>
+/// <param name="FirstName">Nombre del docente.</param>
+/// <param name="LastName">Apellido del docente.</param>
+/// <param name="Email">Email institucional opcional.</param>
 public sealed record UpdateTeacherRequest(
     string? FirstName,
     string? LastName,

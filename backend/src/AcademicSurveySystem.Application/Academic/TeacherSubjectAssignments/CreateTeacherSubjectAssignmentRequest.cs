@@ -2,6 +2,13 @@ using AcademicSurveySystem.Application.Common.Results;
 
 namespace AcademicSurveySystem.Application.Academic.TeacherSubjectAssignments;
 
+/// <summary>
+/// Datos para crear una asignación docente-materia-ciclo.
+/// </summary>
+/// <param name="TeacherId">Identificador del docente.</param>
+/// <param name="SubjectId">Identificador de la materia.</param>
+/// <param name="AcademicCycleId">Identificador del ciclo lectivo.</param>
+/// <param name="TeachingRole">Rol docente dentro de la asignación.</param>
 public sealed record CreateTeacherSubjectAssignmentRequest(
     Guid? TeacherId,
     Guid? SubjectId,

@@ -791,6 +791,264 @@ namespace AcademicSurveySystem.Infrastructure.Persistence.Migrations
                     b.ToTable("user_roles", (string)null);
                 });
 
+            modelBuilder.Entity("AcademicSurveySystem.Domain.Surveys.Entities.Survey", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("description");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<bool>("IsAnonymous")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_anonymous");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("Target")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("target");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("title");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at_utc");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.ToTable("surveys", (string)null);
+                });
+
+            modelBuilder.Entity("AcademicSurveySystem.Domain.Surveys.Entities.SurveyMatrixRow", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<int>("Order")
+                        .HasColumnType("integer")
+                        .HasColumnName("order");
+
+                    b.Property<Guid>("SurveyQuestionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("survey_question_id");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("text");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at_utc");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SurveyQuestionId");
+
+                    b.HasIndex("SurveyQuestionId", "Order")
+                        .IsUnique();
+
+                    b.ToTable("survey_matrix_rows", (string)null);
+                });
+
+            modelBuilder.Entity("AcademicSurveySystem.Domain.Surveys.Entities.SurveyQuestion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<bool>("AllowsComment")
+                        .HasColumnType("boolean")
+                        .HasColumnName("allows_comment");
+
+                    b.Property<bool>("AllowsOtherOption")
+                        .HasColumnType("boolean")
+                        .HasColumnName("allows_other_option");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<bool>("IsRequired")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_required");
+
+                    b.Property<int>("Order")
+                        .HasColumnType("integer")
+                        .HasColumnName("order");
+
+                    b.Property<Guid>("SurveySectionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("survey_section_id");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("text");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("type");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at_utc");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SurveySectionId");
+
+                    b.HasIndex("SurveySectionId", "Order")
+                        .IsUnique();
+
+                    b.ToTable("survey_questions", (string)null);
+                });
+
+            modelBuilder.Entity("AcademicSurveySystem.Domain.Surveys.Entities.SurveyQuestionOption", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<int>("Order")
+                        .HasColumnType("integer")
+                        .HasColumnName("order");
+
+                    b.Property<Guid>("SurveyQuestionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("survey_question_id");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("text");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at_utc");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("value");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SurveyQuestionId");
+
+                    b.HasIndex("SurveyQuestionId", "Order")
+                        .IsUnique();
+
+                    b.ToTable("survey_question_options", (string)null);
+                });
+
+            modelBuilder.Entity("AcademicSurveySystem.Domain.Surveys.Entities.SurveySection", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("description");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<int>("Order")
+                        .HasColumnType("integer")
+                        .HasColumnName("order");
+
+                    b.Property<Guid>("SurveyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("survey_id");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("title");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at_utc");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SurveyId");
+
+                    b.HasIndex("SurveyId", "Order")
+                        .IsUnique();
+
+                    b.ToTable("survey_sections", (string)null);
+                });
+
             modelBuilder.Entity("AcademicSurveySystem.Domain.Academic.Entities.Subject", b =>
                 {
                     b.HasOne("AcademicSurveySystem.Domain.Academic.Entities.Career", "Career")
@@ -867,6 +1125,59 @@ namespace AcademicSurveySystem.Infrastructure.Persistence.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("AcademicSurveySystem.Domain.Surveys.Entities.Survey", b =>
+                {
+                    b.HasOne("AcademicSurveySystem.Domain.Identity.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AcademicSurveySystem.Domain.Surveys.Entities.SurveyMatrixRow", b =>
+                {
+                    b.HasOne("AcademicSurveySystem.Domain.Surveys.Entities.SurveyQuestion", "SurveyQuestion")
+                        .WithMany("MatrixRows")
+                        .HasForeignKey("SurveyQuestionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("SurveyQuestion");
+                });
+
+            modelBuilder.Entity("AcademicSurveySystem.Domain.Surveys.Entities.SurveyQuestion", b =>
+                {
+                    b.HasOne("AcademicSurveySystem.Domain.Surveys.Entities.SurveySection", "SurveySection")
+                        .WithMany("Questions")
+                        .HasForeignKey("SurveySectionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("SurveySection");
+                });
+
+            modelBuilder.Entity("AcademicSurveySystem.Domain.Surveys.Entities.SurveyQuestionOption", b =>
+                {
+                    b.HasOne("AcademicSurveySystem.Domain.Surveys.Entities.SurveyQuestion", "SurveyQuestion")
+                        .WithMany("Options")
+                        .HasForeignKey("SurveyQuestionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("SurveyQuestion");
+                });
+
+            modelBuilder.Entity("AcademicSurveySystem.Domain.Surveys.Entities.SurveySection", b =>
+                {
+                    b.HasOne("AcademicSurveySystem.Domain.Surveys.Entities.Survey", "Survey")
+                        .WithMany("Sections")
+                        .HasForeignKey("SurveyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Survey");
+                });
+
             modelBuilder.Entity("AcademicSurveySystem.Domain.Academic.Entities.AcademicCycle", b =>
                 {
                     b.Navigation("TeacherSubjectAssignments");
@@ -902,6 +1213,23 @@ namespace AcademicSurveySystem.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("AcademicSurveySystem.Domain.Identity.Entities.User", b =>
                 {
                     b.Navigation("UserRoles");
+                });
+
+            modelBuilder.Entity("AcademicSurveySystem.Domain.Surveys.Entities.Survey", b =>
+                {
+                    b.Navigation("Sections");
+                });
+
+            modelBuilder.Entity("AcademicSurveySystem.Domain.Surveys.Entities.SurveyQuestion", b =>
+                {
+                    b.Navigation("MatrixRows");
+
+                    b.Navigation("Options");
+                });
+
+            modelBuilder.Entity("AcademicSurveySystem.Domain.Surveys.Entities.SurveySection", b =>
+                {
+                    b.Navigation("Questions");
                 });
 #pragma warning restore 612, 618
         }

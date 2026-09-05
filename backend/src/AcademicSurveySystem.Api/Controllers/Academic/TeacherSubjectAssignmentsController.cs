@@ -6,6 +6,9 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace AcademicSurveySystem.Api.Controllers.Academic;
 
+/// <summary>
+/// Administra asignaciones docente-materia-ciclo.
+/// </summary>
 [ApiController]
 [Route("api/academic/teacher-subject-assignments")]
 public sealed class TeacherSubjectAssignmentsController : ControllerBase
@@ -20,8 +23,16 @@ public sealed class TeacherSubjectAssignmentsController : ControllerBase
         _academicCatalogService = academicCatalogService;
     }
 
+    /// <summary>
+    /// Lista asignaciones docente-materia-ciclo.
+    /// </summary>
+    /// <remarks>Requiere permiso de lectura: academic.catalog.read.</remarks>
     [HttpGet]
     [RequirePermission(ReadPermission)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> GetAll(
         [FromQuery] bool includeInactive = false,
         [FromQuery] Guid? teacherId = null,
@@ -39,8 +50,17 @@ public sealed class TeacherSubjectAssignmentsController : ControllerBase
         return ToActionResult(result);
     }
 
+    /// <summary>
+    /// Obtiene una asignación docente-materia-ciclo por identificador.
+    /// </summary>
+    /// <remarks>Requiere permiso de lectura: academic.catalog.read.</remarks>
     [HttpGet("{id:guid}")]
     [RequirePermission(ReadPermission)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> GetById(
         Guid id,
         CancellationToken cancellationToken)
@@ -50,8 +70,18 @@ public sealed class TeacherSubjectAssignmentsController : ControllerBase
         return ToActionResult(result);
     }
 
+    /// <summary>
+    /// Crea una asignación docente-materia-ciclo.
+    /// </summary>
+    /// <remarks>Requiere permiso de escritura: academic.catalog.manage.</remarks>
     [HttpPost]
     [RequirePermission(ManagePermission)]
+    [ProducesResponseType(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> Create(
         CreateTeacherSubjectAssignmentRequest? request,
         CancellationToken cancellationToken)
@@ -76,8 +106,19 @@ public sealed class TeacherSubjectAssignmentsController : ControllerBase
         return ToActionResult(result);
     }
 
+    /// <summary>
+    /// Actualiza una asignación docente-materia-ciclo.
+    /// </summary>
+    /// <remarks>Requiere permiso de escritura: academic.catalog.manage.</remarks>
     [HttpPut("{id:guid}")]
     [RequirePermission(ManagePermission)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> Update(
         Guid id,
         UpdateTeacherSubjectAssignmentRequest? request,
@@ -98,8 +139,17 @@ public sealed class TeacherSubjectAssignmentsController : ControllerBase
         return ToActionResult(result);
     }
 
+    /// <summary>
+    /// Activa una asignación docente-materia-ciclo.
+    /// </summary>
+    /// <remarks>Requiere permiso de escritura: academic.catalog.manage.</remarks>
     [HttpPatch("{id:guid}/activate")]
     [RequirePermission(ManagePermission)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> Activate(
         Guid id,
         CancellationToken cancellationToken)
@@ -109,8 +159,17 @@ public sealed class TeacherSubjectAssignmentsController : ControllerBase
         return ToActionResult(result);
     }
 
+    /// <summary>
+    /// Desactiva una asignación docente-materia-ciclo.
+    /// </summary>
+    /// <remarks>Requiere permiso de escritura: academic.catalog.manage.</remarks>
     [HttpPatch("{id:guid}/deactivate")]
     [RequirePermission(ManagePermission)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> Deactivate(
         Guid id,
         CancellationToken cancellationToken)

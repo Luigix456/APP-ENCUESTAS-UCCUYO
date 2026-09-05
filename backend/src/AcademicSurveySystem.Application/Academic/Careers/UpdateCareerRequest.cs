@@ -3,6 +3,11 @@ using AcademicSurveySystem.Domain.Academic.Enums;
 
 namespace AcademicSurveySystem.Application.Academic.Careers;
 
+/// <summary>
+/// Datos para actualizar una carrera, curso o trayecto académico.
+/// </summary>
+/// <param name="Name">Nombre visible de la carrera.</param>
+/// <param name="Type">Tipo de carrera.</param>
 public sealed record UpdateCareerRequest(
     string? Name,
     string? Type)

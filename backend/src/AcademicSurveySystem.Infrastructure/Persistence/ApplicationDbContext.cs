@@ -1,5 +1,6 @@
 using AcademicSurveySystem.Domain.Academic.Entities;
 using AcademicSurveySystem.Domain.Identity.Entities;
+using AcademicSurveySystem.Domain.Surveys.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace AcademicSurveySystem.Infrastructure.Persistence;
@@ -22,6 +23,11 @@ public sealed class ApplicationDbContext : DbContext
     public DbSet<AcademicCycle> AcademicCycles => Set<AcademicCycle>();
     public DbSet<TeacherSubjectAssignment> TeacherSubjectAssignments =>
         Set<TeacherSubjectAssignment>();
+    public DbSet<Survey> Surveys => Set<Survey>();
+    public DbSet<SurveySection> SurveySections => Set<SurveySection>();
+    public DbSet<SurveyQuestion> SurveyQuestions => Set<SurveyQuestion>();
+    public DbSet<SurveyQuestionOption> SurveyQuestionOptions => Set<SurveyQuestionOption>();
+    public DbSet<SurveyMatrixRow> SurveyMatrixRows => Set<SurveyMatrixRow>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

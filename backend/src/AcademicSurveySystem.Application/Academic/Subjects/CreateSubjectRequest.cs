@@ -3,6 +3,14 @@ using AcademicSurveySystem.Domain.Academic.Enums;
 
 namespace AcademicSurveySystem.Application.Academic.Subjects;
 
+/// <summary>
+/// Datos para crear una materia.
+/// </summary>
+/// <param name="CareerId">Identificador de la carrera a la que pertenece.</param>
+/// <param name="Code">Código único de la materia dentro de la carrera.</param>
+/// <param name="Name">Nombre visible de la materia.</param>
+/// <param name="Year">Año académico al que pertenece.</param>
+/// <param name="Period">Período académico de dictado.</param>
 public sealed record CreateSubjectRequest(
     Guid? CareerId,
     string? Code,

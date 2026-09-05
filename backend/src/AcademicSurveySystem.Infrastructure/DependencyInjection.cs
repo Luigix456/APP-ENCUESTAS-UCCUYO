@@ -3,12 +3,14 @@ using AcademicSurveySystem.Application.Common.Security;
 using AcademicSurveySystem.Application.Common.Authentication;
 using AcademicSurveySystem.Application.Identity.Authentication;
 using AcademicSurveySystem.Application.Identity.InitialAdministrator;
+using AcademicSurveySystem.Application.Surveys;
 using AcademicSurveySystem.Infrastructure.Academic;
 using AcademicSurveySystem.Infrastructure.Authentication;
 using AcademicSurveySystem.Infrastructure.Identity;
 using AcademicSurveySystem.Infrastructure.Identity.Authentication;
 using AcademicSurveySystem.Infrastructure.Persistence;
 using AcademicSurveySystem.Infrastructure.Security;
+using AcademicSurveySystem.Infrastructure.Surveys;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -96,6 +98,7 @@ public static class DependencyInjection
         services.AddScoped<IAuthenticationUserStore, EfAuthenticationUserStore>();
         services.AddScoped<IAuthenticationService, AuthenticationService>();
         services.AddScoped<IAcademicCatalogService, AcademicCatalogService>();
+        services.AddScoped<ISurveyTemplateService, SurveyTemplateService>();
         services.AddScoped<IInitialAdministratorStore, EfInitialAdministratorStore>();
         services.AddScoped<IInitialAdministratorBootstrapper, InitialAdministratorBootstrapper>();
 

@@ -3,6 +3,12 @@ using AcademicSurveySystem.Domain.Academic.Enums;
 
 namespace AcademicSurveySystem.Application.Academic.AcademicCycles;
 
+/// <summary>
+/// Datos para actualizar un ciclo lectivo.
+/// </summary>
+/// <param name="Period">Período académico del ciclo.</param>
+/// <param name="StartDate">Fecha de inicio del ciclo.</param>
+/// <param name="EndDate">Fecha de finalización del ciclo.</param>
 public sealed record UpdateAcademicCycleRequest(
     string? Period,
     DateOnly? StartDate,

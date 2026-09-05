@@ -3,6 +3,12 @@ using AcademicSurveySystem.Domain.Academic.Enums;
 
 namespace AcademicSurveySystem.Application.Academic.Subjects;
 
+/// <summary>
+/// Datos para actualizar una materia.
+/// </summary>
+/// <param name="Name">Nombre visible de la materia.</param>
+/// <param name="Year">Año académico al que pertenece.</param>
+/// <param name="Period">Período académico de dictado.</param>
 public sealed record UpdateSubjectRequest(
     string? Name,
     int? Year,

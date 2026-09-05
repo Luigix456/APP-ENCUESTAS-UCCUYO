@@ -361,6 +361,25 @@ La autorización futura se realizará por permisos mediante claims `permission`,
 
 Todavía no existen refresh tokens, recuperación de contraseña, cambio de contraseña, registro público ni frontend de login.
 
+## Documentación Swagger/OpenAPI
+
+Swagger está habilitado para desarrollo y pruebas en el entorno `Development`.
+
+URL local esperada:
+
+```text
+/swagger
+```
+
+Para probar endpoints protegidos desde Swagger:
+
+1. Ejecutar `POST /api/auth/login`.
+2. Copiar el valor `accessToken` de la respuesta.
+3. Usar el botón `Authorize` en Swagger.
+4. Escribir el token con el formato `Bearer TOKEN_JWT`.
+
+No se deben pegar tokens reales, credenciales ni secretos en documentación, commits, issues o capturas compartidas. Swagger está orientado a validación local y pruebas de desarrollo.
+
 ## Catálogo Académico
 
 El backend incluye el núcleo de dominio y persistencia del catálogo académico. Ya existen endpoints protegidos, controladores y DTOs para `Career`, `AcademicCycle`, `Subject`, `Teacher` y `TeacherSubjectAssignment`. Todavía no existe frontend académico.
@@ -611,6 +630,97 @@ dotnet ef dbcontext info \
   --startup-project src/AcademicSurveySystem.Api
 ```
 
+## Encuestas Dinámicas
+
+El backend incluye el núcleo de dominio y persistencia para encuestas dinámicas. Ya existen endpoints protegidos, controladores, DTOs y servicios de aplicación para administrar plantillas de encuestas, sus secciones, preguntas, opciones y filas de matriz. Todavía no existen asignaciones de encuestas, sesiones QR, respuestas públicas ni resultados de encuestas.
+
+Entidades implementadas:
+
+- `Survey`: plantilla principal de encuesta.
+- `SurveySection`: sección ordenada dentro de una encuesta.
+- `SurveyQuestion`: pregunta dinámica dentro de una sección.
+- `SurveyQuestionOption`: opción manual para preguntas de selección.
+- `SurveyMatrixRow`: fila para preguntas de matriz.
+
+Enumeraciones implementadas:
+
+- `SurveyStatus`: `Draft`, `Published`, `Archived`.
+- `SurveyTarget`: `Student`, `Teacher`, `Institutional`.
+- `SurveyQuestionType`: `SingleChoice`, `MultipleChoice`, `ShortText`, `LongText`, `RatingScale`, `MatrixSingleChoice`.
+
+Tablas creadas por la migración `AddSurveyCore`:
+
+- `surveys`
+- `survey_sections`
+- `survey_questions`
+- `survey_question_options`
+- `survey_matrix_rows`
+
+Crear la migración del núcleo de encuestas:
+
+```bash
+dotnet ef migrations add AddSurveyCore \
+  --project src/AcademicSurveySystem.Infrastructure \
+  --startup-project src/AcademicSurveySystem.Api \
+  --output-dir Persistence/Migrations
+```
+
+La migración no inserta seed de encuestas y no crea sesiones QR, respuestas ni reportes.
+
+## Endpoints de Plantillas de Encuestas
+
+Ruta base:
+
+```text
+/api/surveys
+```
+
+Todos los endpoints requieren JWT válido y autorización por permisos.
+
+Permisos requeridos:
+
+- Lectura: `surveys.templates.read`
+- Escritura: `surveys.templates.manage`
+
+Endpoints de encuesta:
+
+- `GET /api/surveys?includeInactive=false&status=&target=`
+- `GET /api/surveys/{id}`
+- `POST /api/surveys`
+- `PUT /api/surveys/{id}`
+- `PATCH /api/surveys/{id}/publish`
+- `PATCH /api/surveys/{id}/archive`
+- `PATCH /api/surveys/{id}/activate`
+- `PATCH /api/surveys/{id}/deactivate`
+
+Endpoints de secciones:
+
+- `POST /api/surveys/{surveyId}/sections`
+- `PUT /api/surveys/{surveyId}/sections/{sectionId}`
+- `PATCH /api/surveys/{surveyId}/sections/{sectionId}/activate`
+- `PATCH /api/surveys/{surveyId}/sections/{sectionId}/deactivate`
+
+Endpoints de preguntas:
+
+- `POST /api/surveys/{surveyId}/sections/{sectionId}/questions`
+- `PUT /api/surveys/{surveyId}/sections/{sectionId}/questions/{questionId}`
+- `PATCH /api/surveys/{surveyId}/sections/{sectionId}/questions/{questionId}/activate`
+- `PATCH /api/surveys/{surveyId}/sections/{sectionId}/questions/{questionId}/deactivate`
+
+Endpoints de opciones:
+
+- `POST /api/surveys/{surveyId}/sections/{sectionId}/questions/{questionId}/options`
+- `PATCH /api/surveys/{surveyId}/sections/{sectionId}/questions/{questionId}/options/{optionId}/activate`
+- `PATCH /api/surveys/{surveyId}/sections/{sectionId}/questions/{questionId}/options/{optionId}/deactivate`
+
+Endpoints de filas de matriz:
+
+- `POST /api/surveys/{surveyId}/sections/{sectionId}/questions/{questionId}/matrix-rows`
+- `PATCH /api/surveys/{surveyId}/sections/{sectionId}/questions/{questionId}/matrix-rows/{rowId}/activate`
+- `PATCH /api/surveys/{surveyId}/sections/{sectionId}/questions/{questionId}/matrix-rows/{rowId}/deactivate`
+
+La publicación valida que la encuesta no esté archivada, tenga al menos una sección activa, que cada sección activa tenga al menos una pregunta activa y que las preguntas de selección o matriz tengan las opciones y filas activas mínimas requeridas.
+
 ## Ejecutar Frontend
 
 ```bash
@@ -621,4 +731,4 @@ npm run dev
 
 ## Estado Actual
 
-Infraestructura inicial de persistencia configurada. El núcleo persistente de identidad ya existe con `User`, `Role`, `Permission`, `UserRole` y `RolePermission`, más un catálogo inicial de cuatro roles y catorce permisos. Existe un comando explícito e idempotente para crear el primer administrador con contraseña hasheada. La API ya cuenta con login básico, emisión de JWT, endpoint protegido `/api/auth/me` y autorización por permisos. El dominio académico ya incluye carreras, materias, docentes, ciclos lectivos y asignaciones docente-materia-ciclo con persistencia EF Core. Ya existen endpoints académicos protegidos para `Career`, `AcademicCycle`, `Subject`, `Teacher` y `TeacherSubjectAssignment`. Todavía no existe frontend académico, encuestas, sesiones QR, respuestas ni reportes.
+Infraestructura inicial de persistencia configurada. El núcleo persistente de identidad ya existe con `User`, `Role`, `Permission`, `UserRole` y `RolePermission`, más un catálogo inicial de cuatro roles y catorce permisos. Existe un comando explícito e idempotente para crear el primer administrador con contraseña hasheada. La API ya cuenta con login básico, emisión de JWT, endpoint protegido `/api/auth/me` y autorización por permisos. El dominio académico ya incluye carreras, materias, docentes, ciclos lectivos y asignaciones docente-materia-ciclo con persistencia EF Core. Ya existen endpoints académicos protegidos para `Career`, `AcademicCycle`, `Subject`, `Teacher` y `TeacherSubjectAssignment`. También existen endpoints protegidos para administrar plantillas de encuestas dinámicas. Todavía no existe frontend académico, asignación de encuestas, sesiones QR, respuestas públicas ni reportes.

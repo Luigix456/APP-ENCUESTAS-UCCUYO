@@ -1,7 +1,9 @@
-using System.Text.Json;
 using System.IdentityModel.Tokens.Jwt;
+using System.Reflection;
 using System.Text;
+using System.Text.Json;
 using AcademicSurveySystem.Api.Authorization;
+using AcademicSurveySystem.Api.OpenApi;
 using AcademicSurveySystem.Application.Identity.InitialAdministrator;
 using AcademicSurveySystem.Infrastructure;
 using AcademicSurveySystem.Infrastructure.Authentication;
@@ -9,6 +11,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
 
 var bootstrapAdmin = args.Contains("--bootstrap-admin", StringComparer.Ordinal);
 
@@ -20,7 +23,57 @@ builder.Logging.AddDebug();
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.SwaggerDoc("v1", new OpenApiInfo
+    {
+        Title = "Sistema Web de Gestión de Encuestas Académicas API",
+        Version = "v1",
+        Description = "API para autenticación, catálogo académico y gestión de plantillas de encuestas académicas."
+    });
+
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        In = ParameterLocation.Header,
+        Type = SecuritySchemeType.ApiKey,
+        Scheme = "Bearer",
+        BearerFormat = "JWT",
+        Description = "Escriba el token JWT con el formato: Bearer TOKEN_JWT"
+    });
+
+    options.OperationFilter<AuthorizeOperationFilter>();
+    options.DocumentFilter<HealthCheckDocumentFilter>();
+    options.TagActionsBy(apiDescription =>
+    {
+        var path = apiDescription.RelativePath ?? string.Empty;
+
+        if (path.StartsWith("api/auth", StringComparison.OrdinalIgnoreCase))
+        {
+            return ["Auth"];
+        }
+
+        if (path.StartsWith("api/academic", StringComparison.OrdinalIgnoreCase))
+        {
+            return ["Academic Catalog"];
+        }
+
+        if (path.StartsWith("api/surveys", StringComparison.OrdinalIgnoreCase))
+        {
+            return ["Survey Templates"];
+        }
+
+        if (path.StartsWith("api/health", StringComparison.OrdinalIgnoreCase))
+        {
+            return ["Health"];
+        }
+
+        return [apiDescription.ActionDescriptor.RouteValues["controller"] ?? "General"];
+    });
+
+    IncludeXmlCommentsIfPresent(options, Assembly.GetExecutingAssembly().GetName().Name);
+    IncludeXmlCommentsIfPresent(options, "AcademicSurveySystem.Application");
+});
 builder.Services.AddInfrastructure(builder.Configuration, requireJwtOptions: !bootstrapAdmin);
 
 if (!bootstrapAdmin)
@@ -59,7 +112,10 @@ var app = builder.Build();
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseSwaggerUI(options =>
+    {
+        options.SwaggerEndpoint("/swagger/v1/swagger.json", "Sistema Web de Gestión de Encuestas Académicas API v1");
+    });
 }
 
 app.UseHttpsRedirection();
@@ -132,6 +188,23 @@ static JwtOptions GetJwtOptions(IConfiguration configuration)
     jwtOptions.Validate();
 
     return jwtOptions;
+}
+
+static void IncludeXmlCommentsIfPresent(
+    Swashbuckle.AspNetCore.SwaggerGen.SwaggerGenOptions options,
+    string? assemblyName)
+{
+    if (string.IsNullOrWhiteSpace(assemblyName))
+    {
+        return;
+    }
+
+    var xmlPath = Path.Combine(AppContext.BaseDirectory, $"{assemblyName}.xml");
+
+    if (File.Exists(xmlPath))
+    {
+        options.IncludeXmlComments(xmlPath);
+    }
 }
 
 public partial class Program

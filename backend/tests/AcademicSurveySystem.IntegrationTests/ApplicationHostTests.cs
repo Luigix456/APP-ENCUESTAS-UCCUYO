@@ -2,6 +2,7 @@ using AcademicSurveySystem.Application.Academic;
 using AcademicSurveySystem.Application.Common.Security;
 using AcademicSurveySystem.Application.Identity.Authentication;
 using AcademicSurveySystem.Application.Identity.InitialAdministrator;
+using AcademicSurveySystem.Application.Surveys;
 using AcademicSurveySystem.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -81,6 +82,17 @@ public sealed class ApplicationStartupTests
         var academicCatalogService = scope.ServiceProvider.GetRequiredService<IAcademicCatalogService>();
 
         Assert.NotNull(academicCatalogService);
+    }
+
+    [Fact]
+    public void ApiHost_ResolvesSurveyTemplateService()
+    {
+        using var factory = CreateFactory();
+        using var scope = factory.Services.CreateScope();
+
+        var surveyTemplateService = scope.ServiceProvider.GetRequiredService<ISurveyTemplateService>();
+
+        Assert.NotNull(surveyTemplateService);
     }
 
     [Fact]
@@ -204,6 +216,17 @@ public sealed class ApplicationStartupTests
         using var client = factory.CreateClient();
 
         var response = await client.GetAsync("/api/academic/teacher-subject-assignments");
+
+        Assert.Equal(System.Net.HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Surveys_WithoutToken_ReturnsUnauthorized()
+    {
+        using var factory = CreateFactory();
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/surveys");
 
         Assert.Equal(System.Net.HttpStatusCode.Unauthorized, response.StatusCode);
     }
