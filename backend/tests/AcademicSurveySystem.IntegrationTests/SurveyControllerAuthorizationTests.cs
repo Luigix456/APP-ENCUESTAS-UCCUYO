@@ -19,6 +19,17 @@ public sealed class SurveyControllerAuthorizationTests
     }
 
     [Theory]
+    [InlineData(nameof(SurveyAssignmentsController.GetAll))]
+    [InlineData(nameof(SurveyAssignmentsController.GetById))]
+    public void SurveyAssignmentReadActions_RequireSurveyTemplateReadPermission(string actionName)
+    {
+        AssertActionRequiresPermission(
+            typeof(SurveyAssignmentsController),
+            actionName,
+            "surveys.templates.read");
+    }
+
+    [Theory]
     [InlineData(nameof(SurveysController.Create))]
     [InlineData(nameof(SurveysController.Update))]
     [InlineData(nameof(SurveysController.Publish))]
@@ -47,6 +58,18 @@ public sealed class SurveyControllerAuthorizationTests
             "surveys.templates.manage");
     }
 
+    [Theory]
+    [InlineData(nameof(SurveyAssignmentsController.Create))]
+    [InlineData(nameof(SurveyAssignmentsController.Activate))]
+    [InlineData(nameof(SurveyAssignmentsController.Deactivate))]
+    public void SurveyAssignmentWriteActions_RequireSurveyTemplateManagePermission(string actionName)
+    {
+        AssertActionRequiresPermission(
+            typeof(SurveyAssignmentsController),
+            actionName,
+            "surveys.templates.manage");
+    }
+
     [Fact]
     public void SurveysController_HasExpectedRoute()
     {
@@ -59,9 +82,31 @@ public sealed class SurveyControllerAuthorizationTests
     }
 
     [Fact]
+    public void SurveyAssignmentsController_HasExpectedRoute()
+    {
+        var route = typeof(SurveyAssignmentsController)
+            .GetCustomAttributes(typeof(RouteAttribute), inherit: false)
+            .Cast<RouteAttribute>()
+            .Single();
+
+        Assert.Equal("api/survey-assignments", route.Template);
+    }
+
+    [Fact]
     public void SurveysController_RequiresAuthorization()
     {
         var authorizeAttribute = typeof(SurveysController)
+            .GetCustomAttributes(typeof(AuthorizeAttribute), inherit: false)
+            .Cast<AuthorizeAttribute>()
+            .Single();
+
+        Assert.Null(authorizeAttribute.Policy);
+    }
+
+    [Fact]
+    public void SurveyAssignmentsController_RequiresAuthorization()
+    {
+        var authorizeAttribute = typeof(SurveyAssignmentsController)
             .GetCustomAttributes(typeof(AuthorizeAttribute), inherit: false)
             .Cast<AuthorizeAttribute>()
             .Single();

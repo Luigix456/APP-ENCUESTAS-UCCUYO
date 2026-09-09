@@ -28,6 +28,7 @@ public sealed class ApplicationDbContext : DbContext
     public DbSet<SurveyQuestion> SurveyQuestions => Set<SurveyQuestion>();
     public DbSet<SurveyQuestionOption> SurveyQuestionOptions => Set<SurveyQuestionOption>();
     public DbSet<SurveyMatrixRow> SurveyMatrixRows => Set<SurveyMatrixRow>();
+    public DbSet<SurveyAssignment> SurveyAssignments => Set<SurveyAssignment>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

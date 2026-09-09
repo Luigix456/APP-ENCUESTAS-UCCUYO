@@ -20,6 +20,7 @@ public sealed class SurveyModelConfigurationTests
         Assert.NotNull(context.Model.FindEntityType(typeof(SurveyQuestion)));
         Assert.NotNull(context.Model.FindEntityType(typeof(SurveyQuestionOption)));
         Assert.NotNull(context.Model.FindEntityType(typeof(SurveyMatrixRow)));
+        Assert.NotNull(context.Model.FindEntityType(typeof(SurveyAssignment)));
     }
 
     [Fact]
@@ -32,6 +33,7 @@ public sealed class SurveyModelConfigurationTests
         Assert.Equal("survey_questions", GetEntity<SurveyQuestion>(context).GetTableName());
         Assert.Equal("survey_question_options", GetEntity<SurveyQuestionOption>(context).GetTableName());
         Assert.Equal("survey_matrix_rows", GetEntity<SurveyMatrixRow>(context).GetTableName());
+        Assert.Equal("survey_assignments", GetEntity<SurveyAssignment>(context).GetTableName());
     }
 
     [Fact]
@@ -78,6 +80,24 @@ public sealed class SurveyModelConfigurationTests
     }
 
     [Fact]
+    public void SurveyAssignmentRelationships_UseRestrictDeleteBehavior()
+    {
+        using var context = CreateContext();
+
+        AssertForeignKey<SurveyAssignment>(context, nameof(SurveyAssignment.SurveyId), DeleteBehavior.Restrict);
+        AssertForeignKey<SurveyAssignment>(context, nameof(SurveyAssignment.CareerId), DeleteBehavior.Restrict);
+        AssertForeignKey<SurveyAssignment>(context, nameof(SurveyAssignment.SubjectId), DeleteBehavior.Restrict);
+        AssertForeignKey<SurveyAssignment>(
+            context,
+            nameof(SurveyAssignment.AcademicCycleId),
+            DeleteBehavior.Restrict);
+        AssertForeignKey<SurveyAssignment>(
+            context,
+            nameof(SurveyAssignment.TeacherSubjectAssignmentId),
+            DeleteBehavior.Restrict);
+    }
+
+    [Fact]
     public void UniqueOrderIndexes_AreConfigured()
     {
         using var context = CreateContext();
@@ -98,6 +118,25 @@ public sealed class SurveyModelConfigurationTests
     }
 
     [Fact]
+    public void SurveyAssignmentIndexes_AreConfigured()
+    {
+        using var context = CreateContext();
+
+        AssertIndex<SurveyAssignment>(context, nameof(SurveyAssignment.SurveyId));
+        AssertIndex<SurveyAssignment>(context, nameof(SurveyAssignment.CareerId));
+        AssertIndex<SurveyAssignment>(context, nameof(SurveyAssignment.SubjectId));
+        AssertIndex<SurveyAssignment>(context, nameof(SurveyAssignment.AcademicCycleId));
+        AssertIndex<SurveyAssignment>(context, nameof(SurveyAssignment.TeacherSubjectAssignmentId));
+        AssertUniqueIndex<SurveyAssignment>(
+            context,
+            nameof(SurveyAssignment.SurveyId),
+            nameof(SurveyAssignment.CareerId),
+            nameof(SurveyAssignment.SubjectId),
+            nameof(SurveyAssignment.AcademicCycleId),
+            nameof(SurveyAssignment.TeacherSubjectAssignmentId));
+    }
+
+    [Fact]
     public void SurveyModel_DoesNotContainSeedData()
     {
         using var context = CreateContext();
@@ -107,6 +146,7 @@ public sealed class SurveyModelConfigurationTests
         Assert.Empty(GetSeedData<SurveyQuestion>(context));
         Assert.Empty(GetSeedData<SurveyQuestionOption>(context));
         Assert.Empty(GetSeedData<SurveyMatrixRow>(context));
+        Assert.Empty(GetSeedData<SurveyAssignment>(context));
     }
 
     private static ApplicationDbContext CreateContext()
@@ -158,6 +198,17 @@ public sealed class SurveyModelConfigurationTests
 
         Assert.NotNull(index);
         Assert.True(index.IsUnique);
+    }
+
+    private static void AssertIndex<TEntity>(
+        ApplicationDbContext context,
+        params string[] propertyNames)
+    {
+        var entity = GetEntity<TEntity>(context);
+        var index = entity.GetIndexes().SingleOrDefault(item =>
+            item.Properties.Select(property => property.Name).SequenceEqual(propertyNames));
+
+        Assert.NotNull(index);
     }
 
     private static IReadOnlyList<IDictionary<string, object?>> GetSeedData<TEntity>(

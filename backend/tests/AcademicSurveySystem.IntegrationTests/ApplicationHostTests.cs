@@ -3,6 +3,7 @@ using AcademicSurveySystem.Application.Common.Security;
 using AcademicSurveySystem.Application.Identity.Authentication;
 using AcademicSurveySystem.Application.Identity.InitialAdministrator;
 using AcademicSurveySystem.Application.Surveys;
+using AcademicSurveySystem.Application.Surveys.Assignments;
 using AcademicSurveySystem.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -93,6 +94,17 @@ public sealed class ApplicationStartupTests
         var surveyTemplateService = scope.ServiceProvider.GetRequiredService<ISurveyTemplateService>();
 
         Assert.NotNull(surveyTemplateService);
+    }
+
+    [Fact]
+    public void ApiHost_ResolvesSurveyAssignmentService()
+    {
+        using var factory = CreateFactory();
+        using var scope = factory.Services.CreateScope();
+
+        var surveyAssignmentService = scope.ServiceProvider.GetRequiredService<ISurveyAssignmentService>();
+
+        Assert.NotNull(surveyAssignmentService);
     }
 
     [Fact]
@@ -227,6 +239,17 @@ public sealed class ApplicationStartupTests
         using var client = factory.CreateClient();
 
         var response = await client.GetAsync("/api/surveys");
+
+        Assert.Equal(System.Net.HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task SurveyAssignments_WithoutToken_ReturnsUnauthorized()
+    {
+        using var factory = CreateFactory();
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/survey-assignments");
 
         Assert.Equal(System.Net.HttpStatusCode.Unauthorized, response.StatusCode);
     }

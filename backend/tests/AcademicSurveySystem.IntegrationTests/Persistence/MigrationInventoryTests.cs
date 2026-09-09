@@ -18,7 +18,8 @@ public sealed class MigrationInventoryTests
                 "20260702162821_AddIdentityCore",
                 "20260702164345_SeedIdentityCatalog",
                 "20260903191756_AddAcademicCatalog",
-                "20260903235455_AddSurveyCore"
+                "20260903235455_AddSurveyCore",
+                "20260907164458_AddSurveyAssignments"
             ],
             migrations);
     }

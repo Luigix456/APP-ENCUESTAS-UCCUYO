@@ -632,7 +632,7 @@ dotnet ef dbcontext info \
 
 ## Encuestas Dinámicas
 
-El backend incluye el núcleo de dominio y persistencia para encuestas dinámicas. Ya existen endpoints protegidos, controladores, DTOs y servicios de aplicación para administrar plantillas de encuestas, sus secciones, preguntas, opciones y filas de matriz. Todavía no existen asignaciones de encuestas, sesiones QR, respuestas públicas ni resultados de encuestas.
+El backend incluye el núcleo de dominio y persistencia para encuestas dinámicas. Ya existen endpoints protegidos, controladores, DTOs y servicios de aplicación para administrar plantillas de encuestas, sus secciones, preguntas, opciones y filas de matriz. También existe la estructura backend para asignar encuestas publicadas a contextos académicos. Todavía no existen sesiones QR, respuestas públicas, resultados ni reportes de encuestas.
 
 Entidades implementadas:
 
@@ -641,6 +641,7 @@ Entidades implementadas:
 - `SurveyQuestion`: pregunta dinámica dentro de una sección.
 - `SurveyQuestionOption`: opción manual para preguntas de selección.
 - `SurveyMatrixRow`: fila para preguntas de matriz.
+- `SurveyAssignment`: asignación de una plantilla publicada a carrera, materia, ciclo académico y asignación docente-materia.
 
 Enumeraciones implementadas:
 
@@ -721,6 +722,59 @@ Endpoints de filas de matriz:
 
 La publicación valida que la encuesta no esté archivada, tenga al menos una sección activa, que cada sección activa tenga al menos una pregunta activa y que las preguntas de selección o matriz tengan las opciones y filas activas mínimas requeridas.
 
+## Asignaciones de Encuestas
+
+Las asignaciones permiten asociar una plantilla de encuesta publicada y activa a un contexto académico específico compuesto por carrera, materia, ciclo académico y asignación docente-materia-ciclo.
+
+Tabla configurada:
+
+- `survey_assignments`
+
+Relaciones configuradas con eliminación restringida:
+
+- `survey_id` -> `surveys`
+- `career_id` -> `careers`
+- `subject_id` -> `subjects`
+- `academic_cycle_id` -> `academic_cycles`
+- `teacher_subject_assignment_id` -> `teacher_subject_assignments`
+
+La combinación `survey_id`, `career_id`, `subject_id`, `academic_cycle_id` y `teacher_subject_assignment_id` es única.
+
+Ruta base:
+
+```text
+/api/survey-assignments
+```
+
+Todos los endpoints requieren JWT válido y autorización por permisos existentes.
+
+Permisos requeridos:
+
+- Lectura: `surveys.templates.read`
+- Escritura: `surveys.templates.manage`
+
+Endpoints:
+
+- `GET /api/survey-assignments?includeInactive=false&surveyId=&careerId=&subjectId=&academicCycleId=&teacherId=`
+- `GET /api/survey-assignments/{id}`
+- `POST /api/survey-assignments`
+- `PATCH /api/survey-assignments/{id}/activate`
+- `PATCH /api/survey-assignments/{id}/deactivate`
+
+Ejemplo de creación:
+
+```json
+{
+  "surveyId": "11111111-1111-1111-1111-111111111111",
+  "careerId": "22222222-2222-2222-2222-222222222222",
+  "subjectId": "33333333-3333-3333-3333-333333333333",
+  "academicCycleId": "44444444-4444-4444-4444-444444444444",
+  "teacherSubjectAssignmentId": "55555555-5555-5555-5555-555555555555"
+}
+```
+
+Todavía no existen frontend académico, sesiones QR, respuestas públicas, resultados ni reportes.
+
 ## Ejecutar Frontend
 
 ```bash
@@ -731,4 +785,4 @@ npm run dev
 
 ## Estado Actual
 
-Infraestructura inicial de persistencia configurada. El núcleo persistente de identidad ya existe con `User`, `Role`, `Permission`, `UserRole` y `RolePermission`, más un catálogo inicial de cuatro roles y catorce permisos. Existe un comando explícito e idempotente para crear el primer administrador con contraseña hasheada. La API ya cuenta con login básico, emisión de JWT, endpoint protegido `/api/auth/me` y autorización por permisos. El dominio académico ya incluye carreras, materias, docentes, ciclos lectivos y asignaciones docente-materia-ciclo con persistencia EF Core. Ya existen endpoints académicos protegidos para `Career`, `AcademicCycle`, `Subject`, `Teacher` y `TeacherSubjectAssignment`. También existen endpoints protegidos para administrar plantillas de encuestas dinámicas. Todavía no existe frontend académico, asignación de encuestas, sesiones QR, respuestas públicas ni reportes.
+Infraestructura inicial de persistencia configurada. El núcleo persistente de identidad ya existe con `User`, `Role`, `Permission`, `UserRole` y `RolePermission`, más un catálogo inicial de cuatro roles y catorce permisos. Existe un comando explícito e idempotente para crear el primer administrador con contraseña hasheada. La API ya cuenta con login básico, emisión de JWT, endpoint protegido `/api/auth/me` y autorización por permisos. El dominio académico ya incluye carreras, materias, docentes, ciclos lectivos y asignaciones docente-materia-ciclo con persistencia EF Core. Ya existen endpoints académicos protegidos para `Career`, `AcademicCycle`, `Subject`, `Teacher` y `TeacherSubjectAssignment`. También existen endpoints protegidos para administrar plantillas de encuestas dinámicas y asignarlas a contextos académicos. Todavía no existe frontend académico, sesiones QR, respuestas públicas, resultados ni reportes.

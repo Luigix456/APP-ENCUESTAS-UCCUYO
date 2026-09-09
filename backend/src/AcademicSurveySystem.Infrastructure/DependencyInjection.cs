@@ -4,6 +4,7 @@ using AcademicSurveySystem.Application.Common.Authentication;
 using AcademicSurveySystem.Application.Identity.Authentication;
 using AcademicSurveySystem.Application.Identity.InitialAdministrator;
 using AcademicSurveySystem.Application.Surveys;
+using AcademicSurveySystem.Application.Surveys.Assignments;
 using AcademicSurveySystem.Infrastructure.Academic;
 using AcademicSurveySystem.Infrastructure.Authentication;
 using AcademicSurveySystem.Infrastructure.Identity;
@@ -99,6 +100,7 @@ public static class DependencyInjection
         services.AddScoped<IAuthenticationService, AuthenticationService>();
         services.AddScoped<IAcademicCatalogService, AcademicCatalogService>();
         services.AddScoped<ISurveyTemplateService, SurveyTemplateService>();
+        services.AddScoped<ISurveyAssignmentService, SurveyAssignmentService>();
         services.AddScoped<IInitialAdministratorStore, EfInitialAdministratorStore>();
         services.AddScoped<IInitialAdministratorBootstrapper, InitialAdministratorBootstrapper>();
 

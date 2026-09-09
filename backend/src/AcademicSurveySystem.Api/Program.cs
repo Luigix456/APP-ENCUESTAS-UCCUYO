@@ -29,7 +29,7 @@ builder.Services.AddSwaggerGen(options =>
     {
         Title = "Sistema Web de Gestión de Encuestas Académicas API",
         Version = "v1",
-        Description = "API para autenticación, catálogo académico y gestión de plantillas de encuestas académicas."
+        Description = "API para autenticación, catálogo académico, plantillas de encuestas y asignaciones académicas de encuestas."
     });
 
     options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
@@ -56,6 +56,11 @@ builder.Services.AddSwaggerGen(options =>
         if (path.StartsWith("api/academic", StringComparison.OrdinalIgnoreCase))
         {
             return ["Academic Catalog"];
+        }
+
+        if (path.StartsWith("api/survey-assignments", StringComparison.OrdinalIgnoreCase))
+        {
+            return ["Survey Assignments"];
         }
 
         if (path.StartsWith("api/surveys", StringComparison.OrdinalIgnoreCase))
