@@ -35,6 +35,9 @@ public sealed class Survey
 
         Id = id;
         CreatedByUserId = createdByUserId;
+        VersionGroupId = id;
+        VersionNumber = 1;
+        BasedOnSurveyId = null;
         Title = NormalizeRequiredText(title, nameof(Title), 200);
         Description = NormalizeOptionalText(description, nameof(Description), 1000);
         Target = target;
@@ -47,6 +50,9 @@ public sealed class Survey
 
     public Guid Id { get; private set; }
     public Guid CreatedByUserId { get; private set; }
+    public Guid VersionGroupId { get; private set; }
+    public int VersionNumber { get; private set; }
+    public Guid? BasedOnSurveyId { get; private set; }
     public string Title { get; private set; }
     public string? Description { get; private set; }
     public SurveyTarget Target { get; private set; }
@@ -57,6 +63,39 @@ public sealed class Survey
     public DateTimeOffset UpdatedAtUtc { get; private set; }
     public IReadOnlyCollection<SurveySection> Sections => _sections.AsReadOnly();
 
+    public void SetVersionMetadata(
+        Guid versionGroupId,
+        int versionNumber,
+        Guid? basedOnSurveyId)
+    {
+        if (versionGroupId == Guid.Empty)
+        {
+            throw new DomainException("Survey.VersionGroupIdRequired", "VersionGroupId is required.");
+        }
+
+        if (versionNumber <= 0)
+        {
+            throw new DomainException("Survey.VersionNumberInvalid", "VersionNumber must be greater than zero.");
+        }
+
+        if (basedOnSurveyId == Guid.Empty)
+        {
+            throw new DomainException("Survey.BasedOnSurveyIdInvalid", "BasedOnSurveyId is invalid.");
+        }
+
+        VersionGroupId = versionGroupId;
+        VersionNumber = versionNumber;
+        BasedOnSurveyId = basedOnSurveyId;
+    }
+
+    public void EnsureStructureCanBeModified()
+    {
+        if (Status != SurveyStatus.Draft)
+        {
+            throw new DomainException("Survey.NotEditable", "Only draft surveys can be modified.");
+        }
+    }
+
     public void Update(
         string title,
         string? description,
@@ -64,6 +103,7 @@ public sealed class Survey
         bool isAnonymous,
         DateTimeOffset updatedAtUtc)
     {
+        EnsureStructureCanBeModified();
         EnsureDefined(target, nameof(Target));
         EnsureUtc(updatedAtUtc, nameof(updatedAtUtc));
 
@@ -82,6 +122,11 @@ public sealed class Survey
 
     public void Archive(DateTimeOffset updatedAtUtc)
     {
+        if (Status != SurveyStatus.Published)
+        {
+            throw new DomainException("Survey.ArchiveInvalid", "Only published surveys can be archived.");
+        }
+
         ChangeStatus(SurveyStatus.Archived, updatedAtUtc);
     }
 
@@ -97,6 +142,8 @@ public sealed class Survey
 
     public void AddSection(SurveySection section, DateTimeOffset updatedAtUtc)
     {
+        EnsureStructureCanBeModified();
+
         if (section.SurveyId != Id)
         {
             throw new DomainException("Section belongs to a different survey.");
@@ -115,6 +162,7 @@ public sealed class Survey
 
     public void DeactivateSection(Guid sectionId, DateTimeOffset updatedAtUtc)
     {
+        EnsureStructureCanBeModified();
         EnsureUtc(updatedAtUtc, nameof(updatedAtUtc));
 
         var section = _sections.SingleOrDefault(item => item.Id == sectionId);
@@ -147,9 +195,9 @@ public sealed class Survey
 
     private void EnsureCanPublish()
     {
-        if (Status == SurveyStatus.Archived)
+        if (Status != SurveyStatus.Draft)
         {
-            throw new DomainException("Archived surveys cannot be published.");
+            throw new DomainException("Survey.PublishInvalid", "Only draft surveys can be published.");
         }
 
         var activeSections = _sections.Where(section => section.IsActive).ToArray();
@@ -183,6 +231,11 @@ public sealed class Survey
             && activeOptionsCount < 2)
         {
             throw new DomainException("Choice questions must have at least two active options.");
+        }
+
+        if (question.Type == SurveyQuestionType.RatingScale && !question.HasValidRatingBounds())
+        {
+            throw new DomainException("Rating scale questions must define valid rating bounds.");
         }
 
         if (question.Type == SurveyQuestionType.MatrixSingleChoice)

@@ -10,4 +10,6 @@ public sealed record SurveyQuestionDto(
     int Order,
     bool IsActive,
     IReadOnlyCollection<SurveyQuestionOptionDto> Options,
-    IReadOnlyCollection<SurveyMatrixRowDto> MatrixRows);
+    IReadOnlyCollection<SurveyMatrixRowDto> MatrixRows,
+    int? RatingMin = null,
+    int? RatingMax = null);

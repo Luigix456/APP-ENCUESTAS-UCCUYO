@@ -53,7 +53,10 @@ public sealed class SurveyTemplateService : ISurveyTemplateService
                 survey.Sections.Count,
                 survey.Sections.SelectMany(section => section.Questions).Count(),
                 survey.CreatedAtUtc,
-                survey.UpdatedAtUtc))
+                survey.UpdatedAtUtc,
+                survey.VersionGroupId,
+                survey.VersionNumber,
+                survey.BasedOnSurveyId))
             .ToArrayAsync(cancellationToken);
 
         return ApplicationResult<IReadOnlyCollection<SurveySummaryDto>>.Success(surveys);
@@ -63,11 +66,68 @@ public sealed class SurveyTemplateService : ISurveyTemplateService
         Guid id,
         CancellationToken cancellationToken)
     {
-        var survey = await LoadSurveyForReadAsync(id, cancellationToken);
+        var survey = await _dbContext.Surveys
+            .AsNoTracking()
+            .Where(survey => survey.Id == id)
+            .Select(survey => new SurveyDetailDto(
+                survey.Id,
+                survey.CreatedByUserId,
+                survey.Title,
+                survey.Description,
+                survey.Target.ToString(),
+                survey.Status.ToString(),
+                survey.IsAnonymous,
+                survey.IsActive,
+                survey.Sections
+                    .OrderBy(section => section.Order)
+                    .Select(section => new SurveySectionDto(
+                        section.Id,
+                        section.Title,
+                        section.Description,
+                        section.Order,
+                        section.IsActive,
+                        section.Questions
+                            .OrderBy(question => question.Order)
+                            .Select(question => new SurveyQuestionDto(
+                                question.Id,
+                                question.Text,
+                                question.Type.ToString(),
+                                question.IsRequired,
+                                question.AllowsComment,
+                                question.AllowsOtherOption,
+                                question.Order,
+                                question.IsActive,
+                                question.Options
+                                    .OrderBy(option => option.Order)
+                                    .Select(option => new SurveyQuestionOptionDto(
+                                        option.Id,
+                                        option.Text,
+                                        option.Value,
+                                        option.Order,
+                                        option.IsActive))
+                                    .ToArray(),
+                                question.MatrixRows
+                                    .OrderBy(row => row.Order)
+                                    .Select(row => new SurveyMatrixRowDto(
+                                        row.Id,
+                                        row.Text,
+                                        row.Order,
+                                        row.IsActive))
+                                    .ToArray(),
+                                question.RatingMin,
+                                question.RatingMax))
+                            .ToArray()))
+                    .ToArray(),
+                survey.CreatedAtUtc,
+                survey.UpdatedAtUtc,
+                survey.VersionGroupId,
+                survey.VersionNumber,
+                survey.BasedOnSurveyId))
+            .SingleOrDefaultAsync(cancellationToken);
 
         return survey is null
             ? ApplicationResult<SurveyDetailDto>.NotFound("Survey was not found.")
-            : ApplicationResult<SurveyDetailDto>.Success(MapDetail(survey));
+            : ApplicationResult<SurveyDetailDto>.Success(survey);
     }
 
     public async Task<ApplicationResult<SurveyDetailDto>> CreateSurveyAsync(
@@ -117,12 +177,84 @@ public sealed class SurveyTemplateService : ISurveyTemplateService
         catch (DomainException exception)
         {
             return ApplicationResult<SurveyDetailDto>.Validation([
-                new ApplicationError("Survey.Validation", exception.Message)
+                CreateValidationError("Survey.Validation", exception)
             ]);
         }
         catch (DbUpdateException)
         {
             return ApplicationResult<SurveyDetailDto>.Failure("The survey could not be saved.");
+        }
+    }
+
+    public async Task<ApplicationResult<SurveyEditableVersionDto>> GetOrCreateEditableVersionAsync(
+        Guid surveyId,
+        Guid currentUserId,
+        CancellationToken cancellationToken)
+    {
+        if (currentUserId == Guid.Empty)
+        {
+            return ApplicationResult<SurveyEditableVersionDto>.Validation([
+                new ApplicationError("Survey.CurrentUserRequired", "Current user is required.")
+            ]);
+        }
+
+        var source = await LoadSurveyForReadAsync(surveyId, cancellationToken);
+
+        if (source is null)
+        {
+            return ApplicationResult<SurveyEditableVersionDto>.NotFound("Survey was not found.");
+        }
+
+        if (source.Status == SurveyStatus.Draft)
+        {
+            return ApplicationResult<SurveyEditableVersionDto>.Success(
+                CreateEditableVersionDto(source, createdNewVersion: false, sourceSurveyId: source.Id));
+        }
+
+        var existingDraft = await LoadDraftVersionForReadAsync(source.VersionGroupId, cancellationToken);
+
+        if (existingDraft is not null)
+        {
+            return ApplicationResult<SurveyEditableVersionDto>.Success(
+                CreateEditableVersionDto(existingDraft, createdNewVersion: false, sourceSurveyId: source.Id));
+        }
+
+        var nextVersionNumber = await _dbContext.Surveys
+            .Where(survey => survey.VersionGroupId == source.VersionGroupId)
+            .MaxAsync(survey => (int?)survey.VersionNumber, cancellationToken) ?? 0;
+        nextVersionNumber++;
+
+        try
+        {
+            var now = DateTimeOffset.UtcNow;
+            var clone = CloneEditableVersion(source, currentUserId, nextVersionNumber, now);
+            _dbContext.Surveys.Add(clone);
+            await _dbContext.SaveChangesAsync(cancellationToken);
+
+            var created = await LoadSurveyForReadAsync(clone.Id, cancellationToken);
+
+            return ApplicationResult<SurveyEditableVersionDto>.Success(
+                CreateEditableVersionDto(created!, createdNewVersion: true, sourceSurveyId: source.Id));
+        }
+        catch (DomainException exception)
+        {
+            return ApplicationResult<SurveyEditableVersionDto>.Validation([
+                CreateValidationError("Survey.VersionInvalid", exception)
+            ]);
+        }
+        catch (DbUpdateException exception) when (IsUniqueViolation(exception))
+        {
+            var draft = await LoadDraftVersionForReadAsync(source.VersionGroupId, cancellationToken);
+
+            return draft is null
+                ? ApplicationResult<SurveyEditableVersionDto>.Conflict("Survey editable version could not be created.")
+                : ApplicationResult<SurveyEditableVersionDto>.Success(
+                    CreateEditableVersionDto(draft, createdNewVersion: false, sourceSurveyId: source.Id));
+        }
+        catch (DbUpdateException)
+        {
+            return ApplicationResult<SurveyEditableVersionDto>.Failure(
+                "Survey editable version could not be created.");
         }
     }
 
@@ -166,7 +298,7 @@ public sealed class SurveyTemplateService : ISurveyTemplateService
         }
         catch (DomainException exception)
         {
-            return ApplicationResult.Validation([new ApplicationError("Survey.Validation", exception.Message)]);
+            return ApplicationResult.Validation([CreateValidationError("Survey.Validation", exception)]);
         }
         catch (DbUpdateException)
         {
@@ -191,7 +323,7 @@ public sealed class SurveyTemplateService : ISurveyTemplateService
         }
         catch (DomainException exception)
         {
-            return ApplicationResult.Validation([new ApplicationError("Survey.PublishInvalid", exception.Message)]);
+            return ApplicationResult.Validation([CreateValidationError("Survey.PublishInvalid", exception)]);
         }
         catch (DbUpdateException)
         {
@@ -227,6 +359,13 @@ public sealed class SurveyTemplateService : ISurveyTemplateService
             return ApplicationResult<SurveyDetailDto>.NotFound("Survey was not found.");
         }
 
+        var notEditableResult = EnsureSurveyStructureCanBeModifiedForDetail(survey);
+
+        if (notEditableResult is not null)
+        {
+            return notEditableResult;
+        }
+
         var order = request.Order!.Value;
 
         if (survey.Sections.Any(section => section.Order == order))
@@ -236,23 +375,29 @@ public sealed class SurveyTemplateService : ISurveyTemplateService
 
         try
         {
+            var now = DateTimeOffset.UtcNow;
             var section = new SurveySection(
                 Guid.NewGuid(),
-                surveyId,
+                survey.Id,
                 request.Title!,
                 request.Description,
                 order,
-                DateTimeOffset.UtcNow);
+                now);
 
-            survey.AddSection(section, DateTimeOffset.UtcNow);
+            survey.AddSection(section, now);
+            _dbContext.SurveySections.Add(section);
             await _dbContext.SaveChangesAsync(cancellationToken);
 
-            return ApplicationResult<SurveyDetailDto>.Success(MapDetail(survey));
+            var updatedSurvey = await LoadSurveyForReadAsync(surveyId, cancellationToken);
+
+            return updatedSurvey is null
+                ? ApplicationResult<SurveyDetailDto>.NotFound("Survey was not found.")
+                : ApplicationResult<SurveyDetailDto>.Success(MapDetail(updatedSurvey));
         }
         catch (DomainException exception)
         {
             return ApplicationResult<SurveyDetailDto>.Validation([
-                new ApplicationError("SurveySection.Validation", exception.Message)
+                CreateValidationError("SurveySection.Validation", exception)
             ]);
         }
         catch (DbUpdateException exception) when (IsUniqueViolation(exception))
@@ -288,6 +433,13 @@ public sealed class SurveyTemplateService : ISurveyTemplateService
 
         var section = sectionResult.Value!;
 
+        var notEditableResult = EnsureSurveyStructureCanBeModified(survey!);
+
+        if (notEditableResult is not null)
+        {
+            return notEditableResult;
+        }
+
         var order = request.Order!.Value;
 
         if (survey!.Sections.Any(item => item.Id != sectionId && item.Order == order))
@@ -303,7 +455,7 @@ public sealed class SurveyTemplateService : ISurveyTemplateService
         }
         catch (DomainException exception)
         {
-            return ApplicationResult.Validation([new ApplicationError("SurveySection.Validation", exception.Message)]);
+            return ApplicationResult.Validation([CreateValidationError("SurveySection.Validation", exception)]);
         }
         catch (DbUpdateException exception) when (IsUniqueViolation(exception))
         {
@@ -350,6 +502,13 @@ public sealed class SurveyTemplateService : ISurveyTemplateService
 
         var section = sectionResult.Value!;
 
+        var notEditableResult = EnsureSurveyStructureCanBeModifiedForDetail(survey!);
+
+        if (notEditableResult is not null)
+        {
+            return notEditableResult;
+        }
+
         var order = request.Order!.Value;
 
         if (section.Questions.Any(question => question.Order == order))
@@ -366,26 +525,34 @@ public sealed class SurveyTemplateService : ISurveyTemplateService
 
         try
         {
+            var now = DateTimeOffset.UtcNow;
             var question = new SurveyQuestion(
                 Guid.NewGuid(),
-                sectionId,
+                section.Id,
                 request.Text!,
                 type,
                 request.IsRequired,
                 request.AllowsComment,
                 request.AllowsOtherOption,
                 order,
-                DateTimeOffset.UtcNow);
+                now,
+                request.RatingMin,
+                request.RatingMax);
 
-            section.AddQuestion(question, DateTimeOffset.UtcNow);
+            section.AddQuestion(question, now);
+            _dbContext.SurveyQuestions.Add(question);
             await _dbContext.SaveChangesAsync(cancellationToken);
 
-            return ApplicationResult<SurveyDetailDto>.Success(MapDetail(survey!));
+            var updatedSurvey = await LoadSurveyForReadAsync(surveyId, cancellationToken);
+
+            return updatedSurvey is null
+                ? ApplicationResult<SurveyDetailDto>.NotFound("Survey was not found.")
+                : ApplicationResult<SurveyDetailDto>.Success(MapDetail(updatedSurvey));
         }
         catch (DomainException exception)
         {
             return ApplicationResult<SurveyDetailDto>.Validation([
-                new ApplicationError("SurveyQuestion.Validation", exception.Message)
+                CreateValidationError("SurveyQuestion.Validation", exception)
             ]);
         }
         catch (DbUpdateException exception) when (IsUniqueViolation(exception))
@@ -423,6 +590,13 @@ public sealed class SurveyTemplateService : ISurveyTemplateService
         var section = survey!.Sections.Single(item => item.Id == sectionId);
         var question = questionResult.Value!;
 
+        var notEditableResult = EnsureSurveyStructureCanBeModified(survey);
+
+        if (notEditableResult is not null)
+        {
+            return notEditableResult;
+        }
+
         var order = request.Order!.Value;
 
         if (section.Questions.Any(item => item.Id != questionId && item.Order == order))
@@ -446,14 +620,16 @@ public sealed class SurveyTemplateService : ISurveyTemplateService
                 request.AllowsComment,
                 request.AllowsOtherOption,
                 order,
-                DateTimeOffset.UtcNow);
+                DateTimeOffset.UtcNow,
+                request.RatingMin,
+                request.RatingMax);
 
             await _dbContext.SaveChangesAsync(cancellationToken);
             return ApplicationResult.Success();
         }
         catch (DomainException exception)
         {
-            return ApplicationResult.Validation([new ApplicationError("SurveyQuestion.Validation", exception.Message)]);
+            return ApplicationResult.Validation([CreateValidationError("SurveyQuestion.Validation", exception)]);
         }
         catch (DbUpdateException exception) when (IsUniqueViolation(exception))
         {
@@ -503,6 +679,13 @@ public sealed class SurveyTemplateService : ISurveyTemplateService
 
         var question = questionResult.Value!;
 
+        var notEditableResult = EnsureSurveyStructureCanBeModifiedForDetail(survey!);
+
+        if (notEditableResult is not null)
+        {
+            return notEditableResult;
+        }
+
         var order = request.Order!.Value;
 
         if (question.Options.Any(option => option.Order == order))
@@ -512,23 +695,29 @@ public sealed class SurveyTemplateService : ISurveyTemplateService
 
         try
         {
+            var now = DateTimeOffset.UtcNow;
             var option = new SurveyQuestionOption(
                 Guid.NewGuid(),
-                questionId,
+                question.Id,
                 request.Text!,
                 request.Value!,
                 order,
-                DateTimeOffset.UtcNow);
+                now);
 
-            question.AddOption(option, DateTimeOffset.UtcNow);
+            question.AddOption(option, now);
+            _dbContext.SurveyQuestionOptions.Add(option);
             await _dbContext.SaveChangesAsync(cancellationToken);
 
-            return ApplicationResult<SurveyDetailDto>.Success(MapDetail(survey!));
+            var updatedSurvey = await LoadSurveyForReadAsync(surveyId, cancellationToken);
+
+            return updatedSurvey is null
+                ? ApplicationResult<SurveyDetailDto>.NotFound("Survey was not found.")
+                : ApplicationResult<SurveyDetailDto>.Success(MapDetail(updatedSurvey));
         }
         catch (DomainException exception)
         {
             return ApplicationResult<SurveyDetailDto>.Validation([
-                new ApplicationError("SurveyQuestionOption.Validation", exception.Message)
+                CreateValidationError("SurveyQuestionOption.Validation", exception)
             ]);
         }
         catch (DbUpdateException exception) when (IsUniqueViolation(exception))
@@ -548,6 +737,81 @@ public sealed class SurveyTemplateService : ISurveyTemplateService
         Guid optionId,
         CancellationToken cancellationToken) =>
         ChangeOptionStateAsync(surveyId, sectionId, questionId, optionId, activate: true, cancellationToken);
+
+    public async Task<ApplicationResult<SurveyDetailDto>> UpdateOptionAsync(
+        Guid surveyId,
+        Guid sectionId,
+        Guid questionId,
+        Guid optionId,
+        UpdateSurveyQuestionOptionRequest request,
+        CancellationToken cancellationToken)
+    {
+        var validationErrors = request.Validate();
+
+        if (validationErrors.Count > 0)
+        {
+            return ApplicationResult<SurveyDetailDto>.Validation(validationErrors);
+        }
+
+        var survey = await LoadSurveyAggregateAsync(surveyId, cancellationToken);
+        var optionResult = FindOption(survey, sectionId, questionId, optionId);
+
+        if (optionResult.Status != ApplicationResultStatus.Success)
+        {
+            return ApplicationResult<SurveyDetailDto>.NotFound(optionResult.Errors.First().Message);
+        }
+
+        var question = survey!.Sections
+            .Single(section => section.Id == sectionId)
+            .Questions
+            .Single(question => question.Id == questionId);
+
+        var notEditableResult = EnsureSurveyStructureCanBeModifiedForDetail(survey);
+
+        if (notEditableResult is not null)
+        {
+            return notEditableResult;
+        }
+
+        var order = request.Order!.Value;
+
+        if (question.Options.Any(option => option.Id != optionId && option.Order == order))
+        {
+            return ApplicationResult<SurveyDetailDto>.Conflict("An option with the same order already exists.");
+        }
+
+        try
+        {
+            question.UpdateOption(
+                optionId,
+                request.Text!,
+                request.Value!,
+                order,
+                DateTimeOffset.UtcNow);
+
+            await _dbContext.SaveChangesAsync(cancellationToken);
+
+            var updatedSurvey = await LoadSurveyForReadAsync(surveyId, cancellationToken);
+
+            return updatedSurvey is null
+                ? ApplicationResult<SurveyDetailDto>.NotFound("Survey was not found.")
+                : ApplicationResult<SurveyDetailDto>.Success(MapDetail(updatedSurvey));
+        }
+        catch (DomainException exception)
+        {
+            return ApplicationResult<SurveyDetailDto>.Validation([
+                CreateValidationError("SurveyQuestionOption.Validation", exception)
+            ]);
+        }
+        catch (DbUpdateException exception) when (IsUniqueViolation(exception))
+        {
+            return ApplicationResult<SurveyDetailDto>.Conflict("An option with the same order already exists.");
+        }
+        catch (DbUpdateException)
+        {
+            return ApplicationResult<SurveyDetailDto>.Failure("The option could not be saved.");
+        }
+    }
 
     public Task<ApplicationResult> DeactivateOptionAsync(
         Guid surveyId,
@@ -581,6 +845,13 @@ public sealed class SurveyTemplateService : ISurveyTemplateService
 
         var question = questionResult.Value!;
 
+        var notEditableResult = EnsureSurveyStructureCanBeModifiedForDetail(survey!);
+
+        if (notEditableResult is not null)
+        {
+            return notEditableResult;
+        }
+
         var order = request.Order!.Value;
 
         if (question.MatrixRows.Any(row => row.Order == order))
@@ -590,22 +861,28 @@ public sealed class SurveyTemplateService : ISurveyTemplateService
 
         try
         {
+            var now = DateTimeOffset.UtcNow;
             var matrixRow = new SurveyMatrixRow(
                 Guid.NewGuid(),
-                questionId,
+                question.Id,
                 request.Text!,
                 order,
-                DateTimeOffset.UtcNow);
+                now);
 
-            question.AddMatrixRow(matrixRow, DateTimeOffset.UtcNow);
+            question.AddMatrixRow(matrixRow, now);
+            _dbContext.SurveyMatrixRows.Add(matrixRow);
             await _dbContext.SaveChangesAsync(cancellationToken);
 
-            return ApplicationResult<SurveyDetailDto>.Success(MapDetail(survey!));
+            var updatedSurvey = await LoadSurveyForReadAsync(surveyId, cancellationToken);
+
+            return updatedSurvey is null
+                ? ApplicationResult<SurveyDetailDto>.NotFound("Survey was not found.")
+                : ApplicationResult<SurveyDetailDto>.Success(MapDetail(updatedSurvey));
         }
         catch (DomainException exception)
         {
             return ApplicationResult<SurveyDetailDto>.Validation([
-                new ApplicationError("SurveyMatrixRow.Validation", exception.Message)
+                CreateValidationError("SurveyMatrixRow.Validation", exception)
             ]);
         }
         catch (DbUpdateException exception) when (IsUniqueViolation(exception))
@@ -625,6 +902,80 @@ public sealed class SurveyTemplateService : ISurveyTemplateService
         Guid rowId,
         CancellationToken cancellationToken) =>
         ChangeMatrixRowStateAsync(surveyId, sectionId, questionId, rowId, activate: true, cancellationToken);
+
+    public async Task<ApplicationResult<SurveyDetailDto>> UpdateMatrixRowAsync(
+        Guid surveyId,
+        Guid sectionId,
+        Guid questionId,
+        Guid rowId,
+        UpdateSurveyMatrixRowRequest request,
+        CancellationToken cancellationToken)
+    {
+        var validationErrors = request.Validate();
+
+        if (validationErrors.Count > 0)
+        {
+            return ApplicationResult<SurveyDetailDto>.Validation(validationErrors);
+        }
+
+        var survey = await LoadSurveyAggregateAsync(surveyId, cancellationToken);
+        var rowResult = FindMatrixRow(survey, sectionId, questionId, rowId);
+
+        if (rowResult.Status != ApplicationResultStatus.Success)
+        {
+            return ApplicationResult<SurveyDetailDto>.NotFound(rowResult.Errors.First().Message);
+        }
+
+        var question = survey!.Sections
+            .Single(section => section.Id == sectionId)
+            .Questions
+            .Single(question => question.Id == questionId);
+
+        var notEditableResult = EnsureSurveyStructureCanBeModifiedForDetail(survey);
+
+        if (notEditableResult is not null)
+        {
+            return notEditableResult;
+        }
+
+        var order = request.Order!.Value;
+
+        if (question.MatrixRows.Any(row => row.Id != rowId && row.Order == order))
+        {
+            return ApplicationResult<SurveyDetailDto>.Conflict("A matrix row with the same order already exists.");
+        }
+
+        try
+        {
+            question.UpdateMatrixRow(
+                rowId,
+                request.Text!,
+                order,
+                DateTimeOffset.UtcNow);
+
+            await _dbContext.SaveChangesAsync(cancellationToken);
+
+            var updatedSurvey = await LoadSurveyForReadAsync(surveyId, cancellationToken);
+
+            return updatedSurvey is null
+                ? ApplicationResult<SurveyDetailDto>.NotFound("Survey was not found.")
+                : ApplicationResult<SurveyDetailDto>.Success(MapDetail(updatedSurvey));
+        }
+        catch (DomainException exception)
+        {
+            return ApplicationResult<SurveyDetailDto>.Validation([
+                CreateValidationError("SurveyMatrixRow.Validation", exception)
+            ]);
+        }
+        catch (DbUpdateException exception) when (IsUniqueViolation(exception))
+        {
+            return ApplicationResult<SurveyDetailDto>.Conflict("A matrix row with the same order already exists.");
+        }
+        catch (DbUpdateException)
+        {
+            return ApplicationResult<SurveyDetailDto>.Failure("The matrix row could not be saved.");
+        }
+    }
 
     public Task<ApplicationResult> DeactivateMatrixRowAsync(
         Guid surveyId,
@@ -654,7 +1005,7 @@ public sealed class SurveyTemplateService : ISurveyTemplateService
         }
         catch (DomainException exception)
         {
-            return ApplicationResult.Validation([new ApplicationError("Survey.Validation", exception.Message)]);
+            return ApplicationResult.Validation([CreateValidationError("Survey.Validation", exception)]);
         }
         catch (DbUpdateException)
         {
@@ -674,6 +1025,13 @@ public sealed class SurveyTemplateService : ISurveyTemplateService
         if (sectionResult.Status != ApplicationResultStatus.Success)
         {
             return sectionResult;
+        }
+
+        var notEditableResult = EnsureSurveyStructureCanBeModified(survey!);
+
+        if (notEditableResult is not null)
+        {
+            return notEditableResult;
         }
 
         var now = DateTimeOffset.UtcNow;
@@ -703,6 +1061,13 @@ public sealed class SurveyTemplateService : ISurveyTemplateService
         if (questionResult.Status != ApplicationResultStatus.Success)
         {
             return questionResult;
+        }
+
+        var notEditableResult = EnsureSurveyStructureCanBeModified(survey!);
+
+        if (notEditableResult is not null)
+        {
+            return notEditableResult;
         }
 
         var now = DateTimeOffset.UtcNow;
@@ -735,6 +1100,13 @@ public sealed class SurveyTemplateService : ISurveyTemplateService
             return optionResult;
         }
 
+        var notEditableResult = EnsureSurveyStructureCanBeModified(survey!);
+
+        if (notEditableResult is not null)
+        {
+            return notEditableResult;
+        }
+
         var now = DateTimeOffset.UtcNow;
 
         if (activate)
@@ -763,6 +1135,13 @@ public sealed class SurveyTemplateService : ISurveyTemplateService
         if (rowResult.Status != ApplicationResultStatus.Success)
         {
             return rowResult;
+        }
+
+        var notEditableResult = EnsureSurveyStructureCanBeModified(survey!);
+
+        if (notEditableResult is not null)
+        {
+            return notEditableResult;
         }
 
         var now = DateTimeOffset.UtcNow;
@@ -794,6 +1173,39 @@ public sealed class SurveyTemplateService : ISurveyTemplateService
         }
     }
 
+    private static ApplicationResult? EnsureSurveyStructureCanBeModified(Survey survey)
+    {
+        try
+        {
+            survey.EnsureStructureCanBeModified();
+            return null;
+        }
+        catch (DomainException exception)
+        {
+            return ApplicationResult.Validation([CreateValidationError("Survey.Validation", exception)]);
+        }
+    }
+
+    private static ApplicationResult<SurveyDetailDto>? EnsureSurveyStructureCanBeModifiedForDetail(Survey survey)
+    {
+        try
+        {
+            survey.EnsureStructureCanBeModified();
+            return null;
+        }
+        catch (DomainException exception)
+        {
+            return ApplicationResult<SurveyDetailDto>.Validation([
+                CreateValidationError("Survey.Validation", exception)
+            ]);
+        }
+    }
+
+    private static ApplicationError CreateValidationError(string fallbackCode, DomainException exception)
+    {
+        return new ApplicationError(exception.Code ?? fallbackCode, exception.Message);
+    }
+
     private Task<Survey?> LoadSurveyForReadAsync(Guid id, CancellationToken cancellationToken)
     {
         return _dbContext.Surveys
@@ -805,6 +1217,24 @@ public sealed class SurveyTemplateService : ISurveyTemplateService
                 .ThenInclude(section => section.Questions)
                     .ThenInclude(question => question.MatrixRows)
             .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
+    }
+
+    private Task<Survey?> LoadDraftVersionForReadAsync(
+        Guid versionGroupId,
+        CancellationToken cancellationToken)
+    {
+        return _dbContext.Surveys
+            .AsNoTracking()
+            .Include(survey => survey.Sections)
+                .ThenInclude(section => section.Questions)
+                    .ThenInclude(question => question.Options)
+            .Include(survey => survey.Sections)
+                .ThenInclude(section => section.Questions)
+                    .ThenInclude(question => question.MatrixRows)
+            .Where(survey => survey.VersionGroupId == versionGroupId)
+            .Where(survey => survey.Status == SurveyStatus.Draft)
+            .OrderByDescending(survey => survey.VersionNumber)
+            .SingleOrDefaultAsync(cancellationToken);
     }
 
     private Task<Survey?> LoadSurveyAggregateAsync(Guid id, CancellationToken cancellationToken)
@@ -908,7 +1338,124 @@ public sealed class SurveyTemplateService : ISurveyTemplateService
                 .Select(MapSection)
                 .ToArray(),
             survey.CreatedAtUtc,
-            survey.UpdatedAtUtc);
+            survey.UpdatedAtUtc,
+            survey.VersionGroupId,
+            survey.VersionNumber,
+            survey.BasedOnSurveyId);
+    }
+
+    private static SurveyEditableVersionDto CreateEditableVersionDto(
+        Survey survey,
+        bool createdNewVersion,
+        Guid sourceSurveyId)
+    {
+        return new SurveyEditableVersionDto(
+            MapDetail(survey),
+            createdNewVersion,
+            sourceSurveyId,
+            survey.VersionGroupId,
+            survey.VersionNumber);
+    }
+
+    private static Survey CloneEditableVersion(
+        Survey source,
+        Guid currentUserId,
+        int versionNumber,
+        DateTimeOffset now)
+    {
+        var clone = new Survey(
+            Guid.NewGuid(),
+            currentUserId,
+            source.Title,
+            source.Description,
+            source.Target,
+            now);
+
+        clone.SetVersionMetadata(source.VersionGroupId, versionNumber, source.Id);
+        clone.Update(source.Title, source.Description, source.Target, source.IsAnonymous, now);
+
+        if (!source.IsActive)
+        {
+            clone.Deactivate(now);
+        }
+
+        foreach (var sourceSection in source.Sections.OrderBy(section => section.Order))
+        {
+            var clonedSection = new SurveySection(
+                Guid.NewGuid(),
+                clone.Id,
+                sourceSection.Title,
+                sourceSection.Description,
+                sourceSection.Order,
+                now);
+
+            if (!sourceSection.IsActive)
+            {
+                clonedSection.Deactivate(now);
+            }
+
+            foreach (var sourceQuestion in sourceSection.Questions.OrderBy(question => question.Order))
+            {
+                var clonedQuestion = new SurveyQuestion(
+                    Guid.NewGuid(),
+                    clonedSection.Id,
+                    sourceQuestion.Text,
+                    sourceQuestion.Type,
+                    sourceQuestion.IsRequired,
+                    sourceQuestion.AllowsComment,
+                    sourceQuestion.AllowsOtherOption,
+                    sourceQuestion.Order,
+                    now,
+                    sourceQuestion.RatingMin,
+                    sourceQuestion.RatingMax);
+
+                if (!sourceQuestion.IsActive)
+                {
+                    clonedQuestion.Deactivate(now);
+                }
+
+                foreach (var sourceOption in sourceQuestion.Options.OrderBy(option => option.Order))
+                {
+                    var clonedOption = new SurveyQuestionOption(
+                        Guid.NewGuid(),
+                        clonedQuestion.Id,
+                        sourceOption.Text,
+                        sourceOption.Value,
+                        sourceOption.Order,
+                        now);
+
+                    if (!sourceOption.IsActive)
+                    {
+                        clonedOption.Deactivate(now);
+                    }
+
+                    clonedQuestion.AddClonedOption(clonedOption, now);
+                }
+
+                foreach (var sourceMatrixRow in sourceQuestion.MatrixRows.OrderBy(row => row.Order))
+                {
+                    var clonedMatrixRow = new SurveyMatrixRow(
+                        Guid.NewGuid(),
+                        clonedQuestion.Id,
+                        sourceMatrixRow.Text,
+                        sourceMatrixRow.Order,
+                        now);
+
+                    if (!sourceMatrixRow.IsActive)
+                    {
+                        clonedMatrixRow.Deactivate(now);
+                    }
+
+                    clonedQuestion.AddClonedMatrixRow(clonedMatrixRow, now);
+                }
+
+                clonedSection.AddQuestion(clonedQuestion, now);
+            }
+
+            clone.AddSection(clonedSection, now);
+        }
+
+        return clone;
     }
 
     private static SurveySectionDto MapSection(SurveySection section)
@@ -952,7 +1499,9 @@ public sealed class SurveyTemplateService : ISurveyTemplateService
                     row.Text,
                     row.Order,
                     row.IsActive))
-                .ToArray());
+                .ToArray(),
+            question.RatingMin,
+            question.RatingMax);
     }
 
     private static bool TryParseOptionalEnum<TEnum>(

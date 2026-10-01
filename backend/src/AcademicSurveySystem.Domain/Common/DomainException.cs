@@ -6,4 +6,12 @@ public sealed class DomainException : Exception
         : base(message)
     {
     }
+
+    public DomainException(string code, string message)
+        : base(message)
+    {
+        Code = code;
+    }
+
+    public string? Code { get; }
 }

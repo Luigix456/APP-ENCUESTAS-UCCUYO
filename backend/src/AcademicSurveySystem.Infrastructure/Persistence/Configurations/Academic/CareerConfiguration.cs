@@ -51,7 +51,15 @@ public sealed class CareerConfiguration : IEntityTypeConfiguration<Career>
             .HasForeignKey(subject => subject.CareerId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        builder.HasMany(career => career.UserCareers)
+            .WithOne(userCareer => userCareer.Career)
+            .HasForeignKey(userCareer => userCareer.CareerId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.Navigation(career => career.Subjects)
+            .UsePropertyAccessMode(PropertyAccessMode.Field);
+
+        builder.Navigation(career => career.UserCareers)
             .UsePropertyAccessMode(PropertyAccessMode.Field);
     }
 }

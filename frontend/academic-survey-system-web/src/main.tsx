@@ -1,17 +1,15 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { App } from './App';
 import './styles.css';
 
-function App() {
-  return (
-    <main className="app">
-      <h1>Sistema Web de Gestión de Encuestas Académicas</h1>
-      <p>Aplicación en preparación</p>
-    </main>
-  );
+const rootElement = document.getElementById('root');
+
+if (!rootElement) {
+  throw new Error('No se encontro el contenedor root.');
 }
 
-createRoot(document.getElementById('root')!).render(
+createRoot(rootElement).render(
   <StrictMode>
     <App />
   </StrictMode>

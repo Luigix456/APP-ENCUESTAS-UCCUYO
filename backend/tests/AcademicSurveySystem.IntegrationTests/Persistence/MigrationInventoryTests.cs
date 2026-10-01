@@ -19,7 +19,13 @@ public sealed class MigrationInventoryTests
                 "20260702164345_SeedIdentityCatalog",
                 "20260903191756_AddAcademicCatalog",
                 "20260903235455_AddSurveyCore",
-                "20260907164458_AddSurveyAssignments"
+                "20260907164458_AddSurveyAssignments",
+                "20260909213944_AddSurveySessions",
+                "20260922193237_AddSurveyResponses",
+                "20260923171235_AddUserCareerAssignments",
+                "20260924050231_AddRatingScaleBounds",
+                "20260924052902_AddSurveyAnswerOtherText",
+                "20261001041359_AddSurveyTemplateVersioning"
             ],
             migrations);
     }

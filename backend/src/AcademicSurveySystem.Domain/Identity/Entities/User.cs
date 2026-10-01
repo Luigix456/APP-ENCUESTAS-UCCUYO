@@ -7,6 +7,7 @@ namespace AcademicSurveySystem.Domain.Identity.Entities;
 public sealed class User
 {
     private readonly List<UserRole> _userRoles = [];
+    private readonly List<UserCareer> _userCareers = [];
 
     private User()
     {
@@ -54,6 +55,7 @@ public sealed class User
     public DateTimeOffset CreatedAtUtc { get; private set; }
     public DateTimeOffset UpdatedAtUtc { get; private set; }
     public IReadOnlyCollection<UserRole> UserRoles => _userRoles.AsReadOnly();
+    public IReadOnlyCollection<UserCareer> UserCareers => _userCareers.AsReadOnly();
 
     public void UpdateName(string firstName, string lastName, DateTimeOffset updatedAtUtc)
     {
@@ -124,6 +126,38 @@ public sealed class User
         if (userRole is not null)
         {
             _userRoles.Remove(userRole);
+        }
+    }
+
+    public void AssignCareer(Guid careerId, DateTimeOffset assignedAtUtc)
+    {
+        EnsureUtc(assignedAtUtc, nameof(assignedAtUtc));
+
+        if (careerId == Guid.Empty)
+        {
+            throw new DomainException("CareerId is required.");
+        }
+
+        if (_userCareers.Any(userCareer => userCareer.CareerId == careerId))
+        {
+            return;
+        }
+
+        _userCareers.Add(new UserCareer(Id, careerId, assignedAtUtc));
+    }
+
+    public void RemoveCareer(Guid careerId)
+    {
+        if (careerId == Guid.Empty)
+        {
+            throw new DomainException("CareerId is required.");
+        }
+
+        var userCareer = _userCareers.FirstOrDefault(item => item.CareerId == careerId);
+
+        if (userCareer is not null)
+        {
+            _userCareers.Remove(userCareer);
         }
     }
 

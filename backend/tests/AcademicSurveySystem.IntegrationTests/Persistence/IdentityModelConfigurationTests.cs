@@ -19,6 +19,7 @@ public sealed class IdentityModelConfigurationTests
         Assert.NotNull(model.FindEntityType(typeof(Role)));
         Assert.NotNull(model.FindEntityType(typeof(Permission)));
         Assert.NotNull(model.FindEntityType(typeof(UserRole)));
+        Assert.NotNull(model.FindEntityType(typeof(UserCareer)));
         Assert.NotNull(model.FindEntityType(typeof(RolePermission)));
     }
 
@@ -31,6 +32,7 @@ public sealed class IdentityModelConfigurationTests
         Assert.Equal("roles", GetEntity<Role>(context).GetTableName());
         Assert.Equal("permissions", GetEntity<Permission>(context).GetTableName());
         Assert.Equal("user_roles", GetEntity<UserRole>(context).GetTableName());
+        Assert.Equal("user_careers", GetEntity<UserCareer>(context).GetTableName());
         Assert.Equal("role_permissions", GetEntity<RolePermission>(context).GetTableName());
     }
 
@@ -50,6 +52,7 @@ public sealed class IdentityModelConfigurationTests
         using var context = CreateContext();
 
         AssertCompositeKey<UserRole>(context, nameof(UserRole.UserId), nameof(UserRole.RoleId));
+        AssertCompositeKey<UserCareer>(context, nameof(UserCareer.UserId), nameof(UserCareer.CareerId));
         AssertCompositeKey<RolePermission>(
             context,
             nameof(RolePermission.RoleId),
@@ -63,6 +66,8 @@ public sealed class IdentityModelConfigurationTests
 
         AssertForeignKey<UserRole>(context, nameof(UserRole.UserId), DeleteBehavior.Cascade);
         AssertForeignKey<UserRole>(context, nameof(UserRole.RoleId), DeleteBehavior.Cascade);
+        AssertForeignKey<UserCareer>(context, nameof(UserCareer.UserId), DeleteBehavior.Restrict);
+        AssertForeignKey<UserCareer>(context, nameof(UserCareer.CareerId), DeleteBehavior.Restrict);
         AssertForeignKey<RolePermission>(context, nameof(RolePermission.RoleId), DeleteBehavior.Cascade);
         AssertForeignKey<RolePermission>(context, nameof(RolePermission.PermissionId), DeleteBehavior.Cascade);
     }
@@ -95,6 +100,7 @@ public sealed class IdentityModelConfigurationTests
 
         Assert.Empty(GetSeedData<User>(context));
         Assert.Empty(GetSeedData<UserRole>(context));
+        Assert.Empty(GetSeedData<UserCareer>(context));
     }
 
     private static ApplicationDbContext CreateContext()

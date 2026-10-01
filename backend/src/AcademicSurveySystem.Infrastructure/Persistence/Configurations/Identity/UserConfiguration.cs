@@ -62,7 +62,15 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
             .HasForeignKey(userRole => userRole.UserId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        builder.HasMany(user => user.UserCareers)
+            .WithOne(userCareer => userCareer.User)
+            .HasForeignKey(userCareer => userCareer.UserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.Navigation(user => user.UserRoles)
+            .UsePropertyAccessMode(PropertyAccessMode.Field);
+
+        builder.Navigation(user => user.UserCareers)
             .UsePropertyAccessMode(PropertyAccessMode.Field);
     }
 }

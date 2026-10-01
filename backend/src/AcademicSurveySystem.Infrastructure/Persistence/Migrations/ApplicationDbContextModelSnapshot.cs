@@ -770,6 +770,27 @@ namespace AcademicSurveySystem.Infrastructure.Persistence.Migrations
                     b.ToTable("users", (string)null);
                 });
 
+            modelBuilder.Entity("AcademicSurveySystem.Domain.Identity.Entities.UserCareer", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<Guid>("CareerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("career_id");
+
+                    b.Property<DateTimeOffset>("AssignedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("assigned_at_utc");
+
+                    b.HasKey("UserId", "CareerId");
+
+                    b.HasIndex("CareerId");
+
+                    b.ToTable("user_careers", (string)null);
+                });
+
             modelBuilder.Entity("AcademicSurveySystem.Domain.Identity.Entities.UserRole", b =>
                 {
                     b.Property<Guid>("UserId")
@@ -797,6 +818,10 @@ namespace AcademicSurveySystem.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("id");
+
+                    b.Property<Guid?>("BasedOnSurveyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("based_on_survey_id");
 
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone")
@@ -841,11 +866,95 @@ namespace AcademicSurveySystem.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at_utc");
 
+                    b.Property<Guid>("VersionGroupId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("version_group_id");
+
+                    b.Property<int>("VersionNumber")
+                        .HasColumnType("integer")
+                        .HasColumnName("version_number");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("BasedOnSurveyId");
 
                     b.HasIndex("CreatedByUserId");
 
+                    b.HasIndex("VersionGroupId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_surveys_version_group_id_draft")
+                        .HasFilter("\"status\" = 'Draft'");
+
+                    b.HasIndex("VersionGroupId", "Id")
+                        .HasDatabaseName("ix_surveys_version_group_id");
+
+                    b.HasIndex("VersionGroupId", "VersionNumber")
+                        .IsUnique();
+
                     b.ToTable("surveys", (string)null);
+                });
+
+            modelBuilder.Entity("AcademicSurveySystem.Domain.Surveys.Entities.SurveyAnswer", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Comment")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("comment");
+
+                    b.Property<int?>("NumericValue")
+                        .HasColumnType("integer")
+                        .HasColumnName("numeric_value");
+
+                    b.Property<string>("OtherText")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("other_text");
+
+                    b.Property<Guid>("SurveyQuestionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("survey_question_id");
+
+                    b.Property<Guid>("SurveyResponseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("survey_response_id");
+
+                    b.Property<string>("TextValue")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasColumnName("text_value");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SurveyQuestionId");
+
+                    b.HasIndex("SurveyResponseId");
+
+                    b.HasIndex("SurveyResponseId", "SurveyQuestionId")
+                        .IsUnique();
+
+                    b.ToTable("survey_answers", (string)null);
+                });
+
+            modelBuilder.Entity("AcademicSurveySystem.Domain.Surveys.Entities.SurveyAnswerOption", b =>
+                {
+                    b.Property<Guid>("SurveyAnswerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("survey_answer_id");
+
+                    b.Property<Guid>("SurveyQuestionOptionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("survey_question_option_id");
+
+                    b.HasKey("SurveyAnswerId", "SurveyQuestionOptionId");
+
+                    b.HasIndex("SurveyQuestionOptionId");
+
+                    b.ToTable("survey_answer_options", (string)null);
                 });
 
             modelBuilder.Entity("AcademicSurveySystem.Domain.Surveys.Entities.SurveyAssignment", b =>
@@ -903,6 +1012,29 @@ namespace AcademicSurveySystem.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("survey_assignments", (string)null);
+                });
+
+            modelBuilder.Entity("AcademicSurveySystem.Domain.Surveys.Entities.SurveyMatrixAnswer", b =>
+                {
+                    b.Property<Guid>("SurveyAnswerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("survey_answer_id");
+
+                    b.Property<Guid>("SurveyMatrixRowId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("survey_matrix_row_id");
+
+                    b.Property<Guid>("SurveyQuestionOptionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("survey_question_option_id");
+
+                    b.HasKey("SurveyAnswerId", "SurveyMatrixRowId");
+
+                    b.HasIndex("SurveyMatrixRowId");
+
+                    b.HasIndex("SurveyQuestionOptionId");
+
+                    b.ToTable("survey_matrix_answers", (string)null);
                 });
 
             modelBuilder.Entity("AcademicSurveySystem.Domain.Surveys.Entities.SurveyMatrixRow", b =>
@@ -978,6 +1110,14 @@ namespace AcademicSurveySystem.Infrastructure.Persistence.Migrations
                     b.Property<int>("Order")
                         .HasColumnType("integer")
                         .HasColumnName("order");
+
+                    b.Property<int?>("RatingMax")
+                        .HasColumnType("integer")
+                        .HasColumnName("rating_max");
+
+                    b.Property<int?>("RatingMin")
+                        .HasColumnType("integer")
+                        .HasColumnName("rating_min");
 
                     b.Property<Guid>("SurveySectionId")
                         .HasColumnType("uuid")
@@ -1058,6 +1198,36 @@ namespace AcademicSurveySystem.Infrastructure.Persistence.Migrations
                     b.ToTable("survey_question_options", (string)null);
                 });
 
+            modelBuilder.Entity("AcademicSurveySystem.Domain.Surveys.Entities.SurveyResponse", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("SubmittedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("submitted_at_utc");
+
+                    b.Property<Guid>("SurveyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("survey_id");
+
+                    b.Property<Guid>("SurveySessionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("survey_session_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SubmittedAtUtc");
+
+                    b.HasIndex("SurveyId");
+
+                    b.HasIndex("SurveySessionId");
+
+                    b.ToTable("survey_responses", (string)null);
+                });
+
             modelBuilder.Entity("AcademicSurveySystem.Domain.Surveys.Entities.SurveySection", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1104,6 +1274,83 @@ namespace AcademicSurveySystem.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("survey_sections", (string)null);
+                });
+
+            modelBuilder.Entity("AcademicSurveySystem.Domain.Surveys.Entities.SurveySession", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AccessCode")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("access_code");
+
+                    b.Property<DateTimeOffset?>("ClosedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("closed_at_utc");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<DateTimeOffset>("ExpiresAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at_utc");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Location")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("location");
+
+                    b.Property<DateTimeOffset?>("OpenedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("opened_at_utc");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid>("SurveyAssignmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("survey_assignment_id");
+
+                    b.Property<string>("Title")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("title");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at_utc");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AccessCode")
+                        .IsUnique();
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("ExpiresAtUtc");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("SurveyAssignmentId");
+
+                    b.ToTable("survey_sessions", (string)null);
                 });
 
             modelBuilder.Entity("AcademicSurveySystem.Domain.Academic.Entities.Subject", b =>
@@ -1163,6 +1410,25 @@ namespace AcademicSurveySystem.Infrastructure.Persistence.Migrations
                     b.Navigation("Role");
                 });
 
+            modelBuilder.Entity("AcademicSurveySystem.Domain.Identity.Entities.UserCareer", b =>
+                {
+                    b.HasOne("AcademicSurveySystem.Domain.Academic.Entities.Career", "Career")
+                        .WithMany("UserCareers")
+                        .HasForeignKey("CareerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AcademicSurveySystem.Domain.Identity.Entities.User", "User")
+                        .WithMany("UserCareers")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Career");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("AcademicSurveySystem.Domain.Identity.Entities.UserRole", b =>
                 {
                     b.HasOne("AcademicSurveySystem.Domain.Identity.Entities.Role", "Role")
@@ -1184,11 +1450,54 @@ namespace AcademicSurveySystem.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("AcademicSurveySystem.Domain.Surveys.Entities.Survey", b =>
                 {
+                    b.HasOne("AcademicSurveySystem.Domain.Surveys.Entities.Survey", null)
+                        .WithMany()
+                        .HasForeignKey("BasedOnSurveyId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("AcademicSurveySystem.Domain.Identity.Entities.User", null)
                         .WithMany()
                         .HasForeignKey("CreatedByUserId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("AcademicSurveySystem.Domain.Surveys.Entities.SurveyAnswer", b =>
+                {
+                    b.HasOne("AcademicSurveySystem.Domain.Surveys.Entities.SurveyQuestion", "SurveyQuestion")
+                        .WithMany()
+                        .HasForeignKey("SurveyQuestionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AcademicSurveySystem.Domain.Surveys.Entities.SurveyResponse", "SurveyResponse")
+                        .WithMany("Answers")
+                        .HasForeignKey("SurveyResponseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("SurveyQuestion");
+
+                    b.Navigation("SurveyResponse");
+                });
+
+            modelBuilder.Entity("AcademicSurveySystem.Domain.Surveys.Entities.SurveyAnswerOption", b =>
+                {
+                    b.HasOne("AcademicSurveySystem.Domain.Surveys.Entities.SurveyAnswer", "SurveyAnswer")
+                        .WithMany("SelectedOptions")
+                        .HasForeignKey("SurveyAnswerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("AcademicSurveySystem.Domain.Surveys.Entities.SurveyQuestionOption", "SurveyQuestionOption")
+                        .WithMany()
+                        .HasForeignKey("SurveyQuestionOptionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("SurveyAnswer");
+
+                    b.Navigation("SurveyQuestionOption");
                 });
 
             modelBuilder.Entity("AcademicSurveySystem.Domain.Surveys.Entities.SurveyAssignment", b =>
@@ -1234,6 +1543,33 @@ namespace AcademicSurveySystem.Infrastructure.Persistence.Migrations
                     b.Navigation("TeacherSubjectAssignment");
                 });
 
+            modelBuilder.Entity("AcademicSurveySystem.Domain.Surveys.Entities.SurveyMatrixAnswer", b =>
+                {
+                    b.HasOne("AcademicSurveySystem.Domain.Surveys.Entities.SurveyAnswer", "SurveyAnswer")
+                        .WithMany("MatrixAnswers")
+                        .HasForeignKey("SurveyAnswerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("AcademicSurveySystem.Domain.Surveys.Entities.SurveyMatrixRow", "SurveyMatrixRow")
+                        .WithMany()
+                        .HasForeignKey("SurveyMatrixRowId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AcademicSurveySystem.Domain.Surveys.Entities.SurveyQuestionOption", "SurveyQuestionOption")
+                        .WithMany()
+                        .HasForeignKey("SurveyQuestionOptionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("SurveyAnswer");
+
+                    b.Navigation("SurveyMatrixRow");
+
+                    b.Navigation("SurveyQuestionOption");
+                });
+
             modelBuilder.Entity("AcademicSurveySystem.Domain.Surveys.Entities.SurveyMatrixRow", b =>
                 {
                     b.HasOne("AcademicSurveySystem.Domain.Surveys.Entities.SurveyQuestion", "SurveyQuestion")
@@ -1267,6 +1603,25 @@ namespace AcademicSurveySystem.Infrastructure.Persistence.Migrations
                     b.Navigation("SurveyQuestion");
                 });
 
+            modelBuilder.Entity("AcademicSurveySystem.Domain.Surveys.Entities.SurveyResponse", b =>
+                {
+                    b.HasOne("AcademicSurveySystem.Domain.Surveys.Entities.Survey", "Survey")
+                        .WithMany()
+                        .HasForeignKey("SurveyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AcademicSurveySystem.Domain.Surveys.Entities.SurveySession", "SurveySession")
+                        .WithMany()
+                        .HasForeignKey("SurveySessionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Survey");
+
+                    b.Navigation("SurveySession");
+                });
+
             modelBuilder.Entity("AcademicSurveySystem.Domain.Surveys.Entities.SurveySection", b =>
                 {
                     b.HasOne("AcademicSurveySystem.Domain.Surveys.Entities.Survey", "Survey")
@@ -1278,6 +1633,23 @@ namespace AcademicSurveySystem.Infrastructure.Persistence.Migrations
                     b.Navigation("Survey");
                 });
 
+            modelBuilder.Entity("AcademicSurveySystem.Domain.Surveys.Entities.SurveySession", b =>
+                {
+                    b.HasOne("AcademicSurveySystem.Domain.Identity.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AcademicSurveySystem.Domain.Surveys.Entities.SurveyAssignment", "SurveyAssignment")
+                        .WithMany()
+                        .HasForeignKey("SurveyAssignmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("SurveyAssignment");
+                });
+
             modelBuilder.Entity("AcademicSurveySystem.Domain.Academic.Entities.AcademicCycle", b =>
                 {
                     b.Navigation("TeacherSubjectAssignments");
@@ -1286,6 +1658,8 @@ namespace AcademicSurveySystem.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("AcademicSurveySystem.Domain.Academic.Entities.Career", b =>
                 {
                     b.Navigation("Subjects");
+
+                    b.Navigation("UserCareers");
                 });
 
             modelBuilder.Entity("AcademicSurveySystem.Domain.Academic.Entities.Subject", b =>
@@ -1312,6 +1686,8 @@ namespace AcademicSurveySystem.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("AcademicSurveySystem.Domain.Identity.Entities.User", b =>
                 {
+                    b.Navigation("UserCareers");
+
                     b.Navigation("UserRoles");
                 });
 
@@ -1320,11 +1696,23 @@ namespace AcademicSurveySystem.Infrastructure.Persistence.Migrations
                     b.Navigation("Sections");
                 });
 
+            modelBuilder.Entity("AcademicSurveySystem.Domain.Surveys.Entities.SurveyAnswer", b =>
+                {
+                    b.Navigation("MatrixAnswers");
+
+                    b.Navigation("SelectedOptions");
+                });
+
             modelBuilder.Entity("AcademicSurveySystem.Domain.Surveys.Entities.SurveyQuestion", b =>
                 {
                     b.Navigation("MatrixRows");
 
                     b.Navigation("Options");
+                });
+
+            modelBuilder.Entity("AcademicSurveySystem.Domain.Surveys.Entities.SurveyResponse", b =>
+                {
+                    b.Navigation("Answers");
                 });
 
             modelBuilder.Entity("AcademicSurveySystem.Domain.Surveys.Entities.SurveySection", b =>

@@ -16,6 +16,7 @@ public sealed class ApplicationDbContext : DbContext
     public DbSet<Role> Roles => Set<Role>();
     public DbSet<Permission> Permissions => Set<Permission>();
     public DbSet<UserRole> UserRoles => Set<UserRole>();
+    public DbSet<UserCareer> UserCareers => Set<UserCareer>();
     public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
     public DbSet<Career> Careers => Set<Career>();
     public DbSet<Subject> Subjects => Set<Subject>();
@@ -29,6 +30,11 @@ public sealed class ApplicationDbContext : DbContext
     public DbSet<SurveyQuestionOption> SurveyQuestionOptions => Set<SurveyQuestionOption>();
     public DbSet<SurveyMatrixRow> SurveyMatrixRows => Set<SurveyMatrixRow>();
     public DbSet<SurveyAssignment> SurveyAssignments => Set<SurveyAssignment>();
+    public DbSet<SurveySession> SurveySessions => Set<SurveySession>();
+    public DbSet<SurveyResponse> SurveyResponses => Set<SurveyResponse>();
+    public DbSet<SurveyAnswer> SurveyAnswers => Set<SurveyAnswer>();
+    public DbSet<SurveyAnswerOption> SurveyAnswerOptions => Set<SurveyAnswerOption>();
+    public DbSet<SurveyMatrixAnswer> SurveyMatrixAnswers => Set<SurveyMatrixAnswer>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

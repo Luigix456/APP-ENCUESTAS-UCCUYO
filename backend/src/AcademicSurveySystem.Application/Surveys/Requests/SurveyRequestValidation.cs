@@ -58,6 +58,8 @@ internal static class SurveyRequestValidation
         string? text,
         string? type,
         bool allowsOtherOption,
+        int? ratingMin,
+        int? ratingMax,
         int? order,
         ICollection<ApplicationError> errors)
     {
@@ -91,7 +93,54 @@ internal static class SurveyRequestValidation
                 "AllowsOtherOption is only valid for single choice or multiple choice questions."));
         }
 
+        ValidateRatingBounds(parsedType, ratingMin, ratingMax, errors);
+
         ValidateOrder(order, "SurveyQuestion.OrderRequired", errors);
+    }
+
+    private static void ValidateRatingBounds(
+        SurveyQuestionType? type,
+        int? ratingMin,
+        int? ratingMax,
+        ICollection<ApplicationError> errors)
+    {
+        if (type is null)
+        {
+            return;
+        }
+
+        if (type.Value != SurveyQuestionType.RatingScale)
+        {
+            if (ratingMin is not null || ratingMax is not null)
+            {
+                errors.Add(new ApplicationError(
+                    "SurveyQuestion.RatingBoundsInvalid",
+                    "Rating bounds are only valid for rating scale questions."));
+            }
+
+            return;
+        }
+
+        if (ratingMin is null)
+        {
+            errors.Add(new ApplicationError(
+                "SurveyQuestion.RatingMinRequired",
+                "RatingMin is required for rating scale questions."));
+        }
+
+        if (ratingMax is null)
+        {
+            errors.Add(new ApplicationError(
+                "SurveyQuestion.RatingMaxRequired",
+                "RatingMax is required for rating scale questions."));
+        }
+
+        if (ratingMin is not null && ratingMax is not null && ratingMin.Value >= ratingMax.Value)
+        {
+            errors.Add(new ApplicationError(
+                "SurveyQuestion.RatingRangeInvalid",
+                "RatingMin must be less than RatingMax."));
+        }
     }
 
     public static void ValidateOrder(

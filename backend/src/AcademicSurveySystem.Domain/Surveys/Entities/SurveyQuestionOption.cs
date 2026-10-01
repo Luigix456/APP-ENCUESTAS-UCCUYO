@@ -51,6 +51,21 @@ public sealed class SurveyQuestionOption
     public DateTimeOffset UpdatedAtUtc { get; private set; }
     public SurveyQuestion SurveyQuestion { get; private set; } = null!;
 
+    public void Update(
+        string text,
+        string value,
+        int order,
+        DateTimeOffset updatedAtUtc)
+    {
+        EnsureOrder(order);
+        EnsureUtc(updatedAtUtc, nameof(updatedAtUtc));
+
+        Text = NormalizeRequiredText(text, nameof(Text), 500);
+        Value = NormalizeRequiredText(value, nameof(Value), 100).ToLowerInvariant();
+        Order = order;
+        UpdatedAtUtc = updatedAtUtc;
+    }
+
     public void Activate(DateTimeOffset updatedAtUtc)
     {
         ChangeActiveState(true, updatedAtUtc);

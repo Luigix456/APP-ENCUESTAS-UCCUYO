@@ -10,6 +10,8 @@ namespace AcademicSurveySystem.Application.Surveys.Requests;
 /// <param name="IsRequired">Indica si la pregunta es obligatoria.</param>
 /// <param name="AllowsComment">Indica si admite comentario adicional.</param>
 /// <param name="AllowsOtherOption">Indica si admite opción "Otra".</param>
+/// <param name="RatingMin">Valor mínimo permitido para preguntas RatingScale.</param>
+/// <param name="RatingMax">Valor máximo permitido para preguntas RatingScale.</param>
 /// <param name="Order">Orden de visualización de la pregunta.</param>
 public sealed record UpdateSurveyQuestionRequest(
     string? Text,
@@ -17,13 +19,15 @@ public sealed record UpdateSurveyQuestionRequest(
     bool IsRequired,
     bool AllowsComment,
     bool AllowsOtherOption,
-    int? Order)
+    int? Order,
+    int? RatingMin = null,
+    int? RatingMax = null)
 {
     public IReadOnlyCollection<ApplicationError> Validate()
     {
         var errors = new List<ApplicationError>();
 
-        SurveyRequestValidation.ValidateQuestion(Text, Type, AllowsOtherOption, Order, errors);
+        SurveyRequestValidation.ValidateQuestion(Text, Type, AllowsOtherOption, RatingMin, RatingMax, Order, errors);
 
         return errors;
     }

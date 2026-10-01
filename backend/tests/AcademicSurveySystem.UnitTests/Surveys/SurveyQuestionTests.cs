@@ -46,6 +46,48 @@ public sealed class SurveyQuestionTests
         Assert.Throws<DomainException>(() => CreateQuestion(order: order));
     }
 
+    [Fact]
+    public void Constructor_CreatesRatingScaleQuestionWithBounds()
+    {
+        var question = CreateQuestion(type: SurveyQuestionType.RatingScale);
+
+        Assert.Equal(1, question.RatingMin);
+        Assert.Equal(5, question.RatingMax);
+        Assert.True(question.HasValidRatingBounds());
+    }
+
+    [Fact]
+    public void Constructor_RejectsRatingScaleWithoutBounds()
+    {
+        Assert.Throws<DomainException>(() => new SurveyQuestion(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            "Pregunta",
+            SurveyQuestionType.RatingScale,
+            isRequired: true,
+            allowsComment: false,
+            allowsOtherOption: false,
+            order: 1,
+            CreatedAtUtc));
+    }
+
+    [Fact]
+    public void Constructor_RejectsRatingBoundsForOtherQuestionTypes()
+    {
+        Assert.Throws<DomainException>(() => new SurveyQuestion(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            "Pregunta",
+            SurveyQuestionType.ShortText,
+            isRequired: true,
+            allowsComment: false,
+            allowsOtherOption: false,
+            order: 1,
+            CreatedAtUtc,
+            ratingMin: 1,
+            ratingMax: 5));
+    }
+
     [Theory]
     [InlineData(SurveyQuestionType.SingleChoice)]
     [InlineData(SurveyQuestionType.MultipleChoice)]
@@ -102,6 +144,102 @@ public sealed class SurveyQuestionTests
             question.AddMatrixRow(CreateMatrixRow(question.Id, order: 1), UpdatedAtUtc.AddDays(1)));
     }
 
+    [Fact]
+    public void UpdateOption_UpdatesExistingOption()
+    {
+        var question = CreateQuestion(type: SurveyQuestionType.SingleChoice);
+        var option = CreateOption(question.Id, order: 1);
+        question.AddOption(option, UpdatedAtUtc);
+
+        question.UpdateOption(
+            option.Id,
+            "Nueva opcion",
+            "NUEVA",
+            order: 2,
+            UpdatedAtUtc.AddDays(1));
+
+        Assert.Equal("Nueva opcion", option.Text);
+        Assert.Equal("nueva", option.Value);
+        Assert.Equal(2, option.Order);
+    }
+
+    [Fact]
+    public void UpdateOption_RejectsDuplicatedOrder()
+    {
+        var question = CreateQuestion(type: SurveyQuestionType.SingleChoice);
+        var option = CreateOption(question.Id, order: 1);
+        question.AddOption(option, UpdatedAtUtc);
+        question.AddOption(CreateOption(question.Id, order: 2), UpdatedAtUtc);
+
+        Assert.Throws<DomainException>(() =>
+            question.UpdateOption(
+                option.Id,
+                "Nueva opcion",
+                "nueva",
+                order: 2,
+                UpdatedAtUtc.AddDays(1)));
+    }
+
+    [Fact]
+    public void UpdateOption_RejectsQuestionTypesWithoutManualOptions()
+    {
+        var question = CreateQuestion(type: SurveyQuestionType.ShortText);
+
+        Assert.Throws<DomainException>(() =>
+            question.UpdateOption(
+                Guid.NewGuid(),
+                "Nueva opcion",
+                "nueva",
+                order: 1,
+                UpdatedAtUtc.AddDays(1)));
+    }
+
+    [Fact]
+    public void UpdateMatrixRow_UpdatesExistingRow()
+    {
+        var question = CreateQuestion(type: SurveyQuestionType.MatrixSingleChoice);
+        var matrixRow = CreateMatrixRow(question.Id, order: 1);
+        question.AddMatrixRow(matrixRow, UpdatedAtUtc);
+
+        question.UpdateMatrixRow(
+            matrixRow.Id,
+            "Nueva fila",
+            order: 2,
+            UpdatedAtUtc.AddDays(1));
+
+        Assert.Equal("Nueva fila", matrixRow.Text);
+        Assert.Equal(2, matrixRow.Order);
+    }
+
+    [Fact]
+    public void UpdateMatrixRow_RejectsDuplicatedOrder()
+    {
+        var question = CreateQuestion(type: SurveyQuestionType.MatrixSingleChoice);
+        var matrixRow = CreateMatrixRow(question.Id, order: 1);
+        question.AddMatrixRow(matrixRow, UpdatedAtUtc);
+        question.AddMatrixRow(CreateMatrixRow(question.Id, order: 2), UpdatedAtUtc);
+
+        Assert.Throws<DomainException>(() =>
+            question.UpdateMatrixRow(
+                matrixRow.Id,
+                "Nueva fila",
+                order: 2,
+                UpdatedAtUtc.AddDays(1)));
+    }
+
+    [Fact]
+    public void UpdateMatrixRow_RejectsNonMatrixQuestion()
+    {
+        var question = CreateQuestion(type: SurveyQuestionType.SingleChoice);
+
+        Assert.Throws<DomainException>(() =>
+            question.UpdateMatrixRow(
+                Guid.NewGuid(),
+                "Nueva fila",
+                order: 1,
+                UpdatedAtUtc.AddDays(1)));
+    }
+
     private static SurveyQuestion CreateQuestion(
         Guid? sectionId = null,
         string text = "Pregunta",
@@ -117,7 +255,9 @@ public sealed class SurveyQuestionTests
             allowsComment: false,
             allowsOtherOption: false,
             order,
-            CreatedAtUtc);
+            CreatedAtUtc,
+            type == SurveyQuestionType.RatingScale ? 1 : null,
+            type == SurveyQuestionType.RatingScale ? 5 : null);
     }
 
     private static SurveyQuestionOption CreateOption(Guid questionId, int order)

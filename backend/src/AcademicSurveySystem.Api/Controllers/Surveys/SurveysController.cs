@@ -2,6 +2,7 @@ using System.IdentityModel.Tokens.Jwt;
 using AcademicSurveySystem.Api.Authorization;
 using AcademicSurveySystem.Application.Common.Results;
 using AcademicSurveySystem.Application.Surveys;
+using AcademicSurveySystem.Application.Surveys.Dtos;
 using AcademicSurveySystem.Application.Surveys.Requests;
 using AcademicSurveySystem.Infrastructure.Authentication;
 using Microsoft.AspNetCore.Authorization;
@@ -33,7 +34,7 @@ public sealed class SurveysController : ControllerBase
     /// <remarks>Requiere permiso de lectura: surveys.templates.read.</remarks>
     [HttpGet]
     [RequirePermission(ReadPermission)]
-    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(IReadOnlyCollection<SurveySummaryDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -59,7 +60,7 @@ public sealed class SurveysController : ControllerBase
     /// <remarks>Requiere permiso de lectura: surveys.templates.read.</remarks>
     [HttpGet("{id:guid}")]
     [RequirePermission(ReadPermission)]
-    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(SurveyDetailDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -109,6 +110,53 @@ public sealed class SurveysController : ControllerBase
         }
 
         return ToActionResult(result);
+    }
+
+    /// <summary>
+    /// Obtiene una version Draft editable sin modificar la encuesta original.
+    /// </summary>
+    /// <remarks>
+    /// Requiere permiso de escritura: surveys.templates.manage.
+    /// Si la encuesta esta publicada o archivada, crea o reutiliza una nueva version Draft.
+    /// </remarks>
+    [HttpPost("{id:guid}/editable-version")]
+    [RequirePermission(ManagePermission)]
+    [ProducesResponseType(typeof(SurveyEditableVersionDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(SurveyEditableVersionDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> GetOrCreateEditableVersion(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(out var userId))
+        {
+            return Unauthorized();
+        }
+
+        var result = await _surveyTemplateService.GetOrCreateEditableVersionAsync(
+            id,
+            userId,
+            cancellationToken);
+
+        if (result.Status != ApplicationResultStatus.Success)
+        {
+            return ToActionResult(result);
+        }
+
+        if (result.Value!.CreatedNewVersion)
+        {
+            return CreatedAtAction(
+                nameof(GetById),
+                new { id = result.Value.Survey.Id },
+                result.Value);
+        }
+
+        return Ok(result.Value);
     }
 
     /// <summary>
@@ -498,6 +546,45 @@ public sealed class SurveysController : ControllerBase
     }
 
     /// <summary>
+    /// Actualiza una opción de pregunta.
+    /// </summary>
+    /// <remarks>Requiere permiso de escritura: surveys.templates.manage.</remarks>
+    [HttpPut("{surveyId:guid}/sections/{sectionId:guid}/questions/{questionId:guid}/options/{optionId:guid}")]
+    [RequirePermission(ManagePermission)]
+    [ProducesResponseType(typeof(SurveyDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> UpdateOption(
+        Guid surveyId,
+        Guid sectionId,
+        Guid questionId,
+        Guid optionId,
+        UpdateSurveyQuestionOptionRequest? request,
+        CancellationToken cancellationToken)
+    {
+        if (request is null)
+        {
+            return BadRequest(CreateErrorResponse([
+                new ApplicationError("Request.Required", "Request body is required.")
+            ]));
+        }
+
+        var result = await _surveyTemplateService.UpdateOptionAsync(
+            surveyId,
+            sectionId,
+            questionId,
+            optionId,
+            request,
+            cancellationToken);
+
+        return ToActionResult(result);
+    }
+
+    /// <summary>
     /// Activa una opción de pregunta.
     /// </summary>
     /// <remarks>Requiere permiso de escritura: surveys.templates.manage.</remarks>
@@ -593,6 +680,45 @@ public sealed class SurveysController : ControllerBase
         {
             return CreatedAtAction(nameof(GetById), new { id = surveyId }, result.Value);
         }
+
+        return ToActionResult(result);
+    }
+
+    /// <summary>
+    /// Actualiza una fila de matriz.
+    /// </summary>
+    /// <remarks>Requiere permiso de escritura: surveys.templates.manage.</remarks>
+    [HttpPut("{surveyId:guid}/sections/{sectionId:guid}/questions/{questionId:guid}/matrix-rows/{rowId:guid}")]
+    [RequirePermission(ManagePermission)]
+    [ProducesResponseType(typeof(SurveyDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> UpdateMatrixRow(
+        Guid surveyId,
+        Guid sectionId,
+        Guid questionId,
+        Guid rowId,
+        UpdateSurveyMatrixRowRequest? request,
+        CancellationToken cancellationToken)
+    {
+        if (request is null)
+        {
+            return BadRequest(CreateErrorResponse([
+                new ApplicationError("Request.Required", "Request body is required.")
+            ]));
+        }
+
+        var result = await _surveyTemplateService.UpdateMatrixRowAsync(
+            surveyId,
+            sectionId,
+            questionId,
+            rowId,
+            request,
+            cancellationToken);
 
         return ToActionResult(result);
     }

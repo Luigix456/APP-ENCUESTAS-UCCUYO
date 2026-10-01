@@ -70,6 +70,94 @@ public sealed class SurveyPublicationRulesTests
         Assert.Equal(SurveyStatus.Published, survey.Status);
     }
 
+    [Fact]
+    public void Publish_RejectsAlreadyPublishedSurvey()
+    {
+        var survey = CreateValidSurvey();
+        survey.Publish(UpdatedAtUtc);
+
+        var exception = Assert.Throws<DomainException>(() => survey.Publish(UpdatedAtUtc.AddDays(1)));
+
+        Assert.Equal("Survey.PublishInvalid", exception.Code);
+    }
+
+    [Fact]
+    public void Archive_AllowsPublishedSurvey()
+    {
+        var survey = CreateValidSurvey();
+        survey.Publish(UpdatedAtUtc);
+
+        survey.Archive(UpdatedAtUtc.AddDays(1));
+
+        Assert.Equal(SurveyStatus.Archived, survey.Status);
+    }
+
+    [Fact]
+    public void Archive_RejectsDraftSurvey()
+    {
+        var survey = CreateValidSurvey();
+
+        var exception = Assert.Throws<DomainException>(() => survey.Archive(UpdatedAtUtc));
+
+        Assert.Equal("Survey.ArchiveInvalid", exception.Code);
+    }
+
+    [Fact]
+    public void EnsureStructureCanBeModified_RejectsPublishedSurvey()
+    {
+        var survey = CreateValidSurvey();
+        survey.Publish(UpdatedAtUtc);
+
+        var exception = Assert.Throws<DomainException>(() => survey.EnsureStructureCanBeModified());
+
+        Assert.Equal("Survey.NotEditable", exception.Code);
+        Assert.Equal("Only draft surveys can be modified.", exception.Message);
+    }
+
+    [Fact]
+    public void Update_RejectsPublishedSurvey()
+    {
+        var survey = CreateValidSurvey();
+        survey.Publish(UpdatedAtUtc);
+
+        var exception = Assert.Throws<DomainException>(() => survey.Update(
+            "Actualizada",
+            null,
+            SurveyTarget.Student,
+            isAnonymous: true,
+            UpdatedAtUtc.AddDays(1)));
+
+        Assert.Equal("Survey.NotEditable", exception.Code);
+    }
+
+    [Fact]
+    public void Publish_RejectsRatingScaleWithoutValidBounds()
+    {
+        var survey = CreateSurvey();
+        var section = CreateSection(survey.Id, order: 1);
+        var question = new SurveyQuestion(
+            Guid.NewGuid(),
+            section.Id,
+            "Pregunta",
+            SurveyQuestionType.RatingScale,
+            isRequired: true,
+            allowsComment: false,
+            allowsOtherOption: false,
+            order: 1,
+            CreatedAtUtc,
+            ratingMin: 1,
+            ratingMax: 5);
+
+        typeof(SurveyQuestion)
+            .GetProperty(nameof(SurveyQuestion.RatingMin))!
+            .SetValue(question, null);
+
+        section.AddQuestion(question, UpdatedAtUtc);
+        survey.AddSection(section, UpdatedAtUtc);
+
+        Assert.Throws<DomainException>(() => survey.Publish(UpdatedAtUtc));
+    }
+
     private static Survey CreateSurvey()
     {
         return new Survey(
@@ -79,6 +167,16 @@ public sealed class SurveyPublicationRulesTests
             null,
             SurveyTarget.Student,
             CreatedAtUtc);
+    }
+
+    private static Survey CreateValidSurvey()
+    {
+        var survey = CreateSurvey();
+        var section = CreateSection(survey.Id, order: 1);
+        var question = CreateQuestion(section.Id, SurveyQuestionType.ShortText, order: 1);
+        section.AddQuestion(question, UpdatedAtUtc);
+        survey.AddSection(section, UpdatedAtUtc);
+        return survey;
     }
 
     private static SurveySection CreateSection(Guid surveyId, int order)
@@ -106,7 +204,9 @@ public sealed class SurveyPublicationRulesTests
             allowsComment: false,
             allowsOtherOption: false,
             order,
-            CreatedAtUtc);
+            CreatedAtUtc,
+            type == SurveyQuestionType.RatingScale ? 1 : null,
+            type == SurveyQuestionType.RatingScale ? 5 : null);
     }
 
     private static SurveyQuestionOption CreateOption(Guid questionId, int order)

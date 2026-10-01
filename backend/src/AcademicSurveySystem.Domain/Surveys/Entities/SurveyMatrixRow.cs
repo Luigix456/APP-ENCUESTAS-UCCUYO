@@ -47,6 +47,19 @@ public sealed class SurveyMatrixRow
     public DateTimeOffset UpdatedAtUtc { get; private set; }
     public SurveyQuestion SurveyQuestion { get; private set; } = null!;
 
+    public void Update(
+        string text,
+        int order,
+        DateTimeOffset updatedAtUtc)
+    {
+        EnsureOrder(order);
+        EnsureUtc(updatedAtUtc, nameof(updatedAtUtc));
+
+        Text = NormalizeRequiredText(text, nameof(Text), 500);
+        Order = order;
+        UpdatedAtUtc = updatedAtUtc;
+    }
+
     public void Activate(DateTimeOffset updatedAtUtc)
     {
         ChangeActiveState(true, updatedAtUtc);

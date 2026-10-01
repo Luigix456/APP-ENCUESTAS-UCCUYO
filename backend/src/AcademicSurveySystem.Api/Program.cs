@@ -3,7 +3,9 @@ using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using AcademicSurveySystem.Api.Authorization;
+using AcademicSurveySystem.Api.Maintenance;
 using AcademicSurveySystem.Api.OpenApi;
+using AcademicSurveySystem.Application.Identity.AdminPasswordReset;
 using AcademicSurveySystem.Application.Identity.InitialAdministrator;
 using AcademicSurveySystem.Infrastructure;
 using AcademicSurveySystem.Infrastructure.Authentication;
@@ -13,7 +15,17 @@ using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 
-var bootstrapAdmin = args.Contains("--bootstrap-admin", StringComparer.Ordinal);
+var maintenanceCommandLine = MaintenanceCommandLine.Parse(args);
+var bootstrapAdmin = maintenanceCommandLine.BootstrapAdmin;
+var resetAdminPassword = maintenanceCommandLine.ResetAdminPassword;
+var resetUserPassword = maintenanceCommandLine.ResetUserPassword;
+var maintenanceCommand = maintenanceCommandLine.IsMaintenanceCommand;
+
+if (maintenanceCommandLine.HasConflictingCommands)
+{
+    Console.WriteLine("Use only one maintenance command at a time.");
+    return 1;
+}
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -29,7 +41,7 @@ builder.Services.AddSwaggerGen(options =>
     {
         Title = "Sistema Web de Gestión de Encuestas Académicas API",
         Version = "v1",
-        Description = "API para autenticación, catálogo académico, plantillas de encuestas y asignaciones académicas de encuestas."
+        Description = "API para autenticación, catálogo académico, plantillas de encuestas, asignaciones académicas y sesiones temporales de encuestas."
     });
 
     options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
@@ -53,6 +65,11 @@ builder.Services.AddSwaggerGen(options =>
             return ["Auth"];
         }
 
+        if (path.StartsWith("api/identity", StringComparison.OrdinalIgnoreCase))
+        {
+            return ["Identity"];
+        }
+
         if (path.StartsWith("api/academic", StringComparison.OrdinalIgnoreCase))
         {
             return ["Academic Catalog"];
@@ -61,6 +78,21 @@ builder.Services.AddSwaggerGen(options =>
         if (path.StartsWith("api/survey-assignments", StringComparison.OrdinalIgnoreCase))
         {
             return ["Survey Assignments"];
+        }
+
+        if (path.StartsWith("api/survey-sessions", StringComparison.OrdinalIgnoreCase))
+        {
+            return ["Survey Sessions"];
+        }
+
+        if (path.StartsWith("api/public/survey-sessions", StringComparison.OrdinalIgnoreCase))
+        {
+            return ["Public Survey Sessions"];
+        }
+
+        if (path.StartsWith("api/results", StringComparison.OrdinalIgnoreCase))
+        {
+            return ["Results"];
         }
 
         if (path.StartsWith("api/surveys", StringComparison.OrdinalIgnoreCase))
@@ -79,9 +111,9 @@ builder.Services.AddSwaggerGen(options =>
     IncludeXmlCommentsIfPresent(options, Assembly.GetExecutingAssembly().GetName().Name);
     IncludeXmlCommentsIfPresent(options, "AcademicSurveySystem.Application");
 });
-builder.Services.AddInfrastructure(builder.Configuration, requireJwtOptions: !bootstrapAdmin);
+builder.Services.AddInfrastructure(builder.Configuration, requireJwtOptions: !maintenanceCommand);
 
-if (!bootstrapAdmin)
+if (!maintenanceCommand)
 {
     JwtSecurityTokenHandler.DefaultMapInboundClaims = false;
 
@@ -125,7 +157,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-if (!bootstrapAdmin)
+if (!maintenanceCommand)
 {
     app.UseAuthentication();
     app.UseAuthorization();
@@ -170,6 +202,25 @@ if (bootstrapAdmin)
     });
 
     return result.Succeeded ? 0 : 1;
+}
+
+if (resetAdminPassword)
+{
+    using var scope = app.Services.CreateScope();
+    var passwordResetService = scope.ServiceProvider.GetRequiredService<IAdminPasswordResetService>();
+    var result = await passwordResetService.ResetAsync();
+
+    Console.WriteLine(result.Message);
+
+    return result.Succeeded ? 0 : 1;
+}
+
+if (resetUserPassword)
+{
+    using var scope = app.Services.CreateScope();
+    var command = ActivatorUtilities.CreateInstance<UserPasswordResetCommand>(scope.ServiceProvider);
+
+    return await command.RunAsync();
 }
 
 app.Run();

@@ -63,8 +63,10 @@ public sealed class SurveyTests
     public void Archive_ChangesStatus()
     {
         var survey = CreateSurvey();
+        AddPublishableShortTextQuestion(survey);
+        survey.Publish(UpdatedAtUtc);
 
-        survey.Archive(UpdatedAtUtc);
+        survey.Archive(UpdatedAtUtc.AddDays(1));
 
         Assert.Equal(SurveyStatus.Archived, survey.Status);
     }

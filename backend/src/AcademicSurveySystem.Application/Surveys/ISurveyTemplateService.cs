@@ -21,6 +21,11 @@ public interface ISurveyTemplateService
         CreateSurveyRequest request,
         CancellationToken cancellationToken);
 
+    Task<ApplicationResult<SurveyEditableVersionDto>> GetOrCreateEditableVersionAsync(
+        Guid surveyId,
+        Guid currentUserId,
+        CancellationToken cancellationToken);
+
     Task<ApplicationResult> UpdateSurveyAsync(
         Guid id,
         UpdateSurveyRequest request,
@@ -81,6 +86,14 @@ public interface ISurveyTemplateService
         CreateSurveyQuestionOptionRequest request,
         CancellationToken cancellationToken);
 
+    Task<ApplicationResult<SurveyDetailDto>> UpdateOptionAsync(
+        Guid surveyId,
+        Guid sectionId,
+        Guid questionId,
+        Guid optionId,
+        UpdateSurveyQuestionOptionRequest request,
+        CancellationToken cancellationToken);
+
     Task<ApplicationResult> ActivateOptionAsync(
         Guid surveyId,
         Guid sectionId,
@@ -100,6 +113,14 @@ public interface ISurveyTemplateService
         Guid sectionId,
         Guid questionId,
         CreateSurveyMatrixRowRequest request,
+        CancellationToken cancellationToken);
+
+    Task<ApplicationResult<SurveyDetailDto>> UpdateMatrixRowAsync(
+        Guid surveyId,
+        Guid sectionId,
+        Guid questionId,
+        Guid rowId,
+        UpdateSurveyMatrixRowRequest request,
         CancellationToken cancellationToken);
 
     Task<ApplicationResult> ActivateMatrixRowAsync(

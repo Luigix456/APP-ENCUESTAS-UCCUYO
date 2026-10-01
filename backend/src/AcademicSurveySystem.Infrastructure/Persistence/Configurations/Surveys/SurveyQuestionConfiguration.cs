@@ -42,6 +42,12 @@ public sealed class SurveyQuestionConfiguration : IEntityTypeConfiguration<Surve
             .HasColumnName("allows_other_option")
             .IsRequired();
 
+        builder.Property(question => question.RatingMin)
+            .HasColumnName("rating_min");
+
+        builder.Property(question => question.RatingMax)
+            .HasColumnName("rating_max");
+
         builder.Property(question => question.Order)
             .HasColumnName("order")
             .IsRequired();

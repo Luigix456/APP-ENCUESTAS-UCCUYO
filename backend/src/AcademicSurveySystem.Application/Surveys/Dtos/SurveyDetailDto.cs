@@ -11,4 +11,7 @@ public sealed record SurveyDetailDto(
     bool IsActive,
     IReadOnlyCollection<SurveySectionDto> Sections,
     DateTimeOffset CreatedAtUtc,
-    DateTimeOffset UpdatedAtUtc);
+    DateTimeOffset UpdatedAtUtc,
+    Guid VersionGroupId = default,
+    int VersionNumber = 1,
+    Guid? BasedOnSurveyId = null);

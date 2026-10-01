@@ -264,6 +264,51 @@ unset InitialAdmin__Email
 
 El comando es idempotente: si ya existe un usuario con rol `administrator`, finaliza correctamente sin crear otro administrador y sin restablecer contraseñas. Si el email configurado ya pertenece a un usuario que no es administrador, el comando falla y no eleva privilegios silenciosamente.
 
+## Reset de contraseña de administrador
+
+El comando `--reset-admin-password` permite restablecer la contraseña de un usuario administrador existente. No crea usuarios nuevos, no asigna roles, no modifica permisos, no emite JWT y no ejecuta migraciones automáticamente.
+
+Variables requeridas:
+
+- `AdminPasswordReset__Email`: email del usuario administrador existente.
+- `AdminPasswordReset__NewPassword`: nueva contraseña, validada con la misma política usada para el administrador inicial.
+
+PowerShell:
+
+```powershell
+$env:AdminPasswordReset__Email="admin@institucion.edu.ar"
+$env:AdminPasswordReset__NewPassword="REEMPLAZAR_CON_PASSWORD_SEGURA"
+
+dotnet run `
+  --project src/AcademicSurveySystem.Api `
+  -- --reset-admin-password
+
+Remove-Item Env:AdminPasswordReset__NewPassword
+Remove-Item Env:AdminPasswordReset__Email
+```
+
+Bash:
+
+```bash
+export AdminPasswordReset__Email="admin@institucion.edu.ar"
+export AdminPasswordReset__NewPassword="REEMPLAZAR_CON_PASSWORD_SEGURA"
+
+dotnet run \
+  --project src/AcademicSurveySystem.Api \
+  -- --reset-admin-password
+
+unset AdminPasswordReset__NewPassword
+unset AdminPasswordReset__Email
+```
+
+Advertencias de seguridad:
+
+- Ejecutar el comando sólo desde un entorno administrativo confiable.
+- No escribir contraseñas reales en documentación, commits, tickets, capturas ni historial compartido.
+- El comando no imprime la contraseña ni el hash.
+- Si el usuario no existe o no tiene rol `administrator`, falla sin modificar la contraseña.
+- El comando es independiente de `--bootstrap-admin`; no deben ejecutarse ambos flags en la misma invocación.
+
 ## Autenticación JWT
 
 La API emite JWT firmados con HMAC SHA-256. La clave de firma no debe almacenarse en `appsettings.json`; debe configurarse mediante variable de entorno o secretos locales.
@@ -360,6 +405,122 @@ Este endpoint devuelve los datos del usuario desde claims del token y no consult
 La autorización futura se realizará por permisos mediante claims `permission`, por ejemplo con `[RequirePermission("identity.users.read")]` o políticas `Permission:identity.users.read`.
 
 Todavía no existen refresh tokens, recuperación de contraseña, cambio de contraseña, registro público ni frontend de login.
+
+## Administración de Usuarios
+
+La API permite administrar usuarios internos desde endpoints protegidos. La creación usa la misma política de contraseña del administrador inicial, almacena únicamente hash BCrypt y nunca devuelve contraseñas ni hashes en los DTOs.
+
+Ruta base de usuarios:
+
+```text
+/api/identity/users
+```
+
+Endpoints:
+
+- `GET /api/identity/users?includeInactive=false`
+- `GET /api/identity/users/{userId}`
+- `POST /api/identity/users`
+- `PUT /api/identity/users/{userId}`
+- `PATCH /api/identity/users/{userId}/activate`
+- `PATCH /api/identity/users/{userId}/deactivate`
+- `PUT /api/identity/users/{userId}/roles`
+
+Permisos requeridos:
+
+- Listar y consultar usuarios: `identity.users.read`
+- Crear usuarios: `identity.users.create`
+- Actualizar datos básicos y activar/desactivar: `identity.users.update`
+- Reemplazar roles: `identity.users.assign_roles`
+
+Ejemplo de creación:
+
+```json
+{
+  "firstName": "Maria",
+  "lastName": "Gomez",
+  "email": "director.tuds@institucion.edu.ar",
+  "password": "REEMPLAZAR_CON_PASSWORD_SEGURA",
+  "roleIds": [
+    "44444444-4444-4444-4444-444444444444"
+  ]
+}
+```
+
+El endpoint de actualización básica sólo modifica `firstName`, `lastName` y `email`; no modifica contraseña ni roles. La asignación de roles se realiza con reemplazo completo:
+
+```json
+{
+  "roleIds": [
+    "44444444-4444-4444-4444-444444444444"
+  ]
+}
+```
+
+Un usuario desactivado no puede iniciar sesión, pero conserva historial, roles y asociaciones `UserCareer`. No existe eliminación física de usuarios.
+
+## Roles de Identidad
+
+Ruta:
+
+```text
+/api/identity/roles
+```
+
+Endpoint:
+
+- `GET /api/identity/roles`
+
+Permiso requerido:
+
+- `identity.roles.read`
+
+La respuesta incluye roles activos y sus permisos asociados. Los roles son los definidos por seed; no existen roles dinámicos ni edición administrativa de permisos en esta etapa.
+
+## Asociación de Usuarios y Carreras
+
+El backend permite asociar usuarios existentes con carreras existentes mediante una relación explícita muchos-a-muchos.
+
+Tabla configurada:
+
+- `user_careers`
+
+Campos principales:
+
+- `user_id`
+- `career_id`
+- `assigned_at_utc`
+
+La clave primaria es compuesta por `user_id` y `career_id`. Las relaciones hacia `users` y `careers` usan eliminación restringida: eliminar una asociación no elimina el usuario ni la carrera, y desactivar una carrera no elimina la asociación.
+
+La asignación valida que el usuario exista y esté activo, que cada carrera exista y esté activa, y que no haya carreras duplicadas en el request. Esta relación no está acoplada al rol ni a la idea de `career_director`, pero puede combinarse con el rol `career_director` para probar alcance `results.read_career`.
+
+Ruta base:
+
+```text
+/api/identity/users/{userId}/careers
+```
+
+Permisos requeridos:
+
+- Lectura: `identity.users.read`
+- Escritura: `identity.users.update`
+
+Endpoints:
+
+- `GET /api/identity/users/{userId}/careers`
+- `PUT /api/identity/users/{userId}/careers`
+
+Ejemplo de actualización:
+
+```json
+{
+  "careerIds": [
+    "22222222-2222-2222-2222-222222222222",
+    "33333333-3333-3333-3333-333333333333"
+  ]
+}
+```
 
 ## Documentación Swagger/OpenAPI
 
@@ -632,7 +793,7 @@ dotnet ef dbcontext info \
 
 ## Encuestas Dinámicas
 
-El backend incluye el núcleo de dominio y persistencia para encuestas dinámicas. Ya existen endpoints protegidos, controladores, DTOs y servicios de aplicación para administrar plantillas de encuestas, sus secciones, preguntas, opciones y filas de matriz. También existe la estructura backend para asignar encuestas publicadas a contextos académicos. Todavía no existen sesiones QR, respuestas públicas, resultados ni reportes de encuestas.
+El backend incluye el núcleo de dominio y persistencia para encuestas dinámicas. Ya existen endpoints protegidos, controladores, DTOs y servicios de aplicación para administrar plantillas de encuestas, sus secciones, preguntas, opciones y filas de matriz. También existe la estructura backend para asignar encuestas publicadas a contextos académicos y crear sesiones temporales con `accessCode` para acceso público. Todavía no existen respuestas públicas, resultados ni reportes de encuestas.
 
 Entidades implementadas:
 
@@ -642,12 +803,14 @@ Entidades implementadas:
 - `SurveyQuestionOption`: opción manual para preguntas de selección.
 - `SurveyMatrixRow`: fila para preguntas de matriz.
 - `SurveyAssignment`: asignación de una plantilla publicada a carrera, materia, ciclo académico y asignación docente-materia.
+- `SurveySession`: sesión temporal asociada a una asignación de encuesta.
 
 Enumeraciones implementadas:
 
 - `SurveyStatus`: `Draft`, `Published`, `Archived`.
 - `SurveyTarget`: `Student`, `Teacher`, `Institutional`.
 - `SurveyQuestionType`: `SingleChoice`, `MultipleChoice`, `ShortText`, `LongText`, `RatingScale`, `MatrixSingleChoice`.
+- `SurveySessionStatus`: `Created`, `Open`, `Closed`, `Cancelled`, `Expired`.
 
 Tablas creadas por la migración `AddSurveyCore`:
 
@@ -666,7 +829,7 @@ dotnet ef migrations add AddSurveyCore \
   --output-dir Persistence/Migrations
 ```
 
-La migración no inserta seed de encuestas y no crea sesiones QR, respuestas ni reportes.
+La migración no inserta seed de encuestas y no crea respuestas ni reportes.
 
 ## Endpoints de Plantillas de Encuestas
 
@@ -773,7 +936,119 @@ Ejemplo de creación:
 }
 ```
 
-Todavía no existen frontend académico, sesiones QR, respuestas públicas, resultados ni reportes.
+Todavía no existe frontend académico ni reportes. El backend no genera todavía imágenes QR binarias.
+
+## Sesiones de Encuesta y QR Temporal
+
+`SurveySession` representa una sesión temporal para responder una encuesta publicada dentro de un contexto académico previamente definido por `SurveyAssignment`.
+
+Cada sesión genera un `accessCode` único y URL-safe. Ese código se usa para construir:
+
+- `publicPath`: ruta pública relativa.
+- `publicUrl`: URL pública completa, opcional si el entorno permite construirla.
+
+El QR debe apuntar a `publicUrl` o, si no está disponible, a `publicPath`. El backend todavía no genera una imagen QR binaria ni agrega librerías externas para QR.
+
+El acceso público sólo es válido cuando la sesión está `Open`, activa y no vencida. Cerrar, cancelar, desactivar o vencer la sesión invalida el QR.
+
+Tabla configurada:
+
+- `survey_sessions`
+
+Relaciones configuradas con eliminación restringida:
+
+- `survey_assignment_id` -> `survey_assignments`
+- `created_by_user_id` -> `users`
+
+Índices configurados:
+
+- único por `access_code`
+- por `survey_assignment_id`
+- por `created_by_user_id`
+- por `status`
+- por `expires_at_utc`
+
+Permiso requerido para gestión:
+
+- `surveys.sessions.manage`
+
+Endpoints protegidos:
+
+- `GET /api/survey-sessions?includeInactive=false&status=&surveyAssignmentId=&accessCode=`
+- `GET /api/survey-sessions/{id}`
+- `POST /api/survey-sessions`
+- `PUT /api/survey-sessions/{id}`
+- `PATCH /api/survey-sessions/{id}/open`
+- `PATCH /api/survey-sessions/{id}/close`
+- `PATCH /api/survey-sessions/{id}/cancel`
+- `PATCH /api/survey-sessions/{id}/activate`
+- `PATCH /api/survey-sessions/{id}/deactivate`
+
+Endpoint público:
+
+- `GET /api/public/survey-sessions/{accessCode}`
+
+Ejemplo de creación:
+
+```json
+{
+  "surveyAssignmentId": "66666666-6666-6666-6666-666666666666",
+  "title": "Evaluación Programación I - Aula 3",
+  "location": "Aula 3",
+  "expiresAtUtc": "2026-09-07T22:00:00Z"
+}
+```
+
+Ejemplo de respuesta administrativa:
+
+```json
+{
+  "id": "77777777-7777-7777-7777-777777777777",
+  "surveyAssignmentId": "66666666-6666-6666-6666-666666666666",
+  "accessCode": "codigo-url-safe",
+  "publicPath": "/api/public/survey-sessions/codigo-url-safe",
+  "publicUrl": null,
+  "title": "Evaluación Programación I - Aula 3",
+  "location": "Aula 3",
+  "status": "Created",
+  "expiresAtUtc": "2026-09-07T22:00:00Z",
+  "isActive": true
+}
+```
+
+Ejemplo de respuesta pública:
+
+```json
+{
+  "sessionId": "77777777-7777-7777-7777-777777777777",
+  "accessCode": "codigo-url-safe",
+  "expiresAtUtc": "2026-09-07T22:00:00Z",
+  "surveyId": "11111111-1111-1111-1111-111111111111",
+  "surveyTitle": "Encuesta de cursada",
+  "surveyDescription": "Encuesta anónima para estudiantes",
+  "surveyTarget": "Student",
+  "careerName": "Tecnicatura Superior en Desarrollo de Software",
+  "subjectName": "Programación I",
+  "academicCycleYear": 2026,
+  "academicCyclePeriod": "Annual",
+  "teacherFullName": "Ada Lovelace",
+  "teachingRole": "Titular",
+  "sections": []
+}
+```
+
+## Alcance de resultados por carrera
+
+Los endpoints protegidos de resultados respetan el alcance del usuario autenticado:
+
+- `results.read_all`: permite consultar resultados de todas las carreras.
+- `results.read_career`: permite consultar sólo resultados cuyo `SurveyAssignment.CareerId` esté asociado al usuario autenticado en `user_careers`.
+
+La autorización usa el identificador del usuario desde el JWT y valida el acceso antes de consultar el resultado agregado. Si el usuario tiene `results.read_career` pero no tiene asociación con la carrera de la asignación o sesión consultada, la API responde `HTTP 403`.
+
+Este alcance aplica a resultados por `SurveyAssignment` y por `SurveySession`. No modifica roles, permisos, JWT, plantillas de encuesta, asignaciones académicas ni lógica de publicación.
+
+Todavía no existen reportes.
 
 ## Ejecutar Frontend
 
@@ -785,4 +1060,4 @@ npm run dev
 
 ## Estado Actual
 
-Infraestructura inicial de persistencia configurada. El núcleo persistente de identidad ya existe con `User`, `Role`, `Permission`, `UserRole` y `RolePermission`, más un catálogo inicial de cuatro roles y catorce permisos. Existe un comando explícito e idempotente para crear el primer administrador con contraseña hasheada. La API ya cuenta con login básico, emisión de JWT, endpoint protegido `/api/auth/me` y autorización por permisos. El dominio académico ya incluye carreras, materias, docentes, ciclos lectivos y asignaciones docente-materia-ciclo con persistencia EF Core. Ya existen endpoints académicos protegidos para `Career`, `AcademicCycle`, `Subject`, `Teacher` y `TeacherSubjectAssignment`. También existen endpoints protegidos para administrar plantillas de encuestas dinámicas y asignarlas a contextos académicos. Todavía no existe frontend académico, sesiones QR, respuestas públicas, resultados ni reportes.
+Infraestructura inicial de persistencia configurada. El núcleo persistente de identidad ya existe con `User`, `Role`, `Permission`, `UserRole` y `RolePermission`, más un catálogo inicial de cuatro roles y catorce permisos. Existe un comando explícito e idempotente para crear el primer administrador con contraseña hasheada. La API ya cuenta con login básico, emisión de JWT, endpoint protegido `/api/auth/me`, autorización por permisos, administración protegida de usuarios, activación/desactivación, reemplazo de roles y consulta de roles disponibles. El dominio académico ya incluye carreras, materias, docentes, ciclos lectivos y asignaciones docente-materia-ciclo con persistencia EF Core. Ya existen endpoints académicos protegidos para `Career`, `AcademicCycle`, `Subject`, `Teacher` y `TeacherSubjectAssignment`. También existen asociaciones protegidas entre usuarios y carreras, endpoints protegidos para administrar plantillas de encuestas dinámicas, asignarlas a contextos académicos, gestionar sesiones temporales de encuesta con `accessCode` y consultar resultados con alcance por permisos. Existe un endpoint público para consultar una sesión abierta, activa y vigente sin JWT. Todavía no existe frontend académico ni reportes. El backend todavía no genera imágenes QR binarias.

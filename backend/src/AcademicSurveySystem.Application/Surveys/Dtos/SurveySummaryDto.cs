@@ -11,4 +11,7 @@ public sealed record SurveySummaryDto(
     int SectionCount,
     int QuestionCount,
     DateTimeOffset CreatedAtUtc,
-    DateTimeOffset UpdatedAtUtc);
+    DateTimeOffset UpdatedAtUtc,
+    Guid VersionGroupId = default,
+    int VersionNumber = 1,
+    Guid? BasedOnSurveyId = null);

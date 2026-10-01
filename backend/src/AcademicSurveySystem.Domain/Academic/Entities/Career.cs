@@ -1,12 +1,14 @@
 using System.Text.RegularExpressions;
 using AcademicSurveySystem.Domain.Academic.Enums;
 using AcademicSurveySystem.Domain.Common;
+using AcademicSurveySystem.Domain.Identity.Entities;
 
 namespace AcademicSurveySystem.Domain.Academic.Entities;
 
 public sealed partial class Career
 {
     private readonly List<Subject> _subjects = [];
+    private readonly List<UserCareer> _userCareers = [];
 
     private Career()
     {
@@ -46,6 +48,7 @@ public sealed partial class Career
     public DateTimeOffset CreatedAtUtc { get; private set; }
     public DateTimeOffset UpdatedAtUtc { get; private set; }
     public IReadOnlyCollection<Subject> Subjects => _subjects.AsReadOnly();
+    public IReadOnlyCollection<UserCareer> UserCareers => _userCareers.AsReadOnly();
 
     public void UpdateName(string name, DateTimeOffset updatedAtUtc)
     {

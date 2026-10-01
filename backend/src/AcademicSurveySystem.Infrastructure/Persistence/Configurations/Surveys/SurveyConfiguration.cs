@@ -20,6 +20,17 @@ public sealed class SurveyConfiguration : IEntityTypeConfiguration<Survey>
             .HasColumnName("created_by_user_id")
             .IsRequired();
 
+        builder.Property(survey => survey.VersionGroupId)
+            .HasColumnName("version_group_id")
+            .IsRequired();
+
+        builder.Property(survey => survey.VersionNumber)
+            .HasColumnName("version_number")
+            .IsRequired();
+
+        builder.Property(survey => survey.BasedOnSurveyId)
+            .HasColumnName("based_on_survey_id");
+
         builder.Property(survey => survey.Title)
             .HasColumnName("title")
             .HasMaxLength(200)
@@ -58,10 +69,31 @@ public sealed class SurveyConfiguration : IEntityTypeConfiguration<Survey>
             .IsRequired();
 
         builder.HasIndex(survey => survey.CreatedByUserId);
+        builder.HasIndex(survey => new
+            {
+                survey.VersionGroupId,
+                survey.Id
+            })
+            .HasDatabaseName("ix_surveys_version_group_id");
+        builder.HasIndex(survey => new
+            {
+                survey.VersionGroupId,
+                survey.VersionNumber
+            })
+            .IsUnique();
+        builder.HasIndex(survey => survey.VersionGroupId)
+            .IsUnique()
+            .HasFilter("\"status\" = 'Draft'")
+            .HasDatabaseName("ix_surveys_version_group_id_draft");
 
         builder.HasOne<User>()
             .WithMany()
             .HasForeignKey(survey => survey.CreatedByUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne<Survey>()
+            .WithMany()
+            .HasForeignKey(survey => survey.BasedOnSurveyId)
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasMany(survey => survey.Sections)

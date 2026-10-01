@@ -22,7 +22,9 @@ public sealed class SurveyQuestion
         bool allowsComment,
         bool allowsOtherOption,
         int order,
-        DateTimeOffset createdAtUtc)
+        DateTimeOffset createdAtUtc,
+        int? ratingMin = null,
+        int? ratingMax = null)
     {
         if (id == Guid.Empty)
         {
@@ -38,6 +40,7 @@ public sealed class SurveyQuestion
         EnsureOrder(order);
         EnsureUtc(createdAtUtc, nameof(createdAtUtc));
         EnsureAllowsOtherOption(type, allowsOtherOption);
+        EnsureRatingBounds(type, ratingMin, ratingMax);
 
         Id = id;
         SurveySectionId = surveySectionId;
@@ -46,6 +49,8 @@ public sealed class SurveyQuestion
         IsRequired = isRequired;
         AllowsComment = allowsComment;
         AllowsOtherOption = allowsOtherOption;
+        RatingMin = ratingMin;
+        RatingMax = ratingMax;
         Order = order;
         IsActive = true;
         CreatedAtUtc = createdAtUtc;
@@ -59,6 +64,8 @@ public sealed class SurveyQuestion
     public bool IsRequired { get; private set; }
     public bool AllowsComment { get; private set; }
     public bool AllowsOtherOption { get; private set; }
+    public int? RatingMin { get; private set; }
+    public int? RatingMax { get; private set; }
     public int Order { get; private set; }
     public bool IsActive { get; private set; }
     public DateTimeOffset CreatedAtUtc { get; private set; }
@@ -74,12 +81,15 @@ public sealed class SurveyQuestion
         bool allowsComment,
         bool allowsOtherOption,
         int order,
-        DateTimeOffset updatedAtUtc)
+        DateTimeOffset updatedAtUtc,
+        int? ratingMin = null,
+        int? ratingMax = null)
     {
         EnsureDefined(type, nameof(Type));
         EnsureOrder(order);
         EnsureUtc(updatedAtUtc, nameof(updatedAtUtc));
         EnsureAllowsOtherOption(type, allowsOtherOption);
+        EnsureRatingBounds(type, ratingMin, ratingMax);
         EnsureCanUseType(type);
 
         Text = NormalizeRequiredText(text, nameof(Text), 1000);
@@ -87,6 +97,8 @@ public sealed class SurveyQuestion
         IsRequired = isRequired;
         AllowsComment = allowsComment;
         AllowsOtherOption = allowsOtherOption;
+        RatingMin = ratingMin;
+        RatingMax = ratingMax;
         Order = order;
         UpdatedAtUtc = updatedAtUtc;
     }
@@ -124,6 +136,24 @@ public sealed class SurveyQuestion
         UpdatedAtUtc = updatedAtUtc;
     }
 
+    public void AddClonedOption(SurveyQuestionOption option, DateTimeOffset updatedAtUtc)
+    {
+        if (option.SurveyQuestionId != Id)
+        {
+            throw new DomainException("Option belongs to a different question.");
+        }
+
+        if (_options.Any(item => item.Order == option.Order))
+        {
+            throw new DomainException("Option order cannot be duplicated.");
+        }
+
+        EnsureUtc(updatedAtUtc, nameof(updatedAtUtc));
+
+        _options.Add(option);
+        UpdatedAtUtc = updatedAtUtc;
+    }
+
     public void DeactivateOption(Guid optionId, DateTimeOffset updatedAtUtc)
     {
         EnsureUtc(updatedAtUtc, nameof(updatedAtUtc));
@@ -136,6 +166,36 @@ public sealed class SurveyQuestion
         }
 
         option.Deactivate(updatedAtUtc);
+        UpdatedAtUtc = updatedAtUtc;
+    }
+
+    public void UpdateOption(
+        Guid optionId,
+        string text,
+        string value,
+        int order,
+        DateTimeOffset updatedAtUtc)
+    {
+        EnsureUtc(updatedAtUtc, nameof(updatedAtUtc));
+
+        if (!CanHaveOptions(Type))
+        {
+            throw new DomainException("Question type does not allow manual options.");
+        }
+
+        var option = _options.SingleOrDefault(item => item.Id == optionId);
+
+        if (option is null)
+        {
+            throw new DomainException("Option was not found.");
+        }
+
+        if (_options.Any(item => item.Id != optionId && item.Order == order))
+        {
+            throw new DomainException("Option order cannot be duplicated.");
+        }
+
+        option.Update(text, value, order, updatedAtUtc);
         UpdatedAtUtc = updatedAtUtc;
     }
 
@@ -162,6 +222,24 @@ public sealed class SurveyQuestion
         UpdatedAtUtc = updatedAtUtc;
     }
 
+    public void AddClonedMatrixRow(SurveyMatrixRow matrixRow, DateTimeOffset updatedAtUtc)
+    {
+        if (matrixRow.SurveyQuestionId != Id)
+        {
+            throw new DomainException("Matrix row belongs to a different question.");
+        }
+
+        if (_matrixRows.Any(item => item.Order == matrixRow.Order))
+        {
+            throw new DomainException("Matrix row order cannot be duplicated.");
+        }
+
+        EnsureUtc(updatedAtUtc, nameof(updatedAtUtc));
+
+        _matrixRows.Add(matrixRow);
+        UpdatedAtUtc = updatedAtUtc;
+    }
+
     public void DeactivateMatrixRow(Guid matrixRowId, DateTimeOffset updatedAtUtc)
     {
         EnsureUtc(updatedAtUtc, nameof(updatedAtUtc));
@@ -174,6 +252,35 @@ public sealed class SurveyQuestion
         }
 
         matrixRow.Deactivate(updatedAtUtc);
+        UpdatedAtUtc = updatedAtUtc;
+    }
+
+    public void UpdateMatrixRow(
+        Guid matrixRowId,
+        string text,
+        int order,
+        DateTimeOffset updatedAtUtc)
+    {
+        EnsureUtc(updatedAtUtc, nameof(updatedAtUtc));
+
+        if (Type != SurveyQuestionType.MatrixSingleChoice)
+        {
+            throw new DomainException("Only matrix single choice questions allow matrix rows.");
+        }
+
+        var matrixRow = _matrixRows.SingleOrDefault(item => item.Id == matrixRowId);
+
+        if (matrixRow is null)
+        {
+            throw new DomainException("Matrix row was not found.");
+        }
+
+        if (_matrixRows.Any(item => item.Id != matrixRowId && item.Order == order))
+        {
+            throw new DomainException("Matrix row order cannot be duplicated.");
+        }
+
+        matrixRow.Update(text, order, updatedAtUtc);
         UpdatedAtUtc = updatedAtUtc;
     }
 
@@ -215,6 +322,45 @@ public sealed class SurveyQuestion
         {
             throw new DomainException(
                 "AllowsOtherOption is only valid for single choice or multiple choice questions.");
+        }
+    }
+
+    public bool HasValidRatingBounds()
+    {
+        return Type == SurveyQuestionType.RatingScale
+            && RatingMin is not null
+            && RatingMax is not null
+            && RatingMin.Value < RatingMax.Value;
+    }
+
+    private static void EnsureRatingBounds(
+        SurveyQuestionType type,
+        int? ratingMin,
+        int? ratingMax)
+    {
+        if (type != SurveyQuestionType.RatingScale)
+        {
+            if (ratingMin is not null || ratingMax is not null)
+            {
+                throw new DomainException("Rating bounds are only valid for rating scale questions.");
+            }
+
+            return;
+        }
+
+        if (ratingMin is null)
+        {
+            throw new DomainException("RatingMin is required for rating scale questions.");
+        }
+
+        if (ratingMax is null)
+        {
+            throw new DomainException("RatingMax is required for rating scale questions.");
+        }
+
+        if (ratingMin.Value >= ratingMax.Value)
+        {
+            throw new DomainException("RatingMin must be less than RatingMax.");
         }
     }
 

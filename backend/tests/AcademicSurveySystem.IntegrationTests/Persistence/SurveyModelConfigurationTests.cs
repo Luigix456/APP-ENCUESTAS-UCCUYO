@@ -21,6 +21,11 @@ public sealed class SurveyModelConfigurationTests
         Assert.NotNull(context.Model.FindEntityType(typeof(SurveyQuestionOption)));
         Assert.NotNull(context.Model.FindEntityType(typeof(SurveyMatrixRow)));
         Assert.NotNull(context.Model.FindEntityType(typeof(SurveyAssignment)));
+        Assert.NotNull(context.Model.FindEntityType(typeof(SurveySession)));
+        Assert.NotNull(context.Model.FindEntityType(typeof(SurveyResponse)));
+        Assert.NotNull(context.Model.FindEntityType(typeof(SurveyAnswer)));
+        Assert.NotNull(context.Model.FindEntityType(typeof(SurveyAnswerOption)));
+        Assert.NotNull(context.Model.FindEntityType(typeof(SurveyMatrixAnswer)));
     }
 
     [Fact]
@@ -34,6 +39,11 @@ public sealed class SurveyModelConfigurationTests
         Assert.Equal("survey_question_options", GetEntity<SurveyQuestionOption>(context).GetTableName());
         Assert.Equal("survey_matrix_rows", GetEntity<SurveyMatrixRow>(context).GetTableName());
         Assert.Equal("survey_assignments", GetEntity<SurveyAssignment>(context).GetTableName());
+        Assert.Equal("survey_sessions", GetEntity<SurveySession>(context).GetTableName());
+        Assert.Equal("survey_responses", GetEntity<SurveyResponse>(context).GetTableName());
+        Assert.Equal("survey_answers", GetEntity<SurveyAnswer>(context).GetTableName());
+        Assert.Equal("survey_answer_options", GetEntity<SurveyAnswerOption>(context).GetTableName());
+        Assert.Equal("survey_matrix_answers", GetEntity<SurveyMatrixAnswer>(context).GetTableName());
     }
 
     [Fact]
@@ -44,6 +54,39 @@ public sealed class SurveyModelConfigurationTests
         AssertStoresAsString<Survey>(context, nameof(Survey.Target));
         AssertStoresAsString<Survey>(context, nameof(Survey.Status));
         AssertStoresAsString<SurveyQuestion>(context, nameof(SurveyQuestion.Type));
+        AssertStoresAsString<SurveySession>(context, nameof(SurveySession.Status));
+    }
+
+    [Fact]
+    public void SurveyQuestionRatingBounds_AreNullableColumns()
+    {
+        using var context = CreateContext();
+
+        AssertNullableColumn<SurveyQuestion>(context, nameof(SurveyQuestion.RatingMin), "rating_min");
+        AssertNullableColumn<SurveyQuestion>(context, nameof(SurveyQuestion.RatingMax), "rating_max");
+    }
+
+    [Fact]
+    public void SurveyAnswerOtherText_IsNullableColumn()
+    {
+        using var context = CreateContext();
+
+        var property = AssertNullableColumn<SurveyAnswer>(
+            context,
+            nameof(SurveyAnswer.OtherText),
+            "other_text");
+
+        Assert.Equal(1000, property.GetMaxLength());
+    }
+
+    [Fact]
+    public void SurveyVersioningColumns_AreConfigured()
+    {
+        using var context = CreateContext();
+
+        AssertRequiredColumn<Survey>(context, nameof(Survey.VersionGroupId), "version_group_id");
+        AssertRequiredColumn<Survey>(context, nameof(Survey.VersionNumber), "version_number");
+        AssertNullableColumn<Survey>(context, nameof(Survey.BasedOnSurveyId), "based_on_survey_id");
     }
 
     [Fact]
@@ -63,6 +106,14 @@ public sealed class SurveyModelConfigurationTests
     }
 
     [Fact]
+    public void SurveyVersionSelfReference_UsesRestrictDeleteBehavior()
+    {
+        using var context = CreateContext();
+
+        AssertForeignKey<Survey>(context, nameof(Survey.BasedOnSurveyId), DeleteBehavior.Restrict);
+    }
+
+    [Fact]
     public void InternalRelationships_UseCascadeDeleteBehavior()
     {
         using var context = CreateContext();
@@ -76,6 +127,18 @@ public sealed class SurveyModelConfigurationTests
         AssertForeignKey<SurveyMatrixRow>(
             context,
             nameof(SurveyMatrixRow.SurveyQuestionId),
+            DeleteBehavior.Cascade);
+        AssertForeignKey<SurveyAnswer>(
+            context,
+            nameof(SurveyAnswer.SurveyResponseId),
+            DeleteBehavior.Cascade);
+        AssertForeignKey<SurveyAnswerOption>(
+            context,
+            nameof(SurveyAnswerOption.SurveyAnswerId),
+            DeleteBehavior.Cascade);
+        AssertForeignKey<SurveyMatrixAnswer>(
+            context,
+            nameof(SurveyMatrixAnswer.SurveyAnswerId),
             DeleteBehavior.Cascade);
     }
 
@@ -94,6 +157,43 @@ public sealed class SurveyModelConfigurationTests
         AssertForeignKey<SurveyAssignment>(
             context,
             nameof(SurveyAssignment.TeacherSubjectAssignmentId),
+            DeleteBehavior.Restrict);
+    }
+
+    [Fact]
+    public void SurveySessionRelationships_UseRestrictDeleteBehavior()
+    {
+        using var context = CreateContext();
+
+        AssertForeignKey<SurveySession>(
+            context,
+            nameof(SurveySession.SurveyAssignmentId),
+            DeleteBehavior.Restrict);
+        AssertForeignKey<SurveySession>(
+            context,
+            nameof(SurveySession.CreatedByUserId),
+            DeleteBehavior.Restrict);
+    }
+
+    [Fact]
+    public void SurveyResponseRelationships_UseExpectedDeleteBehavior()
+    {
+        using var context = CreateContext();
+
+        AssertForeignKey<SurveyResponse>(context, nameof(SurveyResponse.SurveySessionId), DeleteBehavior.Restrict);
+        AssertForeignKey<SurveyResponse>(context, nameof(SurveyResponse.SurveyId), DeleteBehavior.Restrict);
+        AssertForeignKey<SurveyAnswer>(context, nameof(SurveyAnswer.SurveyQuestionId), DeleteBehavior.Restrict);
+        AssertForeignKey<SurveyAnswerOption>(
+            context,
+            nameof(SurveyAnswerOption.SurveyQuestionOptionId),
+            DeleteBehavior.Restrict);
+        AssertForeignKey<SurveyMatrixAnswer>(
+            context,
+            nameof(SurveyMatrixAnswer.SurveyMatrixRowId),
+            DeleteBehavior.Restrict);
+        AssertForeignKey<SurveyMatrixAnswer>(
+            context,
+            nameof(SurveyMatrixAnswer.SurveyQuestionOptionId),
             DeleteBehavior.Restrict);
     }
 
@@ -118,6 +218,25 @@ public sealed class SurveyModelConfigurationTests
     }
 
     [Fact]
+    public void SurveyVersioningIndexes_AreConfigured()
+    {
+        using var context = CreateContext();
+
+        AssertIndex<Survey>(context, nameof(Survey.VersionGroupId), nameof(Survey.Id));
+        AssertUniqueIndex<Survey>(context, nameof(Survey.VersionGroupId), nameof(Survey.VersionNumber));
+
+        var draftIndex = GetEntity<Survey>(context)
+            .GetIndexes()
+            .SingleOrDefault(item =>
+                item.Properties.Select(property => property.Name).SequenceEqual([nameof(Survey.VersionGroupId)])
+                && item.GetDatabaseName() == "ix_surveys_version_group_id_draft");
+
+        Assert.NotNull(draftIndex);
+        Assert.True(draftIndex.IsUnique);
+        Assert.Equal("\"status\" = 'Draft'", draftIndex.GetFilter());
+    }
+
+    [Fact]
     public void SurveyAssignmentIndexes_AreConfigured()
     {
         using var context = CreateContext();
@@ -137,6 +256,37 @@ public sealed class SurveyModelConfigurationTests
     }
 
     [Fact]
+    public void SurveySessionIndexes_AreConfigured()
+    {
+        using var context = CreateContext();
+
+        AssertUniqueIndex<SurveySession>(context, nameof(SurveySession.AccessCode));
+        AssertIndex<SurveySession>(context, nameof(SurveySession.SurveyAssignmentId));
+        AssertIndex<SurveySession>(context, nameof(SurveySession.CreatedByUserId));
+        AssertIndex<SurveySession>(context, nameof(SurveySession.Status));
+        AssertIndex<SurveySession>(context, nameof(SurveySession.ExpiresAtUtc));
+    }
+
+    [Fact]
+    public void SurveyResponseIndexes_AreConfigured()
+    {
+        using var context = CreateContext();
+
+        AssertIndex<SurveyResponse>(context, nameof(SurveyResponse.SurveySessionId));
+        AssertIndex<SurveyResponse>(context, nameof(SurveyResponse.SurveyId));
+        AssertIndex<SurveyResponse>(context, nameof(SurveyResponse.SubmittedAtUtc));
+        AssertIndex<SurveyAnswer>(context, nameof(SurveyAnswer.SurveyResponseId));
+        AssertIndex<SurveyAnswer>(context, nameof(SurveyAnswer.SurveyQuestionId));
+        AssertUniqueIndex<SurveyAnswer>(
+            context,
+            nameof(SurveyAnswer.SurveyResponseId),
+            nameof(SurveyAnswer.SurveyQuestionId));
+        AssertIndex<SurveyAnswerOption>(context, nameof(SurveyAnswerOption.SurveyQuestionOptionId));
+        AssertIndex<SurveyMatrixAnswer>(context, nameof(SurveyMatrixAnswer.SurveyMatrixRowId));
+        AssertIndex<SurveyMatrixAnswer>(context, nameof(SurveyMatrixAnswer.SurveyQuestionOptionId));
+    }
+
+    [Fact]
     public void SurveyModel_DoesNotContainSeedData()
     {
         using var context = CreateContext();
@@ -147,6 +297,11 @@ public sealed class SurveyModelConfigurationTests
         Assert.Empty(GetSeedData<SurveyQuestionOption>(context));
         Assert.Empty(GetSeedData<SurveyMatrixRow>(context));
         Assert.Empty(GetSeedData<SurveyAssignment>(context));
+        Assert.Empty(GetSeedData<SurveySession>(context));
+        Assert.Empty(GetSeedData<SurveyResponse>(context));
+        Assert.Empty(GetSeedData<SurveyAnswer>(context));
+        Assert.Empty(GetSeedData<SurveyAnswerOption>(context));
+        Assert.Empty(GetSeedData<SurveyMatrixAnswer>(context));
     }
 
     private static ApplicationDbContext CreateContext()
@@ -172,6 +327,36 @@ public sealed class SurveyModelConfigurationTests
             ?? throw new InvalidOperationException($"Property {propertyName} was not found.");
 
         Assert.Equal(typeof(string), property.GetProviderClrType());
+    }
+
+    private static IProperty AssertNullableColumn<TEntity>(
+        ApplicationDbContext context,
+        string propertyName,
+        string expectedColumnName)
+    {
+        var entity = GetEntity<TEntity>(context);
+        var property = entity.FindProperty(propertyName)
+            ?? throw new InvalidOperationException($"Property {propertyName} was not found.");
+
+        Assert.True(property.IsNullable);
+        Assert.Equal(expectedColumnName, property.GetColumnName());
+
+        return property;
+    }
+
+    private static IProperty AssertRequiredColumn<TEntity>(
+        ApplicationDbContext context,
+        string propertyName,
+        string expectedColumnName)
+    {
+        var entity = GetEntity<TEntity>(context);
+        var property = entity.FindProperty(propertyName)
+            ?? throw new InvalidOperationException($"Property {propertyName} was not found.");
+
+        Assert.False(property.IsNullable);
+        Assert.Equal(expectedColumnName, property.GetColumnName());
+
+        return property;
     }
 
     private static void AssertForeignKey<TEntity>(

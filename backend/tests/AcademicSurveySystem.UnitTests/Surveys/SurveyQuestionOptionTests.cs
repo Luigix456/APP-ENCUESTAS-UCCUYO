@@ -29,6 +29,34 @@ public sealed class SurveyQuestionOptionTests
     }
 
     [Fact]
+    public void Update_ChangesTextValueAndOrder()
+    {
+        var option = CreateOption();
+        var updatedAtUtc = CreatedAtUtc.AddDays(1);
+
+        option.Update(" Muy bueno ", " MUY-BUENO ", 2, updatedAtUtc);
+
+        Assert.Equal("Muy bueno", option.Text);
+        Assert.Equal("muy-bueno", option.Value);
+        Assert.Equal(2, option.Order);
+        Assert.Equal(updatedAtUtc, option.UpdatedAtUtc);
+    }
+
+    [Fact]
+    public void Update_PreservesIdentityQuestionAndActiveState()
+    {
+        var option = CreateOption();
+        var id = option.Id;
+        var questionId = option.SurveyQuestionId;
+
+        option.Update("Nueva opcion", "nueva", 3, CreatedAtUtc.AddDays(1));
+
+        Assert.Equal(id, option.Id);
+        Assert.Equal(questionId, option.SurveyQuestionId);
+        Assert.True(option.IsActive);
+    }
+
+    [Fact]
     public void Constructor_RejectsEmptyText()
     {
         Assert.Throws<DomainException>(() => CreateOption(text: " "));
@@ -46,6 +74,35 @@ public sealed class SurveyQuestionOptionTests
     public void Constructor_RejectsInvalidOrder(int order)
     {
         Assert.Throws<DomainException>(() => CreateOption(order: order));
+    }
+
+    [Fact]
+    public void Update_RejectsEmptyText()
+    {
+        var option = CreateOption();
+
+        Assert.Throws<DomainException>(() =>
+            option.Update(" ", "value", 1, CreatedAtUtc.AddDays(1)));
+    }
+
+    [Fact]
+    public void Update_RejectsEmptyValue()
+    {
+        var option = CreateOption();
+
+        Assert.Throws<DomainException>(() =>
+            option.Update("Texto", " ", 1, CreatedAtUtc.AddDays(1)));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void Update_RejectsInvalidOrder(int order)
+    {
+        var option = CreateOption();
+
+        Assert.Throws<DomainException>(() =>
+            option.Update("Texto", "value", order, CreatedAtUtc.AddDays(1)));
     }
 
     private static SurveyQuestionOption CreateOption(

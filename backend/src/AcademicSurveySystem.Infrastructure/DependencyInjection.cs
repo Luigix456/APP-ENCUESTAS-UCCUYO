@@ -1,10 +1,17 @@
 using AcademicSurveySystem.Application.Academic;
 using AcademicSurveySystem.Application.Common.Security;
 using AcademicSurveySystem.Application.Common.Authentication;
+using AcademicSurveySystem.Application.Identity.AdminPasswordReset;
 using AcademicSurveySystem.Application.Identity.Authentication;
 using AcademicSurveySystem.Application.Identity.InitialAdministrator;
+using AcademicSurveySystem.Application.Identity.UserCareers;
+using AcademicSurveySystem.Application.Identity.UserManagement;
+using AcademicSurveySystem.Application.Identity.UserPasswordReset;
 using AcademicSurveySystem.Application.Surveys;
 using AcademicSurveySystem.Application.Surveys.Assignments;
+using AcademicSurveySystem.Application.Surveys.Responses;
+using AcademicSurveySystem.Application.Surveys.Results;
+using AcademicSurveySystem.Application.Surveys.Sessions;
 using AcademicSurveySystem.Infrastructure.Academic;
 using AcademicSurveySystem.Infrastructure.Authentication;
 using AcademicSurveySystem.Infrastructure.Identity;
@@ -12,6 +19,7 @@ using AcademicSurveySystem.Infrastructure.Identity.Authentication;
 using AcademicSurveySystem.Infrastructure.Persistence;
 using AcademicSurveySystem.Infrastructure.Security;
 using AcademicSurveySystem.Infrastructure.Surveys;
+using AcademicSurveySystem.Infrastructure.Surveys.Results;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -60,6 +68,14 @@ public static class DependencyInjection
                 options.Password = configuration["InitialAdmin:Password"];
             });
 
+        services
+            .AddOptions<AdminPasswordResetOptions>()
+            .Configure(options =>
+            {
+                options.Email = configuration["AdminPasswordReset:Email"];
+                options.NewPassword = configuration["AdminPasswordReset:NewPassword"];
+            });
+
         var jwtOptionsBuilder = services
             .AddOptions<JwtOptions>()
             .Configure(options =>
@@ -98,9 +114,19 @@ public static class DependencyInjection
         services.AddSingleton<IJwtTokenGenerator, JwtTokenGenerator>();
         services.AddScoped<IAuthenticationUserStore, EfAuthenticationUserStore>();
         services.AddScoped<IAuthenticationService, AuthenticationService>();
+        services.AddScoped<IAdminPasswordResetStore, EfAdminPasswordResetStore>();
+        services.AddScoped<IAdminPasswordResetService, AdminPasswordResetService>();
         services.AddScoped<IAcademicCatalogService, AcademicCatalogService>();
         services.AddScoped<ISurveyTemplateService, SurveyTemplateService>();
         services.AddScoped<ISurveyAssignmentService, SurveyAssignmentService>();
+        services.AddSingleton<ISurveySessionAccessCodeGenerator, SurveySessionAccessCodeGenerator>();
+        services.AddScoped<ISurveySessionService, SurveySessionService>();
+        services.AddScoped<ISurveyResponseService, SurveyResponseService>();
+        services.AddScoped<ISurveyResultsService, SurveyResultsService>();
+        services.AddScoped<IResultsAccessService, ResultsAccessService>();
+        services.AddScoped<IUserCareerService, UserCareerService>();
+        services.AddScoped<IUserManagementService, UserManagementService>();
+        services.AddScoped<IUserPasswordResetService, UserPasswordResetService>();
         services.AddScoped<IInitialAdministratorStore, EfInitialAdministratorStore>();
         services.AddScoped<IInitialAdministratorBootstrapper, InitialAdministratorBootstrapper>();
 
