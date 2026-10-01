@@ -1,25 +1,30 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import {
+  activateAcademicUnit,
   activateAcademicCycle,
   activateCareer,
   activateSubject,
   activateTeacher,
   activateTeacherSubjectAssignment,
+  createAcademicUnit,
   createAcademicCycle,
   createCareer,
   createSubject,
   createTeacher,
   createTeacherSubjectAssignment,
+  deactivateAcademicUnit,
   deactivateAcademicCycle,
   deactivateCareer,
   deactivateSubject,
   deactivateTeacher,
   deactivateTeacherSubjectAssignment,
+  getAcademicUnits,
   getAcademicCycles,
   getCareers,
   getSubjects,
   getTeachers,
   getTeacherSubjectAssignments,
+  updateAcademicUnit,
   updateAcademicCycle,
   updateCareer,
   updateSubject,
@@ -30,8 +35,10 @@ import { useAuth } from '../../auth/AuthProvider';
 import type {
   AcademicCycleDto,
   AcademicCyclePeriod,
+  AcademicUnitDto,
   CareerDto,
   CareerType,
+  CreateAcademicUnitRequest,
   CreateAcademicCycleRequest,
   CreateCareerRequest,
   CreateSubjectRequest,
@@ -41,6 +48,7 @@ import type {
   SubjectPeriod,
   TeacherDto,
   TeacherSubjectAssignmentDto,
+  UpdateAcademicUnitRequest,
   UpdateAcademicCycleRequest,
   UpdateCareerRequest,
   UpdateSubjectRequest,
@@ -90,13 +98,190 @@ const basePageState: BasePageState = {
   activeActionId: null
 };
 
+export function AcademicUnitsCatalogPage() {
+  const auth = useAuth();
+  const runtime = useCatalogRuntime(auth.accessToken, auth.logout);
+  const canManageCatalog = auth.hasPermission(MANAGE_ACADEMIC_CATALOG_PERMISSION);
+  const [page, setPage] = useState<BasePageState>(basePageState);
+  const [academicUnits, setAcademicUnits] = useState<AcademicUnitDto[]>([]);
+  const [createForm, setCreateForm] = useState<CreateAcademicUnitRequest>({ code: '', name: '' });
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<UpdateAcademicUnitRequest>({ name: '' });
+
+  useEffect(() => {
+    if (!runtime || !canManageCatalog) {
+      setPage((current) => ({ ...current, loadState: 'ready' }));
+      return;
+    }
+
+    const abortController = new AbortController();
+    void loadAcademicUnits(runtime, page.includeInactive, abortController.signal);
+    return () => abortController.abort();
+  }, [canManageCatalog, page.includeInactive, runtime]);
+
+  if (!canManageCatalog) {
+    return <AcademicCatalogPermissionPanel />;
+  }
+
+  async function loadAcademicUnits(
+    nextRuntime = runtime,
+    includeInactive = page.includeInactive,
+    signal?: AbortSignal
+  ) {
+    if (!nextRuntime) {
+      return;
+    }
+
+    setPage((current) => ({ ...current, loadState: 'loading', pageError: null }));
+
+    try {
+      setAcademicUnits(await getAcademicUnits({ ...nextRuntime, includeInactive, signal }));
+      setPage((current) => ({ ...current, loadState: 'ready' }));
+    } catch (error) {
+      if (signal?.aborted) {
+        return;
+      }
+
+      setPage((current) => ({
+        ...current,
+        loadState: 'error',
+        pageError: getFriendlyCatalogError(error, 'No fue posible cargar unidades académicas.')
+      }));
+    }
+  }
+
+  async function handleCreate(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!runtime) {
+      return;
+    }
+
+    await runPageAction(setPage, 'Unidad académica creada.', 'No fue posible crear la unidad académica.', async () => {
+      await createAcademicUnit(
+        { code: createForm.code.trim(), name: createForm.name.trim() },
+        runtime
+      );
+      setCreateForm({ code: '', name: '' });
+      await loadAcademicUnits(runtime);
+    });
+  }
+
+  async function handleUpdate(event: FormEvent<HTMLFormElement>, academicUnit: AcademicUnitDto) {
+    event.preventDefault();
+
+    if (!runtime) {
+      return;
+    }
+
+    await runPageAction(setPage, 'Unidad académica actualizada.', 'No fue posible actualizar la unidad académica.', async () => {
+      await updateAcademicUnit(academicUnit.id, { name: editForm.name.trim() }, runtime);
+      setEditingId(null);
+      await loadAcademicUnits(runtime);
+    });
+  }
+
+  async function handleToggle(academicUnit: AcademicUnitDto) {
+    if (!runtime) {
+      return;
+    }
+
+    if (academicUnit.isActive) {
+      const confirmed = window.confirm(
+        'Al desactivar esta unidad académica dejará de estar disponible para nuevas carreras. Los datos históricos se conservarán.'
+      );
+
+      if (!confirmed) {
+        return;
+      }
+    }
+
+    await runPageAction(
+      setPage,
+      academicUnit.isActive ? 'Unidad académica desactivada.' : 'Unidad académica reactivada.',
+      academicUnit.isActive
+        ? 'No fue posible desactivar la unidad académica.'
+        : 'No fue posible reactivar la unidad académica.',
+      async () => {
+        setPage((current) => ({ ...current, activeActionId: academicUnit.id }));
+        await (academicUnit.isActive
+          ? deactivateAcademicUnit(academicUnit.id, runtime)
+          : activateAcademicUnit(academicUnit.id, runtime));
+        await loadAcademicUnits(runtime);
+      }
+    );
+  }
+
+  return (
+    <CatalogPageShell
+      description="Administrá facultades, departamentos o sedes que agrupan carreras."
+      includeInactive={page.includeInactive}
+      onIncludeInactiveChange={(includeInactive) => setPage((current) => ({ ...current, includeInactive }))}
+      page={page}
+      title="Unidades académicas"
+    >
+      <form className="survey-admin-form" onSubmit={handleCreate}>
+        <h3>Nueva unidad académica</h3>
+        <label>
+          <span>Código</span>
+          <input className="text-input" onChange={(event) => setCreateForm((current) => ({ ...current, code: event.target.value }))} required type="text" value={createForm.code} />
+        </label>
+        <label>
+          <span>Nombre</span>
+          <input className="text-input" onChange={(event) => setCreateForm((current) => ({ ...current, name: event.target.value }))} required type="text" value={createForm.name} />
+        </label>
+        <button className="primary-button" type="submit">
+          Crear
+        </button>
+      </form>
+
+      <div className="assignment-card-list">
+        {academicUnits.map((academicUnit) => (
+          <article className="survey-list-card" key={academicUnit.id}>
+            <header>
+              <div>
+                <p className="eyebrow">{academicUnit.code}</p>
+                <h3>{academicUnit.name}</h3>
+              </div>
+              <ActivityBadge isActive={academicUnit.isActive} />
+            </header>
+            {editingId === academicUnit.id ? (
+              <form className="nested-form" onSubmit={(event) => void handleUpdate(event, academicUnit)}>
+                <p className="inline-message">Código: {academicUnit.code}</p>
+                <label>
+                  <span>Nombre</span>
+                  <input className="text-input" onChange={(event) => setEditForm({ name: event.target.value })} required type="text" value={editForm.name} />
+                </label>
+                <ActionButtons onCancel={() => setEditingId(null)} submitText="Guardar" />
+              </form>
+            ) : (
+              <CatalogActions
+                activeActionId={page.activeActionId}
+                isActive={academicUnit.isActive}
+                itemId={academicUnit.id}
+                onEdit={() => {
+                  setEditingId(academicUnit.id);
+                  setEditForm({ name: academicUnit.name });
+                }}
+                onToggle={() => void handleToggle(academicUnit)}
+              />
+            )}
+          </article>
+        ))}
+      </div>
+    </CatalogPageShell>
+  );
+}
+
 export function CareersCatalogPage() {
   const auth = useAuth();
   const runtime = useCatalogRuntime(auth.accessToken, auth.logout);
   const canManageCatalog = auth.hasPermission(MANAGE_ACADEMIC_CATALOG_PERMISSION);
   const [page, setPage] = useState<BasePageState>(basePageState);
+  const [academicUnits, setAcademicUnits] = useState<AcademicUnitDto[]>([]);
   const [careers, setCareers] = useState<CareerDto[]>([]);
   const [createForm, setCreateForm] = useState<CreateCareerRequest>({
+    academicUnitId: '',
     code: '',
     name: '',
     type: 'Undergraduate'
@@ -131,7 +316,12 @@ export function CareersCatalogPage() {
     setPage((current) => ({ ...current, loadState: 'loading', pageError: null }));
 
     try {
-      setCareers(await getCareers({ ...nextRuntime, includeInactive, signal }));
+      const [nextAcademicUnits, nextCareers] = await Promise.all([
+        getAcademicUnits({ ...nextRuntime, includeInactive: false, signal }),
+        getCareers({ ...nextRuntime, includeInactive, signal })
+      ]);
+      setAcademicUnits(nextAcademicUnits);
+      setCareers(nextCareers);
       setPage((current) => ({ ...current, loadState: 'ready' }));
     } catch (error) {
       if (signal?.aborted) {
@@ -158,7 +348,7 @@ export function CareersCatalogPage() {
         { ...createForm, code: createForm.code.trim(), name: createForm.name.trim() },
         runtime
       );
-      setCreateForm({ code: '', name: '', type: 'Undergraduate' });
+      setCreateForm({ academicUnitId: '', code: '', name: '', type: 'Undergraduate' });
       await loadCareers(runtime);
     });
   }
@@ -215,6 +405,22 @@ export function CareersCatalogPage() {
       <form className="survey-admin-form" onSubmit={handleCreate}>
         <h3>Nueva carrera</h3>
         <label>
+          <span>Unidad académica</span>
+          <select
+            className="text-input"
+            onChange={(event) => setCreateForm((current) => ({ ...current, academicUnitId: event.target.value }))}
+            required
+            value={createForm.academicUnitId}
+          >
+            <option value="">Seleccionar...</option>
+            {academicUnits.map((unit) => (
+              <option key={unit.id} value={unit.id}>
+                {unit.code} · {unit.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
           <span>Código</span>
           <input
             className="text-input"
@@ -250,13 +456,14 @@ export function CareersCatalogPage() {
               <div>
                 <p className="eyebrow">{career.code}</p>
                 <h3>{career.name}</h3>
-                <p>{formatCareerType(career.type)}</p>
+                <p>{formatCareerType(career.type)} · {career.academicUnitName ?? 'Sin unidad académica'}</p>
               </div>
               <ActivityBadge isActive={career.isActive} />
             </header>
             {editingId === career.id ? (
               <form className="nested-form" onSubmit={(event) => void handleUpdate(event, career)}>
                 <p className="inline-message">Código: {career.code}</p>
+                <p className="inline-message">Unidad académica: {career.academicUnitName ?? 'Sin unidad académica'}</p>
                 <label>
                   <span>Nombre</span>
                   <input

@@ -1,3 +1,4 @@
+using AcademicSurveySystem.Application.Academic.AcademicUnits;
 using AcademicSurveySystem.Application.Academic.AcademicCycles;
 using AcademicSurveySystem.Application.Academic.Careers;
 using AcademicSurveySystem.Application.Academic.Subjects;
@@ -11,15 +12,23 @@ public sealed class AcademicCatalogRequestValidationTests
     [Fact]
     public void CreateCareerRequest_RejectsEmptyCode()
     {
-        var errors = new CreateCareerRequest(" ", "Sistemas", "Undergraduate").Validate();
+        var errors = new CreateCareerRequest(Guid.NewGuid(), " ", "Sistemas", "Undergraduate").Validate();
 
         Assert.Contains(errors, error => error.Code == "Career.CodeRequired");
     }
 
     [Fact]
+    public void CreateCareerRequest_RejectsMissingAcademicUnitId()
+    {
+        var errors = new CreateCareerRequest(null, "sis", "Sistemas", "Undergraduate").Validate();
+
+        Assert.Contains(errors, error => error.Code == "Career.AcademicUnitIdRequired");
+    }
+
+    [Fact]
     public void CreateCareerRequest_RejectsEmptyName()
     {
-        var errors = new CreateCareerRequest("sis", " ", "Undergraduate").Validate();
+        var errors = new CreateCareerRequest(Guid.NewGuid(), "sis", " ", "Undergraduate").Validate();
 
         Assert.Contains(errors, error => error.Code == "Career.NameRequired");
     }
@@ -27,9 +36,25 @@ public sealed class AcademicCatalogRequestValidationTests
     [Fact]
     public void CreateCareerRequest_RejectsInvalidType()
     {
-        var errors = new CreateCareerRequest("sis", "Sistemas", "Invalid").Validate();
+        var errors = new CreateCareerRequest(Guid.NewGuid(), "sis", "Sistemas", "Invalid").Validate();
 
         Assert.Contains(errors, error => error.Code == "Career.TypeInvalid");
+    }
+
+    [Fact]
+    public void CreateAcademicUnitRequest_RejectsEmptyCode()
+    {
+        var errors = new CreateAcademicUnitRequest(" ", "Facultad").Validate();
+
+        Assert.Contains(errors, error => error.Code == "AcademicUnit.CodeRequired");
+    }
+
+    [Fact]
+    public void UpdateAcademicUnitRequest_RejectsEmptyName()
+    {
+        var errors = new UpdateAcademicUnitRequest(" ").Validate();
+
+        Assert.Contains(errors, error => error.Code == "AcademicUnit.NameRequired");
     }
 
     [Fact]

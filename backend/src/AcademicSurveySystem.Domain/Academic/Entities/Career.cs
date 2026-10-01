@@ -18,6 +18,7 @@ public sealed partial class Career
 
     public Career(
         Guid id,
+        Guid academicUnitId,
         string code,
         string name,
         CareerType type,
@@ -28,10 +29,16 @@ public sealed partial class Career
             throw new DomainException("Career id is required.");
         }
 
+        if (academicUnitId == Guid.Empty)
+        {
+            throw new DomainException("AcademicUnitId is required.");
+        }
+
         EnsureUtc(createdAtUtc, nameof(createdAtUtc));
         EnsureDefined(type, nameof(Type));
 
         Id = id;
+        AcademicUnitId = academicUnitId;
         Code = NormalizeCode(code, nameof(Code));
         Name = NormalizeRequiredText(name, nameof(Name), 200);
         Type = type;
@@ -41,12 +48,14 @@ public sealed partial class Career
     }
 
     public Guid Id { get; private set; }
+    public Guid AcademicUnitId { get; private set; }
     public string Code { get; private set; }
     public string Name { get; private set; }
     public CareerType Type { get; private set; }
     public bool IsActive { get; private set; }
     public DateTimeOffset CreatedAtUtc { get; private set; }
     public DateTimeOffset UpdatedAtUtc { get; private set; }
+    public AcademicUnit AcademicUnit { get; private set; } = null!;
     public IReadOnlyCollection<Subject> Subjects => _subjects.AsReadOnly();
     public IReadOnlyCollection<UserCareer> UserCareers => _userCareers.AsReadOnly();
 

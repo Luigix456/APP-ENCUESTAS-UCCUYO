@@ -17,14 +17,19 @@ export function AcademicCatalogHomePage() {
       <header className="surveys-header">
         <div>
           <p className="eyebrow">Administración</p>
-          <h2>Catálogo académico</h2>
-          <p>Prepará carreras, materias, ciclos lectivos, docentes y asignaciones docentes.</p>
+          <h2>Estructura académica</h2>
+          <p>Prepará unidades académicas, carreras, materias, ciclos lectivos, docentes y asignaciones docentes.</p>
         </div>
       </header>
 
       <div className="catalog-home-grid">
         <AcademicHomeCard
-          description="Alta, edición y activación de carreras, cursos o trayectos."
+          description="Facultades, departamentos o sedes que agrupan carreras."
+          title="Unidades académicas"
+          to="/app/academic/units"
+        />
+        <AcademicHomeCard
+          description="Alta, edición y activación de carreras dentro de una unidad académica."
           title="Carreras"
           to="/app/academic/careers"
         />

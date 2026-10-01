@@ -1,4 +1,5 @@
 using AcademicSurveySystem.Application.Academic;
+using AcademicSurveySystem.Application.Academic.AcademicUnits;
 using AcademicSurveySystem.Application.Academic.AcademicCycles;
 using AcademicSurveySystem.Application.Academic.Careers;
 using AcademicSurveySystem.Application.Academic.Common;
@@ -24,15 +25,157 @@ public sealed class AcademicCatalogService : IAcademicCatalogService
         _dbContext = dbContext;
     }
 
+    public async Task<ApplicationResult<IReadOnlyCollection<AcademicUnitDto>>> GetAcademicUnitsAsync(
+        bool includeInactive,
+        CancellationToken cancellationToken)
+    {
+        var units = await _dbContext.AcademicUnits
+            .AsNoTracking()
+            .Where(unit => includeInactive || unit.IsActive)
+            .OrderBy(unit => unit.Name)
+            .Select(unit => MapAcademicUnit(unit))
+            .ToArrayAsync(cancellationToken);
+
+        return ApplicationResult<IReadOnlyCollection<AcademicUnitDto>>.Success(units);
+    }
+
+    public async Task<ApplicationResult<AcademicUnitDto>> GetAcademicUnitByIdAsync(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        var unit = await _dbContext.AcademicUnits
+            .AsNoTracking()
+            .Where(item => item.Id == id)
+            .Select(item => MapAcademicUnit(item))
+            .SingleOrDefaultAsync(cancellationToken);
+
+        return unit is null
+            ? ApplicationResult<AcademicUnitDto>.NotFound("Academic unit was not found.")
+            : ApplicationResult<AcademicUnitDto>.Success(unit);
+    }
+
+    public async Task<ApplicationResult<AcademicUnitDto>> CreateAcademicUnitAsync(
+        CreateAcademicUnitRequest request,
+        CancellationToken cancellationToken)
+    {
+        var validationErrors = request.Validate();
+
+        if (validationErrors.Count > 0)
+        {
+            return ApplicationResult<AcademicUnitDto>.Validation(validationErrors);
+        }
+
+        var normalizedCode = request.Code!.Trim().ToLowerInvariant();
+
+        if (await _dbContext.AcademicUnits.AnyAsync(unit => unit.Code == normalizedCode, cancellationToken))
+        {
+            return ApplicationResult<AcademicUnitDto>.Conflict(
+                "An academic unit with the same code already exists.");
+        }
+
+        try
+        {
+            var unit = new AcademicUnit(
+                Guid.NewGuid(),
+                request.Code,
+                request.Name!,
+                DateTimeOffset.UtcNow);
+
+            _dbContext.AcademicUnits.Add(unit);
+            await _dbContext.SaveChangesAsync(cancellationToken);
+
+            return ApplicationResult<AcademicUnitDto>.Success(MapAcademicUnit(unit));
+        }
+        catch (DomainException exception)
+        {
+            return ApplicationResult<AcademicUnitDto>.Validation([
+                new ApplicationError("AcademicUnit.Validation", exception.Message)
+            ]);
+        }
+        catch (DbUpdateException exception) when (IsUniqueViolation(exception))
+        {
+            return ApplicationResult<AcademicUnitDto>.Conflict(
+                "An academic unit with the same code already exists.");
+        }
+        catch (DbUpdateException)
+        {
+            return ApplicationResult<AcademicUnitDto>.Failure("The academic unit could not be saved.");
+        }
+    }
+
+    public async Task<ApplicationResult> UpdateAcademicUnitAsync(
+        Guid id,
+        UpdateAcademicUnitRequest request,
+        CancellationToken cancellationToken)
+    {
+        var validationErrors = request.Validate();
+
+        if (validationErrors.Count > 0)
+        {
+            return ApplicationResult.Validation(validationErrors);
+        }
+
+        var unit = await _dbContext.AcademicUnits.SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
+
+        if (unit is null)
+        {
+            return ApplicationResult.NotFound("Academic unit was not found.");
+        }
+
+        try
+        {
+            unit.UpdateName(request.Name!, DateTimeOffset.UtcNow);
+            await _dbContext.SaveChangesAsync(cancellationToken);
+
+            return ApplicationResult.Success();
+        }
+        catch (DomainException exception)
+        {
+            return ApplicationResult.Validation([
+                new ApplicationError("AcademicUnit.Validation", exception.Message)
+            ]);
+        }
+        catch (DbUpdateException)
+        {
+            return ApplicationResult.Failure("The academic unit could not be saved.");
+        }
+    }
+
+    public Task<ApplicationResult> ActivateAcademicUnitAsync(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        return ChangeAcademicUnitStateAsync(id, activate: true, cancellationToken);
+    }
+
+    public Task<ApplicationResult> DeactivateAcademicUnitAsync(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        return ChangeAcademicUnitStateAsync(id, activate: false, cancellationToken);
+    }
+
     public async Task<ApplicationResult<IReadOnlyCollection<CareerDto>>> GetCareersAsync(
         bool includeInactive,
+        Guid? academicUnitId,
         CancellationToken cancellationToken)
     {
         var careers = await _dbContext.Careers
             .AsNoTracking()
             .Where(career => includeInactive || career.IsActive)
+            .Where(career => academicUnitId == null || career.AcademicUnitId == academicUnitId.Value)
             .OrderBy(career => career.Name)
-            .Select(career => MapCareer(career))
+            .Select(career => new CareerDto(
+                career.Id,
+                career.AcademicUnitId,
+                career.AcademicUnit.Code,
+                career.AcademicUnit.Name,
+                career.Code,
+                career.Name,
+                career.Type.ToString(),
+                career.IsActive,
+                career.CreatedAtUtc,
+                career.UpdatedAtUtc))
             .ToArrayAsync(cancellationToken);
 
         return ApplicationResult<IReadOnlyCollection<CareerDto>>.Success(careers);
@@ -45,7 +188,17 @@ public sealed class AcademicCatalogService : IAcademicCatalogService
         var career = await _dbContext.Careers
             .AsNoTracking()
             .Where(item => item.Id == id)
-            .Select(item => MapCareer(item))
+            .Select(item => new CareerDto(
+                item.Id,
+                item.AcademicUnitId,
+                item.AcademicUnit.Code,
+                item.AcademicUnit.Name,
+                item.Code,
+                item.Name,
+                item.Type.ToString(),
+                item.IsActive,
+                item.CreatedAtUtc,
+                item.UpdatedAtUtc))
             .SingleOrDefaultAsync(cancellationToken);
 
         return career is null
@@ -66,6 +219,22 @@ public sealed class AcademicCatalogService : IAcademicCatalogService
 
         var normalizedCode = request.Code!.Trim().ToLowerInvariant();
 
+        var academicUnit = await _dbContext.AcademicUnits
+            .AsNoTracking()
+            .SingleOrDefaultAsync(unit => unit.Id == request.AcademicUnitId!.Value, cancellationToken);
+
+        if (academicUnit is null)
+        {
+            return ApplicationResult<CareerDto>.NotFound("Academic unit was not found.");
+        }
+
+        if (!academicUnit.IsActive)
+        {
+            return ApplicationResult<CareerDto>.Validation([
+                new ApplicationError("Career.AcademicUnitInactive", "Academic unit is inactive.")
+            ]);
+        }
+
         if (await _dbContext.Careers.AnyAsync(career => career.Code == normalizedCode, cancellationToken))
         {
             return ApplicationResult<CareerDto>.Conflict("A career with the same code already exists.");
@@ -82,6 +251,7 @@ public sealed class AcademicCatalogService : IAcademicCatalogService
         {
             var career = new Career(
                 Guid.NewGuid(),
+                request.AcademicUnitId!.Value,
                 request.Code,
                 request.Name!,
                 type,
@@ -90,7 +260,7 @@ public sealed class AcademicCatalogService : IAcademicCatalogService
             _dbContext.Careers.Add(career);
             await _dbContext.SaveChangesAsync(cancellationToken);
 
-            return ApplicationResult<CareerDto>.Success(MapCareer(career));
+            return await GetCareerByIdAsync(career.Id, cancellationToken);
         }
         catch (DomainException exception)
         {
@@ -167,6 +337,52 @@ public sealed class AcademicCatalogService : IAcademicCatalogService
         CancellationToken cancellationToken)
     {
         return ChangeCareerStateAsync(id, activate: false, cancellationToken);
+    }
+
+    public async Task<ApplicationResult<IReadOnlyCollection<TeacherDto>>> GetCareerTeachersAsync(
+        Guid careerId,
+        Guid? academicCycleId,
+        bool includeInactive,
+        CancellationToken cancellationToken)
+    {
+        var careerExists = await _dbContext.Careers
+            .AsNoTracking()
+            .AnyAsync(career => career.Id == careerId, cancellationToken);
+
+        if (!careerExists)
+        {
+            return ApplicationResult<IReadOnlyCollection<TeacherDto>>.NotFound("Career was not found.");
+        }
+
+        var teachers = await _dbContext.TeacherSubjectAssignments
+            .AsNoTracking()
+            .Where(assignment => includeInactive || assignment.IsActive)
+            .Where(assignment => includeInactive || assignment.Teacher.IsActive)
+            .Where(assignment => assignment.Subject.CareerId == careerId)
+            .Where(assignment => academicCycleId == null || assignment.AcademicCycleId == academicCycleId.Value)
+            .GroupBy(assignment => new
+            {
+                assignment.Teacher.Id,
+                assignment.Teacher.FirstName,
+                assignment.Teacher.LastName,
+                assignment.Teacher.Email,
+                assignment.Teacher.IsActive,
+                assignment.Teacher.CreatedAtUtc,
+                assignment.Teacher.UpdatedAtUtc
+            })
+            .OrderBy(group => group.Key.LastName)
+            .ThenBy(group => group.Key.FirstName)
+            .Select(group => new TeacherDto(
+                group.Key.Id,
+                group.Key.FirstName,
+                group.Key.LastName,
+                group.Key.Email,
+                group.Key.IsActive,
+                group.Key.CreatedAtUtc,
+                group.Key.UpdatedAtUtc))
+            .ToArrayAsync(cancellationToken);
+
+        return ApplicationResult<IReadOnlyCollection<TeacherDto>>.Success(teachers);
     }
 
     public async Task<ApplicationResult<IReadOnlyCollection<AcademicCycleDto>>> GetAcademicCyclesAsync(
@@ -679,6 +895,7 @@ public sealed class AcademicCatalogService : IAcademicCatalogService
     public async Task<ApplicationResult<IReadOnlyCollection<TeacherSubjectAssignmentDto>>>
         GetTeacherSubjectAssignmentsAsync(
             bool includeInactive,
+            Guid? careerId,
             Guid? teacherId,
             Guid? subjectId,
             Guid? academicCycleId,
@@ -687,6 +904,7 @@ public sealed class AcademicCatalogService : IAcademicCatalogService
         var assignments = await _dbContext.TeacherSubjectAssignments
             .AsNoTracking()
             .Where(assignment => includeInactive || assignment.IsActive)
+            .Where(assignment => careerId == null || assignment.Subject.CareerId == careerId)
             .Where(assignment => teacherId == null || assignment.TeacherId == teacherId)
             .Where(assignment => subjectId == null || assignment.SubjectId == subjectId)
             .Where(assignment => academicCycleId == null || assignment.AcademicCycleId == academicCycleId)
@@ -922,6 +1140,41 @@ public sealed class AcademicCatalogService : IAcademicCatalogService
         }
     }
 
+    private async Task<ApplicationResult> ChangeAcademicUnitStateAsync(
+        Guid id,
+        bool activate,
+        CancellationToken cancellationToken)
+    {
+        var unit = await _dbContext.AcademicUnits.SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
+
+        if (unit is null)
+        {
+            return ApplicationResult.NotFound("Academic unit was not found.");
+        }
+
+        var now = DateTimeOffset.UtcNow;
+
+        if (activate)
+        {
+            unit.Activate(now);
+        }
+        else
+        {
+            unit.Deactivate(now);
+        }
+
+        try
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+
+            return ApplicationResult.Success();
+        }
+        catch (DbUpdateException)
+        {
+            return ApplicationResult.Failure("The academic unit could not be saved.");
+        }
+    }
+
     private async Task<ApplicationResult> ChangeAcademicCycleStateAsync(
         Guid id,
         bool activate,
@@ -1067,12 +1320,26 @@ public sealed class AcademicCatalogService : IAcademicCatalogService
     {
         return new CareerDto(
             career.Id,
+            career.AcademicUnitId,
+            career.AcademicUnit.Code,
+            career.AcademicUnit.Name,
             career.Code,
             career.Name,
             career.Type.ToString(),
             career.IsActive,
             career.CreatedAtUtc,
             career.UpdatedAtUtc);
+    }
+
+    private static AcademicUnitDto MapAcademicUnit(AcademicUnit unit)
+    {
+        return new AcademicUnitDto(
+            unit.Id,
+            unit.Code,
+            unit.Name,
+            unit.IsActive,
+            unit.CreatedAtUtc,
+            unit.UpdatedAtUtc);
     }
 
     private static AcademicCycleDto MapAcademicCycle(AcademicCycle cycle)

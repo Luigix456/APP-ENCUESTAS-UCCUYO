@@ -326,7 +326,18 @@ public sealed class SurveyTemplateVersioningTests
 
     private static AcademicFixture SeedAcademicContext(ApplicationDbContext context)
     {
-        var career = new Career(Guid.NewGuid(), "career", "Career", CareerType.Undergraduate, CreatedAtUtc);
+        var academicUnit = new AcademicUnit(
+            Guid.NewGuid(),
+            "academic-unit",
+            "Academic Unit",
+            CreatedAtUtc);
+        var career = new Career(
+            Guid.NewGuid(),
+            academicUnit.Id,
+            "career",
+            "Career",
+            CareerType.Undergraduate,
+            CreatedAtUtc);
         var subject = new Subject(
             Guid.NewGuid(),
             career.Id,
@@ -351,7 +362,7 @@ public sealed class SurveyTemplateVersioningTests
             "Titular",
             CreatedAtUtc);
 
-        context.AddRange(career, subject, cycle, teacher, teacherAssignment);
+        context.AddRange(academicUnit, career, subject, cycle, teacher, teacherAssignment);
         context.SaveChanges();
 
         return new AcademicFixture(career, subject, cycle, teacherAssignment);

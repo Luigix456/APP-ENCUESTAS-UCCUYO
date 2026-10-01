@@ -15,6 +15,10 @@ public sealed class CareerConfiguration : IEntityTypeConfiguration<Career>
         builder.Property(career => career.Id)
             .HasColumnName("id");
 
+        builder.Property(career => career.AcademicUnitId)
+            .HasColumnName("academic_unit_id")
+            .IsRequired();
+
         builder.Property(career => career.Code)
             .HasColumnName("code")
             .HasMaxLength(50)
@@ -45,6 +49,13 @@ public sealed class CareerConfiguration : IEntityTypeConfiguration<Career>
 
         builder.HasIndex(career => career.Code)
             .IsUnique();
+
+        builder.HasIndex(career => career.AcademicUnitId);
+
+        builder.HasOne(career => career.AcademicUnit)
+            .WithMany(academicUnit => academicUnit.Careers)
+            .HasForeignKey(career => career.AcademicUnitId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasMany(career => career.Subjects)
             .WithOne(subject => subject.Career)

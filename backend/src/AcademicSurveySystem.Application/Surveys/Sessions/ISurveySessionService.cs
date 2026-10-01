@@ -9,6 +9,10 @@ public interface ISurveySessionService
         string? status,
         Guid? surveyAssignmentId,
         string? accessCode,
+        Guid? careerId,
+        Guid? academicCycleId,
+        Guid? subjectId,
+        Guid? teacherId,
         CancellationToken cancellationToken);
 
     Task<ApplicationResult<SurveySessionDto>> GetSessionByIdAsync(

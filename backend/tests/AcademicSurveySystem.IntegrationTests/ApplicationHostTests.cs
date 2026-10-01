@@ -9,6 +9,7 @@ using AcademicSurveySystem.Application.Identity.UserManagement;
 using AcademicSurveySystem.Application.Surveys;
 using AcademicSurveySystem.Application.Surveys.Assignments;
 using AcademicSurveySystem.Application.Surveys.Responses;
+using AcademicSurveySystem.Application.Surveys.Reports;
 using AcademicSurveySystem.Application.Surveys.Results;
 using AcademicSurveySystem.Application.Surveys.Sessions;
 using AcademicSurveySystem.Infrastructure.Persistence;
@@ -203,6 +204,19 @@ public sealed class ApplicationStartupTests
         var surveyResultsService = scope.ServiceProvider.GetRequiredService<ISurveyResultsService>();
 
         Assert.NotNull(surveyResultsService);
+    }
+
+    [Fact]
+    public void ApiHost_ResolvesReportServices()
+    {
+        using var factory = CreateFactory();
+        using var scope = factory.Services.CreateScope();
+
+        var reportService = scope.ServiceProvider.GetRequiredService<IReportService>();
+        var pdfReportGenerator = scope.ServiceProvider.GetRequiredService<IPdfReportGenerator>();
+
+        Assert.NotNull(reportService);
+        Assert.NotNull(pdfReportGenerator);
     }
 
     [Fact]
@@ -444,6 +458,18 @@ public sealed class ApplicationStartupTests
     }
 
     [Fact]
+    public async Task Reports_WithoutToken_ReturnsUnauthorized()
+    {
+        using var factory = CreateFactory();
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync(
+            $"/api/reports/survey-assignments/{Guid.NewGuid()}");
+
+        Assert.Equal(System.Net.HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
     public async Task PublicSurveySessions_WithoutToken_DoesNotRequireAuthorization()
     {
         using var factory = CreateFactory(useFakeSurveySessionService: true);
@@ -517,6 +543,10 @@ public sealed class ApplicationStartupTests
             string? status,
             Guid? surveyAssignmentId,
             string? accessCode,
+            Guid? careerId,
+            Guid? academicCycleId,
+            Guid? subjectId,
+            Guid? teacherId,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 

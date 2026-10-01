@@ -7,6 +7,8 @@ import { getSurveySessions } from '../../api/surveySessionsApi';
 import { getSurveys } from '../../api/surveysApi';
 import { getUsers } from '../../api/usersApi';
 import { useAuth } from '../../auth/AuthProvider';
+import { useAcademicContext } from '../academic-context/AcademicContextProvider';
+import { formatAcademicCycle } from '../academic-catalog/academicCatalogUi';
 
 type DashboardState = 'loading' | 'ready' | 'error';
 
@@ -20,10 +22,14 @@ interface DashboardMetric {
 
 export function DashboardPage() {
   const auth = useAuth();
+  const academicContext = useAcademicContext();
   const [metrics, setMetrics] = useState<DashboardMetric[]>([]);
   const [state, setState] = useState<DashboardState>('loading');
   const [error, setError] = useState<string | null>(null);
   const accessToken = auth.accessToken;
+  const hasContext = Boolean(
+    academicContext.selectedCareer && academicContext.selectedAcademicCycle
+  );
 
   const permissions = useMemo(
     () => ({
@@ -67,30 +73,45 @@ export function DashboardPage() {
           });
         }
 
-        if (permissions.surveyAssignments) {
-          const assignments = await getSurveyAssignments(accessToken, auth.logout, { includeInactive: true });
+        if (permissions.surveyAssignments && hasContext) {
+          const assignments = await getSurveyAssignments(accessToken, auth.logout, {
+            includeInactive: true,
+            careerId: academicContext.careerId,
+            academicCycleId: academicContext.academicCycleId
+          });
           nextMetrics.push({
             key: 'assignments',
-            label: 'Asignaciones',
+            label: 'Encuestas asignadas',
             value: assignments.length,
             helper: `${assignments.filter((assignment) => assignment.isActive).length} activas`,
-            to: '/app/survey-assignments'
+            to: '/app/context/surveys'
           });
         }
 
-        if (permissions.sessions) {
-          const sessions = await getSurveySessions(accessToken, auth.logout);
+        if (permissions.sessions && hasContext) {
+          const sessions = await getSurveySessions(accessToken, auth.logout, {
+            careerId: academicContext.careerId,
+            academicCycleId: academicContext.academicCycleId
+          });
           nextMetrics.push({
             key: 'sessions',
             label: 'Sesiones',
             value: sessions.length,
             helper: `${sessions.filter((session) => session.status === 'Open').length} abiertas`,
-            to: '/app/sessions'
+            to: '/app/context/sessions'
           });
         }
 
-        if (permissions.results) {
-          const resultAssignments = await getResultAssignments(accessToken, auth.logout, {}, abortController.signal);
+        if (permissions.results && hasContext) {
+          const resultAssignments = await getResultAssignments(
+            accessToken,
+            auth.logout,
+            {
+              careerId: academicContext.careerId,
+              academicCycleId: academicContext.academicCycleId
+            },
+            abortController.signal
+          );
           const totalResponses = resultAssignments.reduce(
             (sum, assignment) => sum + assignment.totalResponses,
             0
@@ -100,7 +121,7 @@ export function DashboardPage() {
             label: 'Respuestas',
             value: totalResponses,
             helper: `${resultAssignments.length} contextos con resultados`,
-            to: '/app/results'
+            to: '/app/context/results'
           });
         }
 
@@ -151,13 +172,35 @@ export function DashboardPage() {
     return () => {
       abortController.abort();
     };
-  }, [accessToken, auth.logout, permissions]);
+  }, [
+    accessToken,
+    academicContext.academicCycleId,
+    academicContext.careerId,
+    auth.logout,
+    hasContext,
+    permissions
+  ]);
 
   const quickLinks = [
     permissions.surveys ? { to: '/app/surveys', label: 'Gestionar encuestas' } : null,
-    permissions.surveyAssignments ? { to: '/app/survey-assignments/new', label: 'Crear asignación' } : null,
-    permissions.sessions ? { to: '/app/sessions', label: 'Abrir sesión QR' } : null,
-    permissions.results ? { to: '/app/results', label: 'Consultar resultados' } : null,
+    permissions.surveyAssignments && hasContext
+      ? {
+          to: '/app/context/surveys/new',
+          label: 'Crear asignación en la carrera'
+        }
+      : null,
+    permissions.sessions && hasContext
+      ? {
+          to: '/app/context/sessions',
+          label: 'Sesiones de la carrera'
+        }
+      : null,
+    permissions.results && hasContext
+      ? {
+          to: '/app/context/results',
+          label: 'Resultados de la carrera'
+        }
+      : null,
     permissions.users ? { to: '/app/users', label: 'Administrar usuarios' } : null
   ].filter((link): link is { to: string; label: string } => link !== null);
 
@@ -167,9 +210,33 @@ export function DashboardPage() {
         <div>
           <p className="eyebrow">Inicio</p>
           <h2>Sistema Web de Gestión de Encuestas Académicas</h2>
-          <p>Panel operativo con accesos y métricas disponibles para tu perfil.</p>
+          <p>Empezá eligiendo una unidad académica, una carrera y un ciclo lectivo en el menú lateral.</p>
         </div>
       </header>
+
+      <section className="getting-started-panel" aria-label="Guía rápida">
+        <div>
+          <p className="eyebrow">Guía rápida</p>
+          <h3>Flujo recomendado</h3>
+          <ol>
+            <li>Elegí el contexto de trabajo en el menú lateral.</li>
+            <li>Revisá materias, docentes y asignaciones docentes.</li>
+            <li>Asigná una encuesta publicada a una materia y docente.</li>
+            <li>Abrí una sesión QR para que estudiantes respondan.</li>
+            <li>Consultá resultados cuando finalice la sesión.</li>
+          </ol>
+        </div>
+        <div className="current-context-card">
+          <span>Contexto actual</span>
+          <strong>{academicContext.selectedCareer?.name ?? 'Todavía no hay carrera seleccionada'}</strong>
+          <small>
+            {academicContext.selectedAcademicUnit?.name ?? 'Seleccioná una unidad académica'}
+            {academicContext.selectedAcademicCycle
+              ? ` · ${formatAcademicCycle(academicContext.selectedAcademicCycle)}`
+              : ''}
+          </small>
+        </div>
+      </section>
 
       {state === 'loading' ? <p aria-live="polite">Cargando métricas...</p> : null}
 

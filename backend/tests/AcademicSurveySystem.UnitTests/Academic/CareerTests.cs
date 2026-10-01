@@ -17,6 +17,7 @@ public sealed class CareerTests
     {
         var career = CreateCareer();
 
+        Assert.NotEqual(Guid.Empty, career.AcademicUnitId);
         Assert.Equal("sis", career.Code);
         Assert.Equal("Sistemas", career.Name);
         Assert.Equal(CareerType.Undergraduate, career.Type);
@@ -52,6 +53,12 @@ public sealed class CareerTests
     }
 
     [Fact]
+    public void Constructor_RejectsEmptyAcademicUnitId()
+    {
+        Assert.Throws<DomainException>(() => CreateCareer(academicUnitId: Guid.Empty));
+    }
+
+    [Fact]
     public void ActivateAndDeactivate_UpdateState()
     {
         var career = CreateCareer();
@@ -82,6 +89,7 @@ public sealed class CareerTests
     }
 
     private static Career CreateCareer(
+        Guid? academicUnitId = null,
         string code = "SIS",
         string name = "Sistemas",
         CareerType type = CareerType.Undergraduate,
@@ -89,6 +97,7 @@ public sealed class CareerTests
     {
         return new Career(
             Guid.NewGuid(),
+            academicUnitId ?? Guid.NewGuid(),
             code,
             name,
             type,

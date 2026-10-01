@@ -40,6 +40,10 @@ public sealed class SurveySessionsController : ControllerBase
         [FromQuery] string? status = null,
         [FromQuery] Guid? surveyAssignmentId = null,
         [FromQuery] string? accessCode = null,
+        [FromQuery] Guid? careerId = null,
+        [FromQuery] Guid? academicCycleId = null,
+        [FromQuery] Guid? subjectId = null,
+        [FromQuery] Guid? teacherId = null,
         CancellationToken cancellationToken = default)
     {
         var result = await _surveySessionService.GetSessionsAsync(
@@ -47,6 +51,10 @@ public sealed class SurveySessionsController : ControllerBase
             status,
             surveyAssignmentId,
             accessCode,
+            careerId,
+            academicCycleId,
+            subjectId,
+            teacherId,
             cancellationToken);
 
         return ToActionResult(result);

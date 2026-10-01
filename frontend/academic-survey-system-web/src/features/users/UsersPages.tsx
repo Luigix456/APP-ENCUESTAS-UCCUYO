@@ -959,15 +959,15 @@ function getInitials(user: Pick<UserDto, 'firstName' | 'lastName' | 'email'>): s
 }
 
 function canReadIdentityUsers(hasPermission: (permission: string) => boolean): boolean {
-  return hasPermission(READ_USERS_PERMISSION) || hasPermission('identity.users.manage');
+  return hasPermission(READ_USERS_PERMISSION);
 }
 
 function canCreateIdentityUsers(hasPermission: (permission: string) => boolean): boolean {
-  return hasPermission(CREATE_USERS_PERMISSION) || hasPermission('identity.users.manage');
+  return hasPermission(CREATE_USERS_PERMISSION);
 }
 
 function canUpdateIdentityUsers(hasPermission: (permission: string) => boolean): boolean {
-  return hasPermission(UPDATE_USERS_PERMISSION) || hasPermission('identity.users.manage');
+  return hasPermission(UPDATE_USERS_PERMISSION);
 }
 
 function canDeleteIdentityUsers(hasPermission: (permission: string) => boolean): boolean {
@@ -975,9 +975,9 @@ function canDeleteIdentityUsers(hasPermission: (permission: string) => boolean):
 }
 
 function canAssignIdentityRoles(hasPermission: (permission: string) => boolean): boolean {
-  return hasPermission(ASSIGN_ROLES_PERMISSION) || hasPermission('identity.users.manage');
+  return hasPermission(ASSIGN_ROLES_PERMISSION);
 }
 
 function canReadIdentityRoles(hasPermission: (permission: string) => boolean): boolean {
-  return hasPermission(READ_ROLES_PERMISSION) || hasPermission('identity.users.manage');
+  return hasPermission(READ_ROLES_PERMISSION);
 }

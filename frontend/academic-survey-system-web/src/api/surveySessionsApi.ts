@@ -1,13 +1,39 @@
 import { apiRequest } from './apiClient';
 import type { CreateSurveySessionRequest, SurveySessionDto } from '../types/surveyOperations';
 
+export interface SurveySessionFilters {
+  includeInactive?: boolean;
+  status?: string;
+  surveyAssignmentId?: string;
+  accessCode?: string;
+  careerId?: string;
+  academicCycleId?: string;
+  subjectId?: string;
+  teacherId?: string;
+}
+
 export function getSurveySessions(
   accessToken: string,
-  onUnauthorized: () => void
+  onUnauthorized: () => void,
+  filters: SurveySessionFilters = {},
+  signal?: AbortSignal
 ): Promise<SurveySessionDto[]> {
-  return apiRequest<SurveySessionDto[]>('/api/survey-sessions?includeInactive=false', {
+  const searchParams = new URLSearchParams({
+    includeInactive: String(filters.includeInactive ?? false)
+  });
+
+  appendOptionalFilter(searchParams, 'status', filters.status);
+  appendOptionalFilter(searchParams, 'surveyAssignmentId', filters.surveyAssignmentId);
+  appendOptionalFilter(searchParams, 'accessCode', filters.accessCode);
+  appendOptionalFilter(searchParams, 'careerId', filters.careerId);
+  appendOptionalFilter(searchParams, 'academicCycleId', filters.academicCycleId);
+  appendOptionalFilter(searchParams, 'subjectId', filters.subjectId);
+  appendOptionalFilter(searchParams, 'teacherId', filters.teacherId);
+
+  return apiRequest<SurveySessionDto[]>(`/api/survey-sessions?${searchParams.toString()}`, {
     token: accessToken,
-    onUnauthorized
+    onUnauthorized,
+    signal
   });
 }
 
@@ -57,4 +83,10 @@ export function closeSurveySession(
     token: accessToken,
     onUnauthorized
   });
+}
+
+function appendOptionalFilter(searchParams: URLSearchParams, key: string, value?: string) {
+  if (value) {
+    searchParams.set(key, value);
+  }
 }

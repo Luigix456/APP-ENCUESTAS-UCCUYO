@@ -67,12 +67,55 @@ namespace AcademicSurveySystem.Infrastructure.Persistence.Migrations
                     b.ToTable("academic_cycles", (string)null);
                 });
 
+            modelBuilder.Entity("AcademicSurveySystem.Domain.Academic.Entities.AcademicUnit", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("code");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("name");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at_utc");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("academic_units", (string)null);
+                });
+
             modelBuilder.Entity("AcademicSurveySystem.Domain.Academic.Entities.Career", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("id");
+
+                    b.Property<Guid>("AcademicUnitId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("academic_unit_id");
 
                     b.Property<string>("Code")
                         .IsRequired()
@@ -105,6 +148,8 @@ namespace AcademicSurveySystem.Infrastructure.Persistence.Migrations
                         .HasColumnName("updated_at_utc");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("AcademicUnitId");
 
                     b.HasIndex("Code")
                         .IsUnique();
@@ -1353,6 +1398,17 @@ namespace AcademicSurveySystem.Infrastructure.Persistence.Migrations
                     b.ToTable("survey_sessions", (string)null);
                 });
 
+            modelBuilder.Entity("AcademicSurveySystem.Domain.Academic.Entities.Career", b =>
+                {
+                    b.HasOne("AcademicSurveySystem.Domain.Academic.Entities.AcademicUnit", "AcademicUnit")
+                        .WithMany("Careers")
+                        .HasForeignKey("AcademicUnitId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("AcademicUnit");
+                });
+
             modelBuilder.Entity("AcademicSurveySystem.Domain.Academic.Entities.Subject", b =>
                 {
                     b.HasOne("AcademicSurveySystem.Domain.Academic.Entities.Career", "Career")
@@ -1653,6 +1709,11 @@ namespace AcademicSurveySystem.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("AcademicSurveySystem.Domain.Academic.Entities.AcademicCycle", b =>
                 {
                     b.Navigation("TeacherSubjectAssignments");
+                });
+
+            modelBuilder.Entity("AcademicSurveySystem.Domain.Academic.Entities.AcademicUnit", b =>
+                {
+                    b.Navigation("Careers");
                 });
 
             modelBuilder.Entity("AcademicSurveySystem.Domain.Academic.Entities.Career", b =>

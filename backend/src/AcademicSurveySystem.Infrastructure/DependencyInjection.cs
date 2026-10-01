@@ -10,6 +10,7 @@ using AcademicSurveySystem.Application.Identity.UserPasswordReset;
 using AcademicSurveySystem.Application.Surveys;
 using AcademicSurveySystem.Application.Surveys.Assignments;
 using AcademicSurveySystem.Application.Surveys.Responses;
+using AcademicSurveySystem.Application.Surveys.Reports;
 using AcademicSurveySystem.Application.Surveys.Results;
 using AcademicSurveySystem.Application.Surveys.Sessions;
 using AcademicSurveySystem.Infrastructure.Academic;
@@ -17,12 +18,14 @@ using AcademicSurveySystem.Infrastructure.Authentication;
 using AcademicSurveySystem.Infrastructure.Identity;
 using AcademicSurveySystem.Infrastructure.Identity.Authentication;
 using AcademicSurveySystem.Infrastructure.Persistence;
+using AcademicSurveySystem.Infrastructure.Reports;
 using AcademicSurveySystem.Infrastructure.Security;
 using AcademicSurveySystem.Infrastructure.Surveys;
 using AcademicSurveySystem.Infrastructure.Surveys.Results;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using QuestPDF.Infrastructure;
 
 namespace AcademicSurveySystem.Infrastructure;
 
@@ -76,6 +79,17 @@ public static class DependencyInjection
                 options.NewPassword = configuration["AdminPasswordReset:NewPassword"];
             });
 
+        services
+            .AddOptions<ReportOptions>()
+            .Configure(options =>
+            {
+                options.InstitutionName = configuration["Reports:InstitutionName"] ?? options.InstitutionName;
+                options.SystemName = configuration["Reports:SystemName"] ?? options.SystemName;
+                options.FacultyName = configuration["Reports:FacultyName"] ?? options.FacultyName;
+            });
+
+        QuestPDF.Settings.License = LicenseType.Community;
+
         var jwtOptionsBuilder = services
             .AddOptions<JwtOptions>()
             .Configure(options =>
@@ -124,6 +138,8 @@ public static class DependencyInjection
         services.AddScoped<ISurveyResponseService, SurveyResponseService>();
         services.AddScoped<ISurveyResultsService, SurveyResultsService>();
         services.AddScoped<IResultsAccessService, ResultsAccessService>();
+        services.AddScoped<IReportService, ReportService>();
+        services.AddScoped<IPdfReportGenerator, QuestPdfReportGenerator>();
         services.AddScoped<IUserCareerService, UserCareerService>();
         services.AddScoped<IUserManagementService, UserManagementService>();
         services.AddScoped<IUserPasswordResetService, UserPasswordResetService>();

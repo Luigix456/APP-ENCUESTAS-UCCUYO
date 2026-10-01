@@ -7,8 +7,11 @@ namespace AcademicSurveySystem.IntegrationTests;
 public sealed class AcademicControllerAuthorizationTests
 {
     [Theory]
+    [InlineData(typeof(AcademicUnitsController), nameof(AcademicUnitsController.GetAll), "academic.catalog.read")]
+    [InlineData(typeof(AcademicUnitsController), nameof(AcademicUnitsController.GetById), "academic.catalog.read")]
     [InlineData(typeof(CareersController), nameof(CareersController.GetAll), "academic.catalog.read")]
     [InlineData(typeof(CareersController), nameof(CareersController.GetById), "academic.catalog.read")]
+    [InlineData(typeof(CareersController), nameof(CareersController.GetTeachers), "academic.catalog.read")]
     [InlineData(typeof(AcademicCyclesController), nameof(AcademicCyclesController.GetAll), "academic.catalog.read")]
     [InlineData(typeof(AcademicCyclesController), nameof(AcademicCyclesController.GetById), "academic.catalog.read")]
     [InlineData(typeof(SubjectsController), nameof(SubjectsController.GetAll), "academic.catalog.read")]
@@ -32,6 +35,10 @@ public sealed class AcademicControllerAuthorizationTests
     }
 
     [Theory]
+    [InlineData(typeof(AcademicUnitsController), nameof(AcademicUnitsController.Create), "academic.catalog.manage")]
+    [InlineData(typeof(AcademicUnitsController), nameof(AcademicUnitsController.Update), "academic.catalog.manage")]
+    [InlineData(typeof(AcademicUnitsController), nameof(AcademicUnitsController.Activate), "academic.catalog.manage")]
+    [InlineData(typeof(AcademicUnitsController), nameof(AcademicUnitsController.Deactivate), "academic.catalog.manage")]
     [InlineData(typeof(CareersController), nameof(CareersController.Create), "academic.catalog.manage")]
     [InlineData(typeof(CareersController), nameof(CareersController.Update), "academic.catalog.manage")]
     [InlineData(typeof(CareersController), nameof(CareersController.Activate), "academic.catalog.manage")]
@@ -75,6 +82,13 @@ public sealed class AcademicControllerAuthorizationTests
     [Fact]
     public void AcademicControllers_HaveExpectedRoutes()
     {
+        Assert.Equal(
+            "api/academic/academic-units",
+            typeof(AcademicUnitsController).GetCustomAttributes(typeof(RouteAttribute), inherit: false)
+                .Cast<RouteAttribute>()
+                .Single()
+                .Template);
+
         Assert.Equal(
             "api/academic/careers",
             typeof(CareersController).GetCustomAttributes(typeof(RouteAttribute), inherit: false)

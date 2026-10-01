@@ -1,3 +1,4 @@
+using AcademicSurveySystem.Application.Academic.AcademicUnits;
 using AcademicSurveySystem.Application.Academic.AcademicCycles;
 using AcademicSurveySystem.Application.Academic.Careers;
 using AcademicSurveySystem.Application.Academic.Common;
@@ -10,8 +11,34 @@ namespace AcademicSurveySystem.Application.Academic;
 
 public interface IAcademicCatalogService
 {
+    Task<ApplicationResult<IReadOnlyCollection<AcademicUnitDto>>> GetAcademicUnitsAsync(
+        bool includeInactive,
+        CancellationToken cancellationToken);
+
+    Task<ApplicationResult<AcademicUnitDto>> GetAcademicUnitByIdAsync(
+        Guid id,
+        CancellationToken cancellationToken);
+
+    Task<ApplicationResult<AcademicUnitDto>> CreateAcademicUnitAsync(
+        CreateAcademicUnitRequest request,
+        CancellationToken cancellationToken);
+
+    Task<ApplicationResult> UpdateAcademicUnitAsync(
+        Guid id,
+        UpdateAcademicUnitRequest request,
+        CancellationToken cancellationToken);
+
+    Task<ApplicationResult> ActivateAcademicUnitAsync(
+        Guid id,
+        CancellationToken cancellationToken);
+
+    Task<ApplicationResult> DeactivateAcademicUnitAsync(
+        Guid id,
+        CancellationToken cancellationToken);
+
     Task<ApplicationResult<IReadOnlyCollection<CareerDto>>> GetCareersAsync(
         bool includeInactive,
+        Guid? academicUnitId,
         CancellationToken cancellationToken);
 
     Task<ApplicationResult<CareerDto>> GetCareerByIdAsync(
@@ -33,6 +60,12 @@ public interface IAcademicCatalogService
 
     Task<ApplicationResult> DeactivateCareerAsync(
         Guid id,
+        CancellationToken cancellationToken);
+
+    Task<ApplicationResult<IReadOnlyCollection<TeacherDto>>> GetCareerTeachersAsync(
+        Guid careerId,
+        Guid? academicCycleId,
+        bool includeInactive,
         CancellationToken cancellationToken);
 
     Task<ApplicationResult<IReadOnlyCollection<AcademicCycleDto>>> GetAcademicCyclesAsync(
@@ -113,6 +146,7 @@ public interface IAcademicCatalogService
 
     Task<ApplicationResult<IReadOnlyCollection<TeacherSubjectAssignmentDto>>> GetTeacherSubjectAssignmentsAsync(
         bool includeInactive,
+        Guid? careerId,
         Guid? teacherId,
         Guid? subjectId,
         Guid? academicCycleId,

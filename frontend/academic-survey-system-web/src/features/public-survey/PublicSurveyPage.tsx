@@ -135,6 +135,11 @@ export function PublicSurveyPage({ accessCode }: PublicSurveyPageProps) {
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (isSubmitting) {
+      return;
+    }
+
     setSubmitError(null);
 
     const nextErrors = validateSurvey(questions, answers);
@@ -181,7 +186,7 @@ export function PublicSurveyPage({ accessCode }: PublicSurveyPageProps) {
             <div>
               <dt>Ciclo</dt>
               <dd>
-                {survey.academicCycleYear} - {survey.academicCyclePeriod}
+                {survey.academicCycleYear} - {formatPeriod(survey.academicCyclePeriod)}
               </dd>
             </div>
           </dl>
@@ -358,4 +363,21 @@ function isAvailabilityError(error: ApiError): boolean {
         message.includes('no disponible')
     )
   );
+}
+
+function formatPeriod(period: string): string {
+  switch (period) {
+    case 'Annual':
+      return 'Anual';
+    case 'FirstSemester':
+      return 'Primer semestre';
+    case 'SecondSemester':
+      return 'Segundo semestre';
+    case 'FirstQuarter':
+      return 'Primer cuatrimestre';
+    case 'SecondQuarter':
+      return 'Segundo cuatrimestre';
+    default:
+      return period;
+  }
 }

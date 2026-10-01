@@ -16,6 +16,13 @@ interface ApiRequestOptions {
   token?: string;
   onUnauthorized?: () => void;
   signal?: AbortSignal;
+  accept?: string;
+}
+
+export interface ApiBinaryResponse {
+  blob: Blob;
+  contentDisposition: string | null;
+  contentType: string | null;
 }
 
 interface ApiErrorPayload {
@@ -26,10 +33,10 @@ interface ApiErrorPayload {
 
 export async function apiRequest<T>(
   path: string,
-  { method = 'GET', body, token, onUnauthorized, signal }: ApiRequestOptions = {}
+  { method = 'GET', body, token, onUnauthorized, signal, accept = 'application/json' }: ApiRequestOptions = {}
 ): Promise<T> {
   const headers: HeadersInit = {
-    Accept: 'application/json'
+    Accept: accept
   };
 
   if (body !== undefined) {
@@ -61,6 +68,44 @@ export async function apiRequest<T>(
 
   const text = await response.text();
   return text ? (JSON.parse(text) as T) : (null as T);
+}
+
+export async function apiRequestBlob(
+  path: string,
+  { method = 'GET', body, token, onUnauthorized, signal, accept = 'application/octet-stream' }: ApiRequestOptions = {}
+): Promise<ApiBinaryResponse> {
+  const headers: HeadersInit = {
+    Accept: accept
+  };
+
+  if (body !== undefined) {
+    headers['Content-Type'] = 'application/json';
+  }
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const response = await fetch(path, {
+    method,
+    headers,
+    signal,
+    body: body === undefined ? undefined : JSON.stringify(body)
+  });
+
+  if (!response.ok) {
+    if (response.status === 401 && token) {
+      onUnauthorized?.();
+    }
+
+    throw await createApiClientError(response);
+  }
+
+  return {
+    blob: await response.blob(),
+    contentDisposition: response.headers.get('Content-Disposition'),
+    contentType: response.headers.get('Content-Type')
+  };
 }
 
 async function createApiClientError(response: Response): Promise<ApiClientError> {

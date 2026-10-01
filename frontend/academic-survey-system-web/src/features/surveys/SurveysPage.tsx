@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { archiveSurvey, getOrCreateEditableSurveyVersion, getSurveys } from '../../api/surveysApi';
 import { useAuth } from '../../auth/AuthProvider';
+import { PaginationControls, usePagination } from '../../components/Pagination';
 import type { SurveyFilters, SurveyStatus, SurveySummaryDto, SurveyTarget } from '../../types/surveys';
 import { SURVEY_STATUSES, SURVEY_STATUS_LABELS, SURVEY_TARGETS } from '../../types/surveys';
 import {
@@ -49,6 +50,7 @@ export function SurveysPage() {
   const sortedSurveys = useMemo(() => {
     return [...surveys].sort((left, right) => Date.parse(right.updatedAtUtc) - Date.parse(left.updatedAtUtc));
   }, [surveys]);
+  const surveyPagination = usePagination(sortedSurveys, 8);
 
   if (!canManageTemplates) {
     return <PermissionDeniedPanel />;
@@ -231,66 +233,79 @@ export function SurveysPage() {
       ) : null}
 
       {loadState === 'ready' && sortedSurveys.length > 0 ? (
-        <div className="surveys-table" role="list">
-          {sortedSurveys.map((survey) => (
-            <article className="survey-list-card" key={survey.id} role="listitem">
-              <header>
-                <div>
-                  <h3>{survey.title}</h3>
-                  <p>{survey.description || 'Sin descripción'}</p>
-                </div>
-                <div className="badge-group">
-                  <SurveyVersionBadge survey={survey} />
-                  <SurveyStatusBadge status={survey.status} />
-                  <ActivityBadge isActive={survey.isActive} />
-                </div>
-              </header>
+        <>
+          <PaginationControls
+            firstItem={surveyPagination.firstItem}
+            itemLabel="plantillas"
+            lastItem={surveyPagination.lastItem}
+            onPageChange={surveyPagination.setPage}
+            onPageSizeChange={surveyPagination.setPageSize}
+            page={surveyPagination.page}
+            pageSize={surveyPagination.pageSize}
+            totalItems={surveyPagination.totalItems}
+            totalPages={surveyPagination.totalPages}
+          />
+          <div className="surveys-table" role="list">
+            {surveyPagination.items.map((survey) => (
+              <article className="survey-list-card" key={survey.id} role="listitem">
+                <header>
+                  <div>
+                    <h3>{survey.title}</h3>
+                    <p>{survey.description || 'Sin descripción'}</p>
+                  </div>
+                  <div className="badge-group">
+                    <SurveyVersionBadge survey={survey} />
+                    <SurveyStatusBadge status={survey.status} />
+                    <ActivityBadge isActive={survey.isActive} />
+                  </div>
+                </header>
 
-              <dl className="survey-card-meta">
-                <div>
-                  <dt>Audiencia</dt>
-                  <dd>{formatSurveyTarget(survey.target)}</dd>
-                </div>
-                <div>
-                  <dt>Secciones</dt>
-                  <dd>{survey.sectionCount}</dd>
-                </div>
-                <div>
-                  <dt>Preguntas</dt>
-                  <dd>{survey.questionCount}</dd>
-                </div>
-                <div>
-                  <dt>Actualizada</dt>
-                  <dd>{formatDateTime(survey.updatedAtUtc)}</dd>
-                </div>
-              </dl>
+                <dl className="survey-card-meta">
+                  <div>
+                    <dt>Audiencia</dt>
+                    <dd>{formatSurveyTarget(survey.target)}</dd>
+                  </div>
+                  <div>
+                    <dt>Secciones</dt>
+                    <dd>{survey.sectionCount}</dd>
+                  </div>
+                  <div>
+                    <dt>Preguntas</dt>
+                    <dd>{survey.questionCount}</dd>
+                  </div>
+                  <div>
+                    <dt>Actualizada</dt>
+                    <dd>{formatDateTime(survey.updatedAtUtc)}</dd>
+                  </div>
+                </dl>
 
-              <div className="survey-card-actions">
-                <Link className="secondary-link-button" to={`/app/surveys/${survey.id}/preview`}>
-                  Vista previa
-                </Link>
-                <button
-                  className="secondary-button"
-                  disabled={activeActionId === survey.id}
-                  onClick={() => void handleEdit(survey)}
-                  type="button"
-                >
-                  {activeActionId === survey.id ? 'Preparando...' : 'Editar'}
-                </button>
-                {survey.status === 'Published' ? (
+                <div className="survey-card-actions">
+                  <Link className="secondary-link-button" to={`/app/surveys/${survey.id}/preview`}>
+                    Vista previa
+                  </Link>
                   <button
-                    className="danger-button"
+                    className="secondary-button"
                     disabled={activeActionId === survey.id}
-                    onClick={() => void handleArchive(survey)}
+                    onClick={() => void handleEdit(survey)}
                     type="button"
                   >
-                    {activeActionId === survey.id ? 'Archivando...' : 'Archivar'}
+                    {activeActionId === survey.id ? 'Preparando...' : 'Editar'}
                   </button>
-                ) : null}
-              </div>
-            </article>
-          ))}
-        </div>
+                  {survey.status === 'Published' ? (
+                    <button
+                      className="danger-button"
+                      disabled={activeActionId === survey.id}
+                      onClick={() => void handleArchive(survey)}
+                      type="button"
+                    >
+                      {activeActionId === survey.id ? 'Archivando...' : 'Archivar'}
+                    </button>
+                  ) : null}
+                </div>
+              </article>
+            ))}
+          </div>
+        </>
       ) : null}
     </section>
   );

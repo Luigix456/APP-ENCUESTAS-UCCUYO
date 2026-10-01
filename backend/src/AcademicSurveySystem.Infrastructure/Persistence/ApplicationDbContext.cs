@@ -18,6 +18,7 @@ public sealed class ApplicationDbContext : DbContext
     public DbSet<UserRole> UserRoles => Set<UserRole>();
     public DbSet<UserCareer> UserCareers => Set<UserCareer>();
     public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
+    public DbSet<AcademicUnit> AcademicUnits => Set<AcademicUnit>();
     public DbSet<Career> Careers => Set<Career>();
     public DbSet<Subject> Subjects => Set<Subject>();
     public DbSet<Teacher> Teachers => Set<Teacher>();

@@ -221,6 +221,7 @@ public sealed class UserCareerServiceTests
     {
         return new Career(
             Guid.NewGuid(),
+            Guid.NewGuid(),
             code,
             name,
             CareerType.Undergraduate,

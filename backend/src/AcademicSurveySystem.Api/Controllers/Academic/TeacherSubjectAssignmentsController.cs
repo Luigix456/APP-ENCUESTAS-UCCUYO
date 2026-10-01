@@ -35,6 +35,7 @@ public sealed class TeacherSubjectAssignmentsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> GetAll(
         [FromQuery] bool includeInactive = false,
+        [FromQuery] Guid? careerId = null,
         [FromQuery] Guid? teacherId = null,
         [FromQuery] Guid? subjectId = null,
         [FromQuery] Guid? academicCycleId = null,
@@ -42,6 +43,7 @@ public sealed class TeacherSubjectAssignmentsController : ControllerBase
     {
         var result = await _academicCatalogService.GetTeacherSubjectAssignmentsAsync(
             includeInactive,
+            careerId,
             teacherId,
             subjectId,
             academicCycleId,

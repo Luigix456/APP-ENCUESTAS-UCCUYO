@@ -1,8 +1,16 @@
 import { BrowserRouter, Navigate, Route, Routes, useParams } from 'react-router-dom';
 import { AuthProvider, useAuth } from './auth/AuthProvider';
 import { AuthLoadingScreen, ProtectedRoute } from './auth/ProtectedRoute';
+import { AcademicContextProvider } from './features/academic-context/AcademicContextProvider';
+import {
+  CareerOverviewPage,
+  ContextSubjectsPage,
+  ContextTeacherAssignmentsPage,
+  ContextTeachersPage
+} from './features/academic-context/CareerContextPages';
 import { AcademicCatalogHomePage } from './features/academic-catalog/AcademicCatalogHomePage';
 import {
+  AcademicUnitsCatalogPage,
   AcademicCyclesCatalogPage,
   CareersCatalogPage,
   SubjectsCatalogPage,
@@ -14,6 +22,7 @@ import { LoginPage } from './features/auth/LoginPage';
 import { DashboardPage } from './features/dashboard/DashboardPage';
 import { PublicSurveyPage } from './features/public-survey/PublicSurveyPage';
 import { ResultsPage } from './features/results/ResultsPage';
+import { SurveyAssignmentReportPage } from './features/results/SurveyAssignmentReportPage';
 import { SurveyAssignmentResultsPage } from './features/results/SurveyAssignmentResultsPage';
 import { SurveyAssignmentCreatePage } from './features/survey-assignments/SurveyAssignmentCreatePage';
 import { SurveyAssignmentsPage } from './features/survey-assignments/SurveyAssignmentsPage';
@@ -28,7 +37,8 @@ export function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <Routes>
+        <AcademicContextProvider>
+          <Routes>
           <Route element={<RootRoute />} path="/" />
           <Route element={<LoginPage />} path="/login" />
           <Route
@@ -85,6 +95,46 @@ export function App() {
             element={
               <ProtectedRoute>
                 <AppShell>
+                  <CareerOverviewPage />
+                </AppShell>
+              </ProtectedRoute>
+            }
+            path="/app/context"
+          />
+          <Route
+            element={
+              <ProtectedRoute>
+                <AppShell>
+                  <ContextSubjectsPage />
+                </AppShell>
+              </ProtectedRoute>
+            }
+            path="/app/context/subjects"
+          />
+          <Route
+            element={
+              <ProtectedRoute>
+                <AppShell>
+                  <ContextTeachersPage />
+                </AppShell>
+              </ProtectedRoute>
+            }
+            path="/app/context/teachers"
+          />
+          <Route
+            element={
+              <ProtectedRoute>
+                <AppShell>
+                  <ContextTeacherAssignmentsPage />
+                </AppShell>
+              </ProtectedRoute>
+            }
+            path="/app/context/teacher-assignments"
+          />
+          <Route
+            element={
+              <ProtectedRoute>
+                <AppShell>
                   <AcademicCatalogHomePage />
                 </AppShell>
               </ProtectedRoute>
@@ -100,6 +150,16 @@ export function App() {
               </ProtectedRoute>
             }
             path="/app/academic/careers"
+          />
+          <Route
+            element={
+              <ProtectedRoute>
+                <AppShell>
+                  <AcademicUnitsCatalogPage />
+                </AppShell>
+              </ProtectedRoute>
+            }
+            path="/app/academic/units"
           />
           <Route
             element={
@@ -175,11 +235,31 @@ export function App() {
             element={
               <ProtectedRoute>
                 <AppShell>
+                  <SurveyAssignmentsPage contextual />
+                </AppShell>
+              </ProtectedRoute>
+            }
+            path="/app/context/surveys"
+          />
+          <Route
+            element={
+              <ProtectedRoute>
+                <AppShell>
                   <SurveyAssignmentCreatePage />
                 </AppShell>
               </ProtectedRoute>
             }
             path="/app/survey-assignments/new"
+          />
+          <Route
+            element={
+              <ProtectedRoute>
+                <AppShell>
+                  <SurveyAssignmentCreatePage contextual />
+                </AppShell>
+              </ProtectedRoute>
+            }
+            path="/app/context/surveys/new"
           />
           <Route
             element={
@@ -195,11 +275,41 @@ export function App() {
             element={
               <ProtectedRoute>
                 <AppShell>
+                  <ResultsPage contextual />
+                </AppShell>
+              </ProtectedRoute>
+            }
+            path="/app/context/results"
+          />
+          <Route
+            element={
+              <ProtectedRoute>
+                <AppShell>
+                  <SurveySessionsPage contextual />
+                </AppShell>
+              </ProtectedRoute>
+            }
+            path="/app/context/sessions"
+          />
+          <Route
+            element={
+              <ProtectedRoute>
+                <AppShell>
                   <SurveyAssignmentResultsPage />
                 </AppShell>
               </ProtectedRoute>
             }
             path="/app/results/assignments/:surveyAssignmentId"
+          />
+          <Route
+            element={
+              <ProtectedRoute>
+                <AppShell>
+                  <SurveyAssignmentReportPage />
+                </AppShell>
+              </ProtectedRoute>
+            }
+            path="/app/results/assignments/:surveyAssignmentId/report"
           />
           <Route
             element={
@@ -223,7 +333,8 @@ export function App() {
           />
           <Route element={<PublicSurveyRoute />} path="/survey/:accessCode" />
           <Route element={<Navigate replace to="/" />} path="*" />
-        </Routes>
+          </Routes>
+        </AcademicContextProvider>
       </AuthProvider>
     </BrowserRouter>
   );

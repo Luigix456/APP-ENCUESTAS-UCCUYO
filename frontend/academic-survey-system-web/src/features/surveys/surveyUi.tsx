@@ -59,10 +59,16 @@ export function formatQuestionType(type: SurveyQuestionType): string {
 }
 
 export function formatDateTime(value: string): string {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return 'Fecha no disponible';
+  }
+
   return new Intl.DateTimeFormat('es-AR', {
     dateStyle: 'short',
     timeStyle: 'short'
-  }).format(new Date(value));
+  }).format(date);
 }
 
 export function getFriendlySurveyError(error: unknown, fallback: string): string {

@@ -19,7 +19,8 @@ const defaultFilters: SurveyAssignmentFilters = {
 export function getSurveyAssignments(
   accessToken: string,
   onUnauthorized: UnauthorizedHandler,
-  filters: Partial<SurveyAssignmentFilters> = {}
+  filters: Partial<SurveyAssignmentFilters> = {},
+  signal?: AbortSignal
 ): Promise<SurveyAssignmentDto[]> {
   const nextFilters = {
     ...defaultFilters,
@@ -51,7 +52,8 @@ export function getSurveyAssignments(
 
   return apiRequest<SurveyAssignmentDto[]>(`/api/survey-assignments?${searchParams.toString()}`, {
     token: accessToken,
-    onUnauthorized
+    onUnauthorized,
+    signal
   });
 }
 

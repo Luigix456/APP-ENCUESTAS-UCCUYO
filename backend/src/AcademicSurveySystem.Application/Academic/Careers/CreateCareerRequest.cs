@@ -6,10 +6,12 @@ namespace AcademicSurveySystem.Application.Academic.Careers;
 /// <summary>
 /// Datos para crear una carrera, curso o trayecto académico.
 /// </summary>
+/// <param name="AcademicUnitId">Unidad académica a la que pertenece la carrera.</param>
 /// <param name="Code">Código único de la carrera.</param>
 /// <param name="Name">Nombre visible de la carrera.</param>
 /// <param name="Type">Tipo de carrera.</param>
 public sealed record CreateCareerRequest(
+    Guid? AcademicUnitId,
     string? Code,
     string? Name,
     string? Type)
@@ -17,6 +19,11 @@ public sealed record CreateCareerRequest(
     public IReadOnlyCollection<ApplicationError> Validate()
     {
         var errors = new List<ApplicationError>();
+
+        if (AcademicUnitId is null || AcademicUnitId == Guid.Empty)
+        {
+            errors.Add(new ApplicationError("Career.AcademicUnitIdRequired", "AcademicUnitId is required."));
+        }
 
         if (string.IsNullOrWhiteSpace(Code))
         {

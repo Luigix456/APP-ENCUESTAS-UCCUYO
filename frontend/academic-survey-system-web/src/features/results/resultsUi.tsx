@@ -51,10 +51,16 @@ export function formatDateTimeOrEmpty(value: string | null): string {
     return 'Sin respuestas';
   }
 
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return 'Fecha no disponible';
+  }
+
   return new Intl.DateTimeFormat('es-AR', {
     dateStyle: 'short',
     timeStyle: 'short'
-  }).format(new Date(value));
+  }).format(date);
 }
 
 export function formatPercent(value: number): string {

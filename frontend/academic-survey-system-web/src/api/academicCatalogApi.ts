@@ -1,8 +1,10 @@
 import { apiRequest } from './apiClient';
 import type {
   AcademicCycleDto,
+  AcademicUnitDto,
   CareerDto,
   CreateAcademicCycleRequest,
+  CreateAcademicUnitRequest,
   CreateCareerRequest,
   CreateSubjectRequest,
   CreateTeacherRequest,
@@ -12,6 +14,7 @@ import type {
   TeacherSubjectAssignmentDto,
   TeacherSubjectAssignmentFilters,
   UpdateAcademicCycleRequest,
+  UpdateAcademicUnitRequest,
   UpdateCareerRequest,
   UpdateSubjectRequest,
   UpdateTeacherRequest,
@@ -30,13 +33,85 @@ interface ListCatalogRequestOptions extends CatalogRequestOptions {
   includeInactive?: boolean;
 }
 
-export function getCareers({
+interface ListCareersRequestOptions extends ListCatalogRequestOptions {
+  academicUnitId?: string;
+}
+
+export function getAcademicUnits({
   accessToken,
   onUnauthorized,
   includeInactive = false,
   signal
-}: ListCatalogRequestOptions): Promise<CareerDto[]> {
-  return apiRequest<CareerDto[]>(`/api/academic/careers?includeInactive=${includeInactive}`, {
+}: ListCatalogRequestOptions): Promise<AcademicUnitDto[]> {
+  return apiRequest<AcademicUnitDto[]>(
+    `/api/academic/academic-units?includeInactive=${includeInactive}`,
+    {
+      token: accessToken,
+      onUnauthorized,
+      signal
+    }
+  );
+}
+
+export function getAcademicUnit(
+  id: string,
+  { accessToken, onUnauthorized }: CatalogRequestOptions
+): Promise<AcademicUnitDto> {
+  return apiRequest<AcademicUnitDto>(`/api/academic/academic-units/${encodeURIComponent(id)}`, {
+    token: accessToken,
+    onUnauthorized
+  });
+}
+
+export function createAcademicUnit(
+  request: CreateAcademicUnitRequest,
+  { accessToken, onUnauthorized }: CatalogRequestOptions
+): Promise<AcademicUnitDto> {
+  return apiRequest<AcademicUnitDto>('/api/academic/academic-units', {
+    method: 'POST',
+    body: request,
+    token: accessToken,
+    onUnauthorized
+  });
+}
+
+export function updateAcademicUnit(
+  id: string,
+  request: UpdateAcademicUnitRequest,
+  { accessToken, onUnauthorized }: CatalogRequestOptions
+): Promise<null> {
+  return apiRequest<null>(`/api/academic/academic-units/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    body: request,
+    token: accessToken,
+    onUnauthorized
+  });
+}
+
+export function activateAcademicUnit(id: string, options: CatalogRequestOptions): Promise<null> {
+  return patchCatalogCommand(`/api/academic/academic-units/${encodeURIComponent(id)}/activate`, options);
+}
+
+export function deactivateAcademicUnit(id: string, options: CatalogRequestOptions): Promise<null> {
+  return patchCatalogCommand(`/api/academic/academic-units/${encodeURIComponent(id)}/deactivate`, options);
+}
+
+export function getCareers({
+  accessToken,
+  onUnauthorized,
+  academicUnitId,
+  includeInactive = false,
+  signal
+}: ListCareersRequestOptions): Promise<CareerDto[]> {
+  const searchParams = new URLSearchParams({
+    includeInactive: String(includeInactive)
+  });
+
+  if (academicUnitId) {
+    searchParams.set('academicUnitId', academicUnitId);
+  }
+
+  return apiRequest<CareerDto[]>(`/api/academic/careers?${searchParams.toString()}`, {
     token: accessToken,
     onUnauthorized,
     signal
@@ -84,6 +159,34 @@ export function activateCareer(id: string, options: CatalogRequestOptions): Prom
 
 export function deactivateCareer(id: string, options: CatalogRequestOptions): Promise<null> {
   return patchCatalogCommand(`/api/academic/careers/${encodeURIComponent(id)}/deactivate`, options);
+}
+
+export function getCareerTeachers(
+  careerId: string,
+  {
+    accessToken,
+    academicCycleId,
+    includeInactive = false,
+    onUnauthorized,
+    signal
+  }: ListCatalogRequestOptions & { academicCycleId?: string }
+): Promise<TeacherDto[]> {
+  const searchParams = new URLSearchParams({
+    includeInactive: String(includeInactive)
+  });
+
+  if (academicCycleId) {
+    searchParams.set('academicCycleId', academicCycleId);
+  }
+
+  return apiRequest<TeacherDto[]>(
+    `/api/academic/careers/${encodeURIComponent(careerId)}/teachers?${searchParams.toString()}`,
+    {
+      token: accessToken,
+      onUnauthorized,
+      signal
+    }
+  );
 }
 
 export function getSubjects(
@@ -270,6 +373,10 @@ export function getTeacherSubjectAssignments(
 
   if (filters.teacherId) {
     searchParams.set('teacherId', filters.teacherId);
+  }
+
+  if (filters.careerId) {
+    searchParams.set('careerId', filters.careerId);
   }
 
   if (filters.subjectId) {

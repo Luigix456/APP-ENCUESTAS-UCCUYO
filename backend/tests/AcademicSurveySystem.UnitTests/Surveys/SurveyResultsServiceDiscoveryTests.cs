@@ -230,9 +230,10 @@ public sealed class SurveyResultsServiceDiscoveryTests
     {
         var now = new DateTimeOffset(2026, 9, 30, 12, 0, 0, TimeSpan.Zero);
         var userId = Guid.NewGuid();
-        var careerA = new Career(Guid.NewGuid(), "career-a", "Career A", CareerType.Undergraduate, now);
-        var careerB = new Career(Guid.NewGuid(), "career-b", "Career B", CareerType.Undergraduate, now);
-        var careerC = new Career(Guid.NewGuid(), "career-c", "Career C", CareerType.Undergraduate, now);
+        var academicUnit = new AcademicUnit(Guid.NewGuid(), "academic-unit", "Academic Unit", now);
+        var careerA = new Career(Guid.NewGuid(), academicUnit.Id, "career-a", "Career A", CareerType.Undergraduate, now);
+        var careerB = new Career(Guid.NewGuid(), academicUnit.Id, "career-b", "Career B", CareerType.Undergraduate, now);
+        var careerC = new Career(Guid.NewGuid(), academicUnit.Id, "career-c", "Career C", CareerType.Undergraduate, now);
         var subjectA = new Subject(Guid.NewGuid(), careerA.Id, "subject-a", "Subject A", 1, SubjectPeriod.Annual, now);
         var subjectB = new Subject(Guid.NewGuid(), careerB.Id, "subject-b", "Subject B", 1, SubjectPeriod.Annual, now);
         var subjectC = new Subject(Guid.NewGuid(), careerA.Id, "subject-c", "Subject C", 1, SubjectPeriod.Annual, now);
@@ -327,6 +328,7 @@ public sealed class SurveyResultsServiceDiscoveryTests
         var lastSubmittedAtUtc = now.AddHours(3);
 
         context.AddRange(
+            academicUnit,
             careerA,
             careerB,
             careerC,

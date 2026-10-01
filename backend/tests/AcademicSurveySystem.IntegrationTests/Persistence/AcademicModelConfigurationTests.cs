@@ -14,6 +14,7 @@ public sealed class AcademicModelConfigurationTests
     {
         using var context = CreateContext();
 
+        Assert.NotNull(context.Model.FindEntityType(typeof(AcademicUnit)));
         Assert.NotNull(context.Model.FindEntityType(typeof(Career)));
         Assert.NotNull(context.Model.FindEntityType(typeof(Subject)));
         Assert.NotNull(context.Model.FindEntityType(typeof(Teacher)));
@@ -26,6 +27,7 @@ public sealed class AcademicModelConfigurationTests
     {
         using var context = CreateContext();
 
+        Assert.Equal("academic_units", GetEntity<AcademicUnit>(context).GetTableName());
         Assert.Equal("careers", GetEntity<Career>(context).GetTableName());
         Assert.Equal("subjects", GetEntity<Subject>(context).GetTableName());
         Assert.Equal("teachers", GetEntity<Teacher>(context).GetTableName());
@@ -40,6 +42,7 @@ public sealed class AcademicModelConfigurationTests
     {
         using var context = CreateContext();
 
+        AssertUniqueIndex<AcademicUnit>(context, nameof(AcademicUnit.Code));
         AssertUniqueIndex<Career>(context, nameof(Career.Code));
         AssertUniqueIndex<Subject>(context, nameof(Subject.CareerId), nameof(Subject.Code));
         AssertUniqueIndex<Teacher>(context, nameof(Teacher.NormalizedEmail));
@@ -59,6 +62,7 @@ public sealed class AcademicModelConfigurationTests
     {
         using var context = CreateContext();
 
+        AssertForeignKey<Career>(context, nameof(Career.AcademicUnitId));
         AssertForeignKey<Subject>(context, nameof(Subject.CareerId));
         AssertForeignKey<TeacherSubjectAssignment>(
             context,
@@ -86,6 +90,7 @@ public sealed class AcademicModelConfigurationTests
     {
         using var context = CreateContext();
 
+        Assert.Empty(GetSeedData<AcademicUnit>(context));
         Assert.Empty(GetSeedData<Career>(context));
         Assert.Empty(GetSeedData<Subject>(context));
         Assert.Empty(GetSeedData<Teacher>(context));

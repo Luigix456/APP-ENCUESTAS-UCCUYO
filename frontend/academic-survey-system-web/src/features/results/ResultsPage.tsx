@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getResultAssignments } from '../../api/resultsApi';
 import { useAuth } from '../../auth/AuthProvider';
+import { PaginationControls, usePagination } from '../../components/Pagination';
 import type { ResultsAssignmentFilters, SurveyAssignmentResultListItemDto } from '../../types/results';
+import { useAcademicContext } from '../academic-context/AcademicContextProvider';
 import {
   formatAcademicCycleParts,
   formatDateTimeOrEmpty,
@@ -27,8 +29,9 @@ const initialFilters: ResultsAssignmentFilters = {
   teacherId: ''
 };
 
-export function ResultsPage() {
+export function ResultsPage({ contextual = false }: { contextual?: boolean }) {
   const auth = useAuth();
+  const academicContext = useAcademicContext();
   const accessToken = auth.accessToken;
   const canReadResults = hasResultsPermission(auth.hasPermission);
   const [filters, setFilters] = useState<ResultsAssignmentFilters>(initialFilters);
@@ -38,8 +41,23 @@ export function ResultsPage() {
   const [pageError, setPageError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!canReadResults || !accessToken) {
+    if (!contextual) {
+      return;
+    }
+
+    setFilters(initialFilters);
+    setAssignments([]);
+    setFilterSource([]);
+  }, [academicContext.academicCycleId, academicContext.careerId, contextual]);
+
+  useEffect(() => {
+    if (
+      !canReadResults ||
+      !accessToken ||
+      (contextual && (!academicContext.careerId || !academicContext.academicCycleId))
+    ) {
       setLoadState('ready');
+      setAssignments([]);
       return;
     }
 
@@ -48,12 +66,19 @@ export function ResultsPage() {
     setLoadState('loading');
     setPageError(null);
 
-    getResultAssignments(accessToken, auth.logout, filters, controller.signal)
+    const effectiveFilters = buildEffectiveFilters(
+      filters,
+      contextual,
+      academicContext.careerId,
+      academicContext.academicCycleId
+    );
+
+    getResultAssignments(accessToken, auth.logout, effectiveFilters, controller.signal)
       .then((items) => {
         setAssignments(items);
         setLoadState('ready');
 
-        if (isEmptyFilter(filters)) {
+        if (isEmptySecondaryFilter(filters)) {
           setFilterSource(items);
         }
       })
@@ -69,9 +94,18 @@ export function ResultsPage() {
     return () => {
       controller.abort();
     };
-  }, [accessToken, auth.logout, canReadResults, filters]);
+  }, [
+    accessToken,
+    academicContext.academicCycleId,
+    academicContext.careerId,
+    auth.logout,
+    canReadResults,
+    contextual,
+    filters
+  ]);
 
   const options = useMemo(() => buildFilterOptions(filterSource), [filterSource]);
+  const resultsPagination = usePagination(assignments, 8);
   const hasAnyAuthorizedAssignment = filterSource.length > 0;
   const isReadCareerOnly =
     auth.hasPermission(READ_CAREER_RESULTS_PERMISSION) &&
@@ -81,13 +115,35 @@ export function ResultsPage() {
     return <ResultsPermissionPanel />;
   }
 
+  if (contextual && !academicContext.selectedCareer) {
+    return (
+      <section className="app-content empty-detail">
+        <h3>Seleccioná una carrera.</h3>
+        <p>Elegí una carrera en el panel lateral para consultar resultados.</p>
+      </section>
+    );
+  }
+
+  if (contextual && !academicContext.selectedAcademicCycle) {
+    return (
+      <section className="app-content empty-detail">
+        <h3>Seleccioná un ciclo lectivo.</h3>
+        <p>Elegí un ciclo lectivo para consultar resultados de encuesta.</p>
+      </section>
+    );
+  }
+
   return (
     <section className="app-content results-page">
       <header className="results-header">
         <div>
-          <p className="eyebrow">Resultados</p>
+          <p className="eyebrow">{contextual ? 'Carrera seleccionada' : 'Resultados'}</p>
           <h2>Resultados</h2>
-          <p>Consultá resultados agregados por contexto académico autorizado.</p>
+          <p>
+            {contextual
+              ? 'Consultá resultados agregados para la carrera y ciclo lectivo seleccionados.'
+              : 'Consultá resultados agregados por contexto académico autorizado.'}
+          </p>
         </div>
         <button
           className="secondary-button"
@@ -106,6 +162,7 @@ export function ResultsPage() {
           options={options.surveys}
           value={filters.surveyId}
         />
+        {!contextual ? (
         <FilterSelect
           label="Carrera"
           onChange={(value) =>
@@ -118,18 +175,24 @@ export function ResultsPage() {
           options={options.careers}
           value={filters.careerId}
         />
+        ) : null}
         <FilterSelect
           label="Materia"
           onChange={(value) => setFilters((current) => ({ ...current, subjectId: value }))}
-          options={options.subjects.filter((subject) => !filters.careerId || subject.parentId === filters.careerId)}
+          options={options.subjects.filter((subject) => {
+            const careerId = contextual ? academicContext.careerId : filters.careerId;
+            return !careerId || subject.parentId === careerId;
+          })}
           value={filters.subjectId}
         />
+        {!contextual ? (
         <FilterSelect
           label="Ciclo"
           onChange={(value) => setFilters((current) => ({ ...current, academicCycleId: value }))}
           options={options.cycles}
           value={filters.academicCycleId}
         />
+        ) : null}
         <FilterSelect
           label="Docente"
           onChange={(value) => setFilters((current) => ({ ...current, teacherId: value }))}
@@ -138,7 +201,7 @@ export function ResultsPage() {
         />
         <button
           className="secondary-button"
-          onClick={() => setFilters(initialFilters)}
+          onClick={() => setFilters(contextual ? { ...initialFilters, careerId: '', academicCycleId: '' } : initialFilters)}
           type="button"
         >
           Limpiar filtros
@@ -162,17 +225,32 @@ export function ResultsPage() {
               ? 'No hay resultados que coincidan con los filtros seleccionados.'
               : isReadCareerOnly
                 ? 'No hay resultados disponibles para tus carreras asignadas.'
-                : 'No hay resultados disponibles para consultar.'}
+                : contextual
+                  ? 'No hay resultados disponibles para esta carrera y ciclo lectivo.'
+                  : 'No hay resultados disponibles para consultar.'}
           </p>
         </div>
       ) : null}
 
       {loadState === 'ready' && assignments.length > 0 ? (
-        <div className="result-card-list" role="list">
-          {assignments.map((assignment) => (
-            <ResultAssignmentCard assignment={assignment} key={assignment.surveyAssignmentId} />
-          ))}
-        </div>
+        <>
+          <PaginationControls
+            firstItem={resultsPagination.firstItem}
+            itemLabel="resultados"
+            lastItem={resultsPagination.lastItem}
+            onPageChange={resultsPagination.setPage}
+            onPageSizeChange={resultsPagination.setPageSize}
+            page={resultsPagination.page}
+            pageSize={resultsPagination.pageSize}
+            totalItems={resultsPagination.totalItems}
+            totalPages={resultsPagination.totalPages}
+          />
+          <div className="result-card-list" role="list">
+            {resultsPagination.items.map((assignment) => (
+              <ResultAssignmentCard assignment={assignment} key={assignment.surveyAssignmentId} />
+            ))}
+          </div>
+        </>
       ) : null}
     </section>
   );
@@ -312,8 +390,25 @@ function uniqueOptionsWithParent(
   return [...options.values()].sort((left, right) => left.label.localeCompare(right.label));
 }
 
-function isEmptyFilter(filters: ResultsAssignmentFilters): boolean {
-  return Object.values(filters).every((value) => !value);
+function isEmptySecondaryFilter(filters: ResultsAssignmentFilters): boolean {
+  return !filters.surveyId && !filters.subjectId && !filters.teacherId;
+}
+
+function buildEffectiveFilters(
+  filters: ResultsAssignmentFilters,
+  contextual: boolean,
+  careerId: string,
+  academicCycleId: string
+): ResultsAssignmentFilters {
+  if (!contextual) {
+    return filters;
+  }
+
+  return {
+    ...filters,
+    careerId,
+    academicCycleId
+  };
 }
 
 function isAbortError(error: unknown): boolean {

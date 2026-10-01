@@ -30,6 +30,10 @@ public sealed class SurveySessionService : ISurveySessionService
         string? status,
         Guid? surveyAssignmentId,
         string? accessCode,
+        Guid? careerId,
+        Guid? academicCycleId,
+        Guid? subjectId,
+        Guid? teacherId,
         CancellationToken cancellationToken)
     {
         SurveySessionStatus? parsedStatus = null;
@@ -53,6 +57,11 @@ public sealed class SurveySessionService : ISurveySessionService
             .Where(session => parsedStatus == null || session.Status == parsedStatus.Value)
             .Where(session => surveyAssignmentId == null || session.SurveyAssignmentId == surveyAssignmentId.Value)
             .Where(session => string.IsNullOrWhiteSpace(accessCode) || session.AccessCode == accessCode.Trim())
+            .Where(session => careerId == null || session.SurveyAssignment.CareerId == careerId.Value)
+            .Where(session => academicCycleId == null || session.SurveyAssignment.AcademicCycleId == academicCycleId.Value)
+            .Where(session => subjectId == null || session.SurveyAssignment.SubjectId == subjectId.Value)
+            .Where(session => teacherId == null
+                || session.SurveyAssignment.TeacherSubjectAssignment!.TeacherId == teacherId.Value)
             .OrderByDescending(session => session.ExpiresAtUtc)
             .ThenByDescending(session => session.UpdatedAtUtc)
             .ToArrayAsync(cancellationToken);

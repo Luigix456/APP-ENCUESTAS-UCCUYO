@@ -125,9 +125,17 @@ export function SurveyAssignmentResultsPage() {
             )}
           </p>
         </div>
-        <Link className="secondary-link-button" to="/app/results">
-          Volver
-        </Link>
+        <div className="results-header__actions">
+          <Link
+            className="primary-link-button"
+            to={`/app/results/assignments/${encodeURIComponent(summary.surveyAssignmentId)}/report`}
+          >
+            Generar informe
+          </Link>
+          <Link className="secondary-link-button" to="/app/results">
+            Volver
+          </Link>
+        </div>
       </header>
 
       <dl className="result-context-meta">

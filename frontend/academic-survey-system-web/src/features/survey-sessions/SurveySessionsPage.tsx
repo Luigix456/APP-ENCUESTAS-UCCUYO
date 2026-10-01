@@ -10,6 +10,8 @@ import {
   openSurveySession
 } from '../../api/surveySessionsApi';
 import { useAuth } from '../../auth/AuthProvider';
+import { PaginationControls, usePagination } from '../../components/Pagination';
+import { useAcademicContext } from '../academic-context/AcademicContextProvider';
 import type {
   CreateSurveySessionRequest,
   SurveyAssignmentDto,
@@ -29,8 +31,15 @@ interface SessionFormState {
   expiresAtLocal: string;
 }
 
-export function SurveySessionsPage() {
+interface SessionFiltersState {
+  subjectId: string;
+  teacherId: string;
+  status: '' | SurveySessionStatus;
+}
+
+export function SurveySessionsPage({ contextual = false }: { contextual?: boolean }) {
   const auth = useAuth();
+  const academicContext = useAcademicContext();
   const [assignments, setAssignments] = useState<SurveyAssignmentDto[]>([]);
   const [sessions, setSessions] = useState<SurveySessionDto[]>([]);
   const [selectedSession, setSelectedSession] = useState<SurveySessionDto | null>(null);
@@ -43,22 +52,65 @@ export function SurveySessionsPage() {
   const [activeAction, setActiveAction] = useState<'open' | 'close' | 'refresh' | null>(null);
   const [isFormVisible, setIsFormVisible] = useState(false);
   const [form, setForm] = useState<SessionFormState>(() => createInitialForm());
+  const [filters, setFilters] = useState<SessionFiltersState>({
+    subjectId: '',
+    teacherId: '',
+    status: ''
+  });
 
   const accessToken = auth.accessToken;
   const canManageSessions = auth.hasPermission(MANAGE_SESSIONS_PERMISSION);
 
   useEffect(() => {
-    if (!canManageSessions || !accessToken) {
-      setLoadState('ready');
+    if (!contextual) {
       return;
     }
 
-    void loadData(accessToken);
-  }, [accessToken, canManageSessions]);
+    setFilters({ subjectId: '', teacherId: '', status: '' });
+    setSelectedSession(null);
+    setIsFormVisible(false);
+    setForm(createInitialForm());
+  }, [academicContext.academicCycleId, academicContext.careerId, contextual]);
+
+  useEffect(() => {
+    if (
+      !canManageSessions ||
+      !accessToken ||
+      (contextual && (!academicContext.careerId || !academicContext.academicCycleId))
+    ) {
+      setLoadState('ready');
+      setAssignments([]);
+      setSessions([]);
+      setSelectedSession(null);
+      return;
+    }
+
+    const abortController = new AbortController();
+    void loadData(accessToken, abortController.signal);
+    return () => abortController.abort();
+  }, [
+    accessToken,
+    academicContext.academicCycleId,
+    academicContext.careerId,
+    canManageSessions,
+    contextual,
+    filters.status,
+    filters.subjectId,
+    filters.teacherId
+  ]);
 
   const sortedSessions = useMemo(() => {
     return [...sessions].sort(compareSessions);
   }, [sessions]);
+  const sessionPagination = usePagination(sortedSessions, 8);
+  const sessionSubjectOptions = useMemo(() => uniqueSessionOptions(sessions, (session) => ({
+    id: session.subjectId,
+    label: session.subjectName
+  })), [sessions]);
+  const sessionTeacherOptions = useMemo(() => uniqueSessionOptions(sessions, (session) => ({
+    id: session.teacherId,
+    label: session.teacherFullName
+  })), [sessions]);
 
   const selectedAssignment = assignments.find((assignment) => assignment.id === form.surveyAssignmentId);
   const publicSurveyUrl = selectedSession?.accessCode
@@ -75,27 +127,69 @@ export function SurveySessionsPage() {
     );
   }
 
-  async function loadData(token: string) {
+  if (contextual && !academicContext.selectedCareer) {
+    return (
+      <section className="app-content empty-detail">
+        <h3>Seleccioná una carrera.</h3>
+        <p>Elegí una carrera en el panel lateral para gestionar sus sesiones.</p>
+      </section>
+    );
+  }
+
+  if (contextual && !academicContext.selectedAcademicCycle) {
+    return (
+      <section className="app-content empty-detail">
+        <h3>Seleccioná un ciclo lectivo.</h3>
+        <p>Elegí un ciclo lectivo para ver o crear sesiones de encuesta.</p>
+      </section>
+    );
+  }
+
+  async function loadData(token: string, signal?: AbortSignal) {
     setLoadState('loading');
     setPageError(null);
 
     try {
+      const sessionQueryFilters = contextual
+        ? {
+            careerId: academicContext.careerId,
+            academicCycleId: academicContext.academicCycleId,
+            subjectId: filtersStateValue(filters.subjectId),
+            teacherId: filtersStateValue(filters.teacherId),
+            status: filtersStateValue(filters.status)
+          }
+        : {};
       const [nextAssignments, nextSessions] = await Promise.all([
-        getSurveyAssignments(token, auth.logout),
-        getSurveySessions(token, auth.logout)
+        getSurveyAssignments(token, auth.logout, {
+          includeInactive: false,
+          careerId: contextual ? academicContext.careerId : undefined,
+          academicCycleId: contextual ? academicContext.academicCycleId : undefined
+        }, signal),
+        getSurveySessions(token, auth.logout, sessionQueryFilters, signal)
       ]);
       const activeAssignments = nextAssignments.filter((assignment) => assignment.isActive);
 
       setAssignments(activeAssignments);
       setSessions(nextSessions);
       setSelectedSession((current) => findNextSelectedSession(current, nextSessions));
-      setForm((current) => ({
-        ...current,
-        surveyAssignmentId: current.surveyAssignmentId || activeAssignments[0]?.id || '',
-        title: current.title || createSuggestedTitle(activeAssignments[0])
-      }));
+      setForm((current) => {
+        const currentAssignment = activeAssignments.find(
+          (assignment) => assignment.id === current.surveyAssignmentId
+        );
+        const nextAssignment = currentAssignment ?? activeAssignments[0];
+
+        return {
+          ...current,
+          surveyAssignmentId: nextAssignment?.id ?? '',
+          title: currentAssignment ? current.title : createSuggestedTitle(nextAssignment)
+        };
+      });
       setLoadState('ready');
     } catch (error) {
+      if (signal?.aborted) {
+        return;
+      }
+
       setPageError(getFriendlyError(error));
       setLoadState('error');
     }
@@ -270,9 +364,13 @@ export function SurveySessionsPage() {
     <section className="app-content sessions-page">
       <header className="sessions-header">
         <div>
-          <p className="eyebrow">Operación de aula</p>
+          <p className="eyebrow">{contextual ? 'Carrera seleccionada' : 'Operación de aula'}</p>
           <h2>Sesiones de encuesta</h2>
-          <p>Gestioná sesiones temporales y compartí el QR con estudiantes.</p>
+          <p>
+            {contextual
+              ? 'Gestioná sesiones temporales para la carrera y ciclo lectivo seleccionados.'
+              : 'Gestioná sesiones temporales y compartí el QR con estudiantes.'}
+          </p>
         </div>
         <div className="sessions-actions">
           <button
@@ -288,6 +386,65 @@ export function SurveySessionsPage() {
           </button>
         </div>
       </header>
+
+      {contextual ? (
+        <div className="surveys-filters" aria-label="Filtros de sesiones">
+          <label>
+            <span>Materia</span>
+            <select
+              className="text-input"
+              onChange={(event) => setFilters((current) => ({ ...current, subjectId: event.target.value }))}
+              value={filters.subjectId}
+            >
+              <option value="">Todas</option>
+              {sessionSubjectOptions.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>Docente</span>
+            <select
+              className="text-input"
+              onChange={(event) => setFilters((current) => ({ ...current, teacherId: event.target.value }))}
+              value={filters.teacherId}
+            >
+              <option value="">Todos</option>
+              {sessionTeacherOptions.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>Estado</span>
+            <select
+              className="text-input"
+              onChange={(event) =>
+                setFilters((current) => ({ ...current, status: event.target.value as SessionFiltersState['status'] }))
+              }
+              value={filters.status}
+            >
+              <option value="">Todos</option>
+              <option value="Created">Creada</option>
+              <option value="Open">Abierta</option>
+              <option value="Closed">Cerrada</option>
+              <option value="Expired">Expirada</option>
+              <option value="Cancelled">Cancelada</option>
+            </select>
+          </label>
+          <button
+            className="secondary-button"
+            onClick={() => setFilters({ subjectId: '', teacherId: '', status: '' })}
+            type="button"
+          >
+            Limpiar filtros
+          </button>
+        </div>
+      ) : null}
 
       {successMessage ? (
         <div className="success-message" role="status">
@@ -387,26 +544,44 @@ export function SurveySessionsPage() {
         <div className="sessions-list" aria-label="Sesiones recientes">
           <h3>Sesiones recientes</h3>
           {sortedSessions.length === 0 ? (
-            <p>No hay sesiones disponibles.</p>
+            <p>
+              {contextual
+                ? 'No hay sesiones disponibles para esta carrera y ciclo lectivo.'
+                : 'No hay sesiones disponibles.'}
+            </p>
           ) : (
-            sortedSessions.map((session) => (
-              <button
-                className={`session-list-item ${
-                  selectedSession?.id === session.id ? 'session-list-item--active' : ''
-                }`}
-                key={session.id}
-                onClick={() => {
-                  setSelectedSession(session);
-                  setActionError(null);
-                  setSuccessMessage(null);
-                }}
-                type="button"
-              >
-                <span>{session.title || session.surveyTitle}</span>
-                <small>{session.subjectName}</small>
-                <StatusBadge status={session.status} />
-              </button>
-            ))
+            <>
+              <PaginationControls
+                firstItem={sessionPagination.firstItem}
+                itemLabel="sesiones"
+                lastItem={sessionPagination.lastItem}
+                onPageChange={sessionPagination.setPage}
+                onPageSizeChange={sessionPagination.setPageSize}
+                page={sessionPagination.page}
+                pageSize={sessionPagination.pageSize}
+                pageSizeOptions={[5, 8, 12]}
+                totalItems={sessionPagination.totalItems}
+                totalPages={sessionPagination.totalPages}
+              />
+              {sessionPagination.items.map((session) => (
+                <button
+                  className={`session-list-item ${
+                    selectedSession?.id === session.id ? 'session-list-item--active' : ''
+                  }`}
+                  key={session.id}
+                  onClick={() => {
+                    setSelectedSession(session);
+                    setActionError(null);
+                    setSuccessMessage(null);
+                  }}
+                  type="button"
+                >
+                  <span>{session.title || session.surveyTitle}</span>
+                  <small>{session.subjectName}</small>
+                  <StatusBadge status={session.status} />
+                </button>
+              ))}
+            </>
           )}
         </div>
 
@@ -519,7 +694,7 @@ function SessionSummary({ session }: { session: SurveySessionDto }) {
         <div>
           <dt>Ciclo</dt>
           <dd>
-            {session.academicCycleYear} · {session.academicCyclePeriod}
+            {session.academicCycleYear} · {formatPeriod(session.academicCyclePeriod)}
           </dd>
         </div>
       </dl>
@@ -657,7 +832,7 @@ function findNextSelectedSession(
 }
 
 function formatAssignmentOption(assignment: SurveyAssignmentDto): string {
-  return `${assignment.subjectName} · ${assignment.teacherFullName} · ${assignment.careerName} · ${assignment.academicCycleYear} ${assignment.academicCyclePeriod}`;
+  return `${assignment.subjectName} · ${assignment.teacherFullName} · ${assignment.careerName} · ${assignment.academicCycleYear} ${formatPeriod(assignment.academicCyclePeriod)}`;
 }
 
 function createSuggestedTitle(assignment?: SurveyAssignmentDto): string {
@@ -721,10 +896,33 @@ function getValidationMessage(code: string | null): string {
 }
 
 function formatDateTime(value: string): string {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return 'Fecha no disponible';
+  }
+
   return new Intl.DateTimeFormat('es-AR', {
     dateStyle: 'short',
     timeStyle: 'short'
-  }).format(new Date(value));
+  }).format(date);
+}
+
+function formatPeriod(period: string): string {
+  switch (period) {
+    case 'Annual':
+      return 'Anual';
+    case 'FirstSemester':
+      return 'Primer semestre';
+    case 'SecondSemester':
+      return 'Segundo semestre';
+    case 'FirstQuarter':
+      return 'Primer cuatrimestre';
+    case 'SecondQuarter':
+      return 'Segundo cuatrimestre';
+    default:
+      return period;
+  }
 }
 
 function toDateTimeLocalValue(date: Date): string {
@@ -739,4 +937,22 @@ function addHours(date: Date, hours: number): Date {
 function trimmedOrNull(value: string): string | null {
   const trimmed = value.trim();
   return trimmed ? trimmed : null;
+}
+
+function filtersStateValue(value: string): string | undefined {
+  return value || undefined;
+}
+
+function uniqueSessionOptions(
+  sessions: SurveySessionDto[],
+  selector: (session: SurveySessionDto) => { id: string; label: string }
+): Array<{ id: string; label: string }> {
+  const options = new Map<string, { id: string; label: string }>();
+
+  sessions.forEach((session) => {
+    const option = selector(session);
+    options.set(option.id, option);
+  });
+
+  return [...options.values()].sort((left, right) => left.label.localeCompare(right.label));
 }

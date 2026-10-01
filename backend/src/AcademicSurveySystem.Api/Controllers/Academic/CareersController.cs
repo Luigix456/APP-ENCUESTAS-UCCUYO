@@ -35,9 +35,39 @@ public sealed class CareersController : ControllerBase
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> GetAll(
         [FromQuery] bool includeInactive = false,
+        [FromQuery] Guid? academicUnitId = null,
         CancellationToken cancellationToken = default)
     {
-        var result = await _academicCatalogService.GetCareersAsync(includeInactive, cancellationToken);
+        var result = await _academicCatalogService.GetCareersAsync(
+            includeInactive,
+            academicUnitId,
+            cancellationToken);
+
+        return ToActionResult(result);
+    }
+
+    /// <summary>
+    /// Lista docentes vinculados a materias de una carrera.
+    /// </summary>
+    /// <remarks>Requiere permiso de lectura: academic.catalog.read.</remarks>
+    [HttpGet("{id:guid}/teachers")]
+    [RequirePermission(ReadPermission)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> GetTeachers(
+        Guid id,
+        [FromQuery] Guid? academicCycleId = null,
+        [FromQuery] bool includeInactive = false,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _academicCatalogService.GetCareerTeachersAsync(
+            id,
+            academicCycleId,
+            includeInactive,
+            cancellationToken);
 
         return ToActionResult(result);
     }

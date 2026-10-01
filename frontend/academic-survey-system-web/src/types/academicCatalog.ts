@@ -4,8 +4,20 @@ export type SubjectPeriod = 'Annual' | 'FirstSemester' | 'SecondSemester';
 
 export type AcademicCyclePeriod = 'Annual' | 'FirstSemester' | 'SecondSemester';
 
+export interface AcademicUnitDto {
+  id: string;
+  code: string;
+  name: string;
+  isActive: boolean;
+  createdAtUtc: string;
+  updatedAtUtc: string;
+}
+
 export interface CareerDto {
   id: string;
+  academicUnitId: string;
+  academicUnitCode: string;
+  academicUnitName: string;
   code: string;
   name: string;
   type: CareerType;
@@ -67,12 +79,23 @@ export interface TeacherSubjectAssignmentDto {
 
 export interface TeacherSubjectAssignmentFilters {
   includeInactive: boolean;
+  careerId?: string;
   teacherId?: string;
   subjectId?: string;
   academicCycleId?: string;
 }
 
+export interface CreateAcademicUnitRequest {
+  code: string;
+  name: string;
+}
+
+export interface UpdateAcademicUnitRequest {
+  name: string;
+}
+
 export interface CreateCareerRequest {
+  academicUnitId: string;
   code: string;
   name: string;
   type: CareerType;

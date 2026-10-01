@@ -14,6 +14,7 @@ Aplicación web para la gestión de encuestas académicas. El backend usa Clean 
 - BCrypt.Net-Next 4.2.0
 - Microsoft.AspNetCore.Authentication.JwtBearer 8.0.30
 - System.IdentityModel.Tokens.Jwt 8.22.0
+- QuestPDF 2026.9.1
 - React
 - Vite
 - TypeScript
@@ -936,7 +937,7 @@ Ejemplo de creación:
 }
 ```
 
-Todavía no existe frontend académico ni reportes. El backend no genera todavía imágenes QR binarias.
+Todavía no existe frontend académico para administración completa. El backend no genera todavía imágenes QR binarias.
 
 ## Sesiones de Encuesta y QR Temporal
 
@@ -1046,9 +1047,55 @@ Los endpoints protegidos de resultados respetan el alcance del usuario autentica
 
 La autorización usa el identificador del usuario desde el JWT y valida el acceso antes de consultar el resultado agregado. Si el usuario tiene `results.read_career` pero no tiene asociación con la carrera de la asignación o sesión consultada, la API responde `HTTP 403`.
 
-Este alcance aplica a resultados por `SurveyAssignment` y por `SurveySession`. No modifica roles, permisos, JWT, plantillas de encuesta, asignaciones académicas ni lógica de publicación.
+Este alcance aplica a resultados por `SurveyAssignment`, por `SurveySession` y a la vista previa de reportes. No modifica roles, permisos, JWT, plantillas de encuesta, asignaciones académicas ni lógica de publicación.
 
-Todavía no existen reportes.
+## Reportes de Resultados
+
+El backend expone reportes institucionales de resultados a partir de los datos agregados existentes. La capa de reportes compone:
+
+- metadata institucional;
+- metadata académica de la asignación;
+- versión real de la encuesta (`Survey.VersionNumber`);
+- resumen de respuestas/sesiones;
+- resultados por pregunta ya calculados por el módulo de resultados.
+
+Endpoints:
+
+- `GET /api/reports/survey-assignments/{surveyAssignmentId}`
+- `GET /api/reports/survey-assignments/{surveyAssignmentId}/pdf`
+
+Permisos de preview JSON:
+
+- `results.read_all`, o
+- `results.read_career` dentro del alcance de carreras asociado al usuario en `user_careers`.
+
+Permisos de exportación PDF:
+
+- `reports.export`, y además
+- `results.read_all`, o
+- `results.read_career` dentro del alcance de carreras asociado al usuario en `user_careers`.
+
+`reports.export` por sí solo no permite acceder a resultados ni exportar reportes fuera del scope de carrera. La autorización reutiliza `ResultsAccessService` y se valida antes de construir el reporte.
+
+El preview devuelve `SurveyReportDto` en JSON e incluye institución, encuesta, versión, carrera, materia, docente, rol docente, ciclo lectivo, totales, fechas de primera/última respuesta y preguntas con resultados agregados.
+
+El PDF se genera server-side on-demand con QuestPDF. No se guarda en PostgreSQL, no se guarda en disco y no crea tablas nuevas. El PDF usa formato A4 vertical, encabezado institucional, resumen, gráficos vectoriales simples, respuestas abiertas, comentarios anónimos, footer con fecha UTC y paginación.
+
+La configuración no sensible de institución se lee desde:
+
+```json
+{
+  "Reports": {
+    "InstitutionName": "Universidad Católica de Cuyo",
+    "SystemName": "Sistema Web de Gestión de Encuestas Académicas",
+    "FacultyName": "Facultad de Ciencias Económicas y Empresariales"
+  }
+}
+```
+
+Las respuestas HTTP de reportes usan `Cache-Control: private, no-store` porque pueden contener información académica sensible. El DTO y el PDF no incluyen estudiantes, identidad de respondentes, emails de respondentes, IP, fingerprint, accessCode, JWT, contraseñas ni hashes.
+
+QuestPDF se configura explícitamente con `LicenseType.Community`. La licencia Community es gratuita sólo para los casos permitidos por QuestPDF, incluyendo individuos, organizaciones sin fines de lucro, proyectos FOSS y organizaciones bajo el umbral de ingresos indicado por la licencia vigente. Si el despliegue no califica, debe adquirirse una licencia comercial antes de usarlo en producción.
 
 ## Ejecutar Frontend
 
@@ -1060,4 +1107,4 @@ npm run dev
 
 ## Estado Actual
 
-Infraestructura inicial de persistencia configurada. El núcleo persistente de identidad ya existe con `User`, `Role`, `Permission`, `UserRole` y `RolePermission`, más un catálogo inicial de cuatro roles y catorce permisos. Existe un comando explícito e idempotente para crear el primer administrador con contraseña hasheada. La API ya cuenta con login básico, emisión de JWT, endpoint protegido `/api/auth/me`, autorización por permisos, administración protegida de usuarios, activación/desactivación, reemplazo de roles y consulta de roles disponibles. El dominio académico ya incluye carreras, materias, docentes, ciclos lectivos y asignaciones docente-materia-ciclo con persistencia EF Core. Ya existen endpoints académicos protegidos para `Career`, `AcademicCycle`, `Subject`, `Teacher` y `TeacherSubjectAssignment`. También existen asociaciones protegidas entre usuarios y carreras, endpoints protegidos para administrar plantillas de encuestas dinámicas, asignarlas a contextos académicos, gestionar sesiones temporales de encuesta con `accessCode` y consultar resultados con alcance por permisos. Existe un endpoint público para consultar una sesión abierta, activa y vigente sin JWT. Todavía no existe frontend académico ni reportes. El backend todavía no genera imágenes QR binarias.
+Infraestructura inicial de persistencia configurada. El núcleo persistente de identidad ya existe con `User`, `Role`, `Permission`, `UserRole` y `RolePermission`, más un catálogo inicial de cuatro roles y catorce permisos. Existe un comando explícito e idempotente para crear el primer administrador con contraseña hasheada. La API ya cuenta con login básico, emisión de JWT, endpoint protegido `/api/auth/me`, autorización por permisos, administración protegida de usuarios, activación/desactivación, reemplazo de roles y consulta de roles disponibles. El dominio académico ya incluye carreras, materias, docentes, ciclos lectivos y asignaciones docente-materia-ciclo con persistencia EF Core. Ya existen endpoints académicos protegidos para `Career`, `AcademicCycle`, `Subject`, `Teacher` y `TeacherSubjectAssignment`. También existen asociaciones protegidas entre usuarios y carreras, endpoints protegidos para administrar plantillas de encuestas dinámicas, asignarlas a contextos académicos, gestionar sesiones temporales de encuesta con `accessCode`, consultar resultados con alcance por permisos y generar reportes JSON/PDF on-demand. Existe un endpoint público para consultar una sesión abierta, activa y vigente sin JWT. Todavía no existe frontend académico completo para reportes, vista previa de informe, impresión ni exportación PDF desde React. El backend todavía no genera imágenes QR binarias.

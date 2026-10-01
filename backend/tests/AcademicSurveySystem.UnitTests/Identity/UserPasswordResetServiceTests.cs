@@ -172,15 +172,21 @@ public sealed class UserPasswordResetServiceTests
         var hasher = CreateHasher();
         var user = CreateUser(hasher.Hash(OldPassword));
         var role = IdentityCatalog.Roles.Single(item => item.Code == "career_director");
+        var academicUnit = new AcademicUnit(
+            Guid.NewGuid(),
+            "academic-unit",
+            "Academic Unit",
+            CreatedAtUtc);
         var career = new Career(
             Guid.NewGuid(),
+            academicUnit.Id,
             "tuds",
             "TUDS",
             CareerType.Undergraduate,
             CreatedAtUtc);
         user.AssignRole(role.Id, CreatedAtUtc);
         user.AssignCareer(career.Id, CreatedAtUtc);
-        context.AddRange(user, career);
+        context.AddRange(user, academicUnit, career);
         await context.SaveChangesAsync();
         var service = CreateService(context, hasher);
 

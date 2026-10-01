@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { getAcademicCycles, getCareers, getTeachers } from '../../api/academicCatalogApi';
+import {
+  getAcademicCycles,
+  getCareerTeachers,
+  getCareers,
+  getTeachers
+} from '../../api/academicCatalogApi';
 import {
   activateSurveyAssignment,
   deactivateSurveyAssignment,
@@ -8,13 +13,16 @@ import {
 } from '../../api/surveyAssignmentsApi';
 import { getSurveys } from '../../api/surveysApi';
 import { useAuth } from '../../auth/AuthProvider';
+import { PaginationControls, usePagination } from '../../components/Pagination';
 import type { AcademicCycleDto, CareerDto, TeacherDto } from '../../types/academicCatalog';
 import type { SurveyAssignmentDto, SurveyAssignmentFilters } from '../../types/surveyAssignments';
 import type { SurveySummaryDto } from '../../types/surveys';
 import { ActivityBadge } from '../surveys/surveyUi';
+import { useAcademicContext } from '../academic-context/AcademicContextProvider';
 import {
   formatAcademicCycle,
   formatAcademicCycleParts,
+  formatSurveyStatus,
   formatSurveyOption,
   formatTeacher,
   getFriendlyAssignmentError,
@@ -34,8 +42,9 @@ const initialFilters: SurveyAssignmentFilters = {
   teacherId: ''
 };
 
-export function SurveyAssignmentsPage() {
+export function SurveyAssignmentsPage({ contextual = false }: { contextual?: boolean }) {
   const auth = useAuth();
+  const academicContext = useAcademicContext();
   const location = useLocation();
   const navigate = useNavigate();
   const [assignments, setAssignments] = useState<SurveyAssignmentDto[]>([]);
@@ -53,6 +62,7 @@ export function SurveyAssignmentsPage() {
   const accessToken = auth.accessToken;
   const canManageAssignments = auth.hasPermission(MANAGE_SURVEY_ASSIGNMENTS_PERMISSION);
   const canReadCatalog = auth.hasPermission(READ_ACADEMIC_CATALOG_PERMISSION);
+  const assignmentPagination = usePagination(assignments, 8);
 
   useEffect(() => {
     if (isCreatedAssignmentState(location.state)) {
@@ -62,13 +72,43 @@ export function SurveyAssignmentsPage() {
   }, [location.pathname, location.state, navigate]);
 
   useEffect(() => {
-    if (!canManageAssignments || !canReadCatalog || !accessToken) {
-      setLoadState('ready');
+    if (!contextual) {
       return;
     }
 
-    void loadData(accessToken, filters);
-  }, [accessToken, canManageAssignments, canReadCatalog, filters]);
+    setFilters((current) => ({
+      ...current,
+      careerId: '',
+      subjectId: '',
+      academicCycleId: '',
+      teacherId: ''
+    }));
+  }, [academicContext.academicCycleId, academicContext.careerId, contextual]);
+
+  useEffect(() => {
+    if (
+      !canManageAssignments ||
+      !canReadCatalog ||
+      !accessToken ||
+      (contextual && (!academicContext.careerId || !academicContext.academicCycleId))
+    ) {
+      setLoadState('ready');
+      setAssignments([]);
+      return;
+    }
+
+    const abortController = new AbortController();
+    void loadData(accessToken, filters, abortController.signal);
+    return () => abortController.abort();
+  }, [
+    accessToken,
+    academicContext.academicCycleId,
+    academicContext.careerId,
+    canManageAssignments,
+    canReadCatalog,
+    contextual,
+    filters
+  ]);
 
   const subjectOptions = useMemo(() => {
     const subjectsById = new Map<string, { id: string; name: string; careerId: string }>();
@@ -94,17 +134,48 @@ export function SurveyAssignmentsPage() {
     return <SurveyAssignmentPermissionPanel missingCatalog />;
   }
 
-  async function loadData(token: string, nextFilters = filters) {
+  if (contextual && !academicContext.selectedCareer) {
+    return (
+      <section className="app-content empty-detail">
+        <h3>Seleccioná una carrera.</h3>
+        <p>Elegí una carrera en el panel lateral para consultar sus encuestas asignadas.</p>
+      </section>
+    );
+  }
+
+  if (contextual && !academicContext.selectedAcademicCycle) {
+    return (
+      <section className="app-content empty-detail">
+        <h3>Seleccioná un ciclo lectivo.</h3>
+        <p>Elegí un ciclo lectivo para evitar mezclar asignaciones de distintos períodos.</p>
+      </section>
+    );
+  }
+
+  async function loadData(token: string, nextFilters = filters, signal?: AbortSignal) {
     setLoadState('loading');
     setPageError(null);
 
     try {
+      const effectiveFilters = buildEffectiveFilters(nextFilters, contextual, academicContext.careerId, academicContext.academicCycleId);
       const [nextAssignments, nextSurveys, nextCareers, nextCycles, nextTeachers] = await Promise.all([
-        getSurveyAssignments(token, auth.logout, nextFilters),
+        getSurveyAssignments(token, auth.logout, effectiveFilters, signal),
         getSurveys({ includeInactive: false, status: 'Published', target: '' }, token, auth.logout),
-        getCareers({ accessToken: token, onUnauthorized: auth.logout }),
-        getAcademicCycles({ accessToken: token, onUnauthorized: auth.logout }),
-        getTeachers({ accessToken: token, onUnauthorized: auth.logout })
+        contextual
+          ? Promise.resolve(academicContext.selectedCareer ? [academicContext.selectedCareer] : [])
+          : getCareers({ accessToken: token, onUnauthorized: auth.logout, signal }),
+        contextual
+          ? Promise.resolve(academicContext.selectedAcademicCycle ? [academicContext.selectedAcademicCycle] : [])
+          : getAcademicCycles({ accessToken: token, onUnauthorized: auth.logout, signal }),
+        contextual
+          ? getCareerTeachers(academicContext.careerId, {
+              accessToken: token,
+              academicCycleId: academicContext.academicCycleId,
+              includeInactive: false,
+              onUnauthorized: auth.logout,
+              signal
+            })
+          : getTeachers({ accessToken: token, onUnauthorized: auth.logout, signal })
       ]);
 
       setAssignments(nextAssignments);
@@ -114,6 +185,10 @@ export function SurveyAssignmentsPage() {
       setTeachers(nextTeachers);
       setLoadState('ready');
     } catch (error) {
+      if (signal?.aborted) {
+        return;
+      }
+
       setPageError(getFriendlyAssignmentError(error, 'No fue posible cargar las asignaciones.'));
       setLoadState('error');
     }
@@ -166,9 +241,13 @@ export function SurveyAssignmentsPage() {
     <section className="app-content assignments-page">
       <header className="surveys-header">
         <div>
-          <p className="eyebrow">Contexto académico</p>
-          <h2>Asignaciones de encuesta</h2>
-          <p>Asociá plantillas publicadas a carreras, materias, ciclos lectivos y docentes.</p>
+          <p className="eyebrow">{contextual ? 'Carrera seleccionada' : 'Contexto académico'}</p>
+          <h2>{contextual ? 'Encuestas asignadas' : 'Asignaciones de encuesta'}</h2>
+          <p>
+            {contextual
+              ? 'Consultá y gestioná encuestas asignadas para la carrera y ciclo lectivo seleccionados.'
+              : 'Asociá plantillas publicadas a carreras, materias, ciclos lectivos y docentes.'}
+          </p>
         </div>
         <div className="surveys-actions">
           <button
@@ -179,7 +258,7 @@ export function SurveyAssignmentsPage() {
           >
             Actualizar
           </button>
-          <Link className="primary-link-button" to="/app/survey-assignments/new">
+          <Link className="primary-link-button" to={contextual ? '/app/context/surveys/new' : '/app/survey-assignments/new'}>
             Nueva asignación
           </Link>
         </div>
@@ -202,6 +281,7 @@ export function SurveyAssignmentsPage() {
           </select>
         </label>
 
+        {!contextual ? (
         <label>
           <span>Carrera</span>
           <select
@@ -223,6 +303,7 @@ export function SurveyAssignmentsPage() {
             ))}
           </select>
         </label>
+        ) : null}
 
         <label>
           <span>Materia</span>
@@ -241,6 +322,7 @@ export function SurveyAssignmentsPage() {
           </select>
         </label>
 
+        {!contextual ? (
         <label>
           <span>Ciclo</span>
           <select
@@ -256,6 +338,7 @@ export function SurveyAssignmentsPage() {
             ))}
           </select>
         </label>
+        ) : null}
 
         <label>
           <span>Docente</span>
@@ -312,67 +395,101 @@ export function SurveyAssignmentsPage() {
       {loadState === 'ready' && assignments.length === 0 ? (
         <div className="empty-detail">
           <h3>No hay asignaciones disponibles</h3>
-          <p>Creá una asignación para que el panel de sesiones pueda utilizar una encuesta publicada.</p>
+          <p>
+            {contextual
+              ? 'No hay encuestas asignadas para esta carrera y ciclo lectivo.'
+              : 'Creá una asignación para que el panel de sesiones pueda utilizar una encuesta publicada.'}
+          </p>
         </div>
       ) : null}
 
       {loadState === 'ready' && assignments.length > 0 ? (
-        <div className="assignment-card-list" role="list">
-          {assignments.map((assignment) => (
-            <article className="survey-list-card" key={assignment.id} role="listitem">
-              <header>
-                <div>
-                  <p className="eyebrow">{assignment.surveyTitle}</p>
-                  <h3>{assignment.subjectName}</h3>
-                  <p>
-                    {assignment.careerName} · {formatAcademicCycleParts(
-                      assignment.academicCycleYear,
-                      assignment.academicCyclePeriod
-                    )}
-                  </p>
-                </div>
-                <ActivityBadge isActive={assignment.isActive} />
-              </header>
+        <>
+          <PaginationControls
+            firstItem={assignmentPagination.firstItem}
+            itemLabel="asignaciones"
+            lastItem={assignmentPagination.lastItem}
+            onPageChange={assignmentPagination.setPage}
+            onPageSizeChange={assignmentPagination.setPageSize}
+            page={assignmentPagination.page}
+            pageSize={assignmentPagination.pageSize}
+            totalItems={assignmentPagination.totalItems}
+            totalPages={assignmentPagination.totalPages}
+          />
+          <div className="assignment-card-list" role="list">
+            {assignmentPagination.items.map((assignment) => (
+              <article className="survey-list-card" key={assignment.id} role="listitem">
+                <header>
+                  <div>
+                    <p className="eyebrow">{assignment.surveyTitle}</p>
+                    <h3>{assignment.subjectName}</h3>
+                    <p>
+                      {assignment.careerName} · {formatAcademicCycleParts(
+                        assignment.academicCycleYear,
+                        assignment.academicCyclePeriod
+                      )}
+                    </p>
+                  </div>
+                  <ActivityBadge isActive={assignment.isActive} />
+                </header>
 
-              <dl className="survey-card-meta">
-                <div>
-                  <dt>Docente</dt>
-                  <dd>{assignment.teacherFullName}</dd>
-                </div>
-                <div>
-                  <dt>Rol</dt>
-                  <dd>{assignment.teachingRole}</dd>
-                </div>
-                <div>
-                  <dt>Encuesta</dt>
-                  <dd>{assignment.surveyTitle}</dd>
-                </div>
-                <div>
-                  <dt>Estado plantilla</dt>
-                  <dd>{assignment.surveyStatus}</dd>
-                </div>
-              </dl>
+                <dl className="survey-card-meta">
+                  <div>
+                    <dt>Docente</dt>
+                    <dd>{assignment.teacherFullName}</dd>
+                  </div>
+                  <div>
+                    <dt>Rol</dt>
+                    <dd>{assignment.teachingRole}</dd>
+                  </div>
+                  <div>
+                    <dt>Encuesta</dt>
+                    <dd>{assignment.surveyTitle}</dd>
+                  </div>
+                  <div>
+                    <dt>Estado plantilla</dt>
+                    <dd>{formatSurveyStatus(assignment.surveyStatus)}</dd>
+                  </div>
+                </dl>
 
-              <div className="survey-card-actions">
-                <button
-                  className={assignment.isActive ? 'danger-button' : 'secondary-button'}
-                  disabled={activeActionId === assignment.id}
-                  onClick={() => void handleToggleAssignment(assignment)}
-                  type="button"
-                >
-                  {activeActionId === assignment.id
-                    ? 'Procesando...'
-                    : assignment.isActive
-                      ? 'Desactivar'
-                      : 'Reactivar'}
-                </button>
-              </div>
-            </article>
-          ))}
-        </div>
+                <div className="survey-card-actions">
+                  <button
+                    className={assignment.isActive ? 'danger-button' : 'secondary-button'}
+                    disabled={activeActionId === assignment.id}
+                    onClick={() => void handleToggleAssignment(assignment)}
+                    type="button"
+                  >
+                    {activeActionId === assignment.id
+                      ? 'Procesando...'
+                      : assignment.isActive
+                        ? 'Desactivar'
+                        : 'Reactivar'}
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        </>
       ) : null}
     </section>
   );
+}
+
+function buildEffectiveFilters(
+  filters: SurveyAssignmentFilters,
+  contextual: boolean,
+  careerId: string,
+  academicCycleId: string
+): SurveyAssignmentFilters {
+  if (!contextual) {
+    return filters;
+  }
+
+  return {
+    ...filters,
+    careerId,
+    academicCycleId
+  };
 }
 
 function isCreatedAssignmentState(state: unknown): state is { createdAssignmentId: string } {

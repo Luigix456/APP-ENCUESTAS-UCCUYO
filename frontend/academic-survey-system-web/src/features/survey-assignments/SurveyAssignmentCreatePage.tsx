@@ -27,6 +27,7 @@ import {
   READ_ACADEMIC_CATALOG_PERMISSION,
   SurveyAssignmentPermissionPanel
 } from './surveyAssignmentUi';
+import { useAcademicContext } from '../academic-context/AcademicContextProvider';
 
 type LoadState = 'loading' | 'ready' | 'error';
 type DependentLoadState = 'idle' | 'loading' | 'ready' | 'error';
@@ -47,15 +48,20 @@ const initialForm: AssignmentFormState = {
   teacherSubjectAssignmentId: ''
 };
 
-export function SurveyAssignmentCreatePage() {
+export function SurveyAssignmentCreatePage({ contextual = false }: { contextual?: boolean }) {
   const auth = useAuth();
+  const academicContext = useAcademicContext();
   const navigate = useNavigate();
   const [surveys, setSurveys] = useState<SurveySummaryDto[]>([]);
   const [careers, setCareers] = useState<CareerDto[]>([]);
   const [subjects, setSubjects] = useState<SubjectDto[]>([]);
   const [cycles, setCycles] = useState<AcademicCycleDto[]>([]);
   const [teacherAssignments, setTeacherAssignments] = useState<TeacherSubjectAssignmentDto[]>([]);
-  const [form, setForm] = useState<AssignmentFormState>(initialForm);
+  const [form, setForm] = useState<AssignmentFormState>(() => ({
+    ...initialForm,
+    careerId: contextual ? academicContext.careerId : '',
+    academicCycleId: contextual ? academicContext.academicCycleId : ''
+  }));
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const [subjectsState, setSubjectsState] = useState<DependentLoadState>('idle');
   const [teacherAssignmentsState, setTeacherAssignmentsState] = useState<DependentLoadState>('idle');
@@ -80,7 +86,9 @@ export function SurveyAssignmentCreatePage() {
 
     Promise.all([
       getSurveys({ includeInactive: false, status: 'Published', target: '' }, accessToken, auth.logout),
-      getCareers({ accessToken, onUnauthorized: auth.logout }),
+      contextual && academicContext.selectedCareer
+        ? Promise.resolve([academicContext.selectedCareer])
+        : getCareers({ accessToken, onUnauthorized: auth.logout }),
       getAcademicCycles({ accessToken, onUnauthorized: auth.logout })
     ])
       .then(([nextSurveys, nextCareers, nextCycles]) => {
@@ -93,7 +101,32 @@ export function SurveyAssignmentCreatePage() {
         setPageError(getFriendlyAssignmentError(error, 'No fue posible cargar los datos para crear la asignación.'));
         setLoadState('error');
       });
-  }, [accessToken, auth.logout, canManageAssignments, canReadCatalog]);
+  }, [
+    accessToken,
+    academicContext.selectedCareer,
+    auth.logout,
+    canManageAssignments,
+    canReadCatalog,
+    contextual
+  ]);
+
+  useEffect(() => {
+    if (!contextual) {
+      return;
+    }
+
+    setForm((current) => ({
+      ...current,
+      careerId: academicContext.careerId,
+      academicCycleId: academicContext.academicCycleId,
+      subjectId: current.careerId === academicContext.careerId ? current.subjectId : '',
+      teacherSubjectAssignmentId:
+        current.careerId === academicContext.careerId &&
+        current.academicCycleId === academicContext.academicCycleId
+          ? current.teacherSubjectAssignmentId
+          : ''
+    }));
+  }, [academicContext.academicCycleId, academicContext.careerId, contextual]);
 
   useEffect(() => {
     if (!accessToken || !form.careerId || !canManageAssignments || !canReadCatalog) {
@@ -151,10 +184,11 @@ export function SurveyAssignmentCreatePage() {
     setTeacherAssignmentsError(null);
 
     getTeacherSubjectAssignments(
-      {
-        includeInactive: false,
-        subjectId: form.subjectId,
-        academicCycleId: form.academicCycleId
+        {
+          includeInactive: false,
+          careerId: form.careerId,
+          subjectId: form.subjectId,
+          academicCycleId: form.academicCycleId
       },
       {
         accessToken,
@@ -221,7 +255,7 @@ export function SurveyAssignmentCreatePage() {
 
     try {
       const createdAssignment = await createSurveyAssignment(buildRequest(form), accessToken, auth.logout);
-      navigate('/app/survey-assignments', {
+      navigate(contextual ? '/app/context/surveys' : '/app/survey-assignments', {
         replace: true,
         state: { createdAssignmentId: createdAssignment.id }
       });
@@ -270,6 +304,24 @@ export function SurveyAssignmentCreatePage() {
     );
   }
 
+  if (contextual && !academicContext.selectedCareer) {
+    return (
+      <section className="app-content empty-detail">
+        <h3>Seleccioná una carrera.</h3>
+        <p>Elegí una carrera en el panel lateral para crear una asignación contextual.</p>
+      </section>
+    );
+  }
+
+  if (contextual && !academicContext.selectedAcademicCycle) {
+    return (
+      <section className="app-content empty-detail">
+        <h3>Seleccioná un ciclo lectivo.</h3>
+        <p>Elegí un ciclo lectivo para crear la asignación de encuesta.</p>
+      </section>
+    );
+  }
+
   if (loadState === 'error') {
     return (
       <section className="app-content" role="alert">
@@ -284,9 +336,13 @@ export function SurveyAssignmentCreatePage() {
     <section className="app-content assignments-page">
       <header className="surveys-header">
         <div>
-          <p className="eyebrow">Nueva asignación</p>
+          <p className="eyebrow">{contextual ? 'Carrera seleccionada' : 'Nueva asignación'}</p>
           <h2>Asignar encuesta publicada</h2>
-          <p>Seleccioná una plantilla activa y el contexto académico donde estará disponible.</p>
+          <p>
+            {contextual
+              ? `La asignación se creará para ${academicContext.selectedCareer?.name}.`
+              : 'Seleccioná una plantilla activa y el contexto académico donde estará disponible.'}
+          </p>
         </div>
       </header>
 
@@ -313,7 +369,7 @@ export function SurveyAssignmentCreatePage() {
           <small id="survey-help">
             {surveys.length === 0
               ? 'No hay encuestas publicadas y activas disponibles.'
-              : 'Sólo se muestran plantillas Published + Active.'}
+              : 'Sólo se muestran plantillas publicadas y activas.'}
           </small>
         </label>
 
@@ -322,6 +378,7 @@ export function SurveyAssignmentCreatePage() {
           <select
             aria-describedby="career-help"
             className="text-input"
+            disabled={contextual}
             onChange={(event) => handleCareerChange(event.target.value)}
             required
             value={form.careerId}
@@ -363,6 +420,7 @@ export function SurveyAssignmentCreatePage() {
           <select
             aria-describedby="cycle-help"
             className="text-input"
+            disabled={contextual}
             onChange={(event) => handleAcademicCycleChange(event.target.value)}
             required
             value={form.academicCycleId}
@@ -423,7 +481,7 @@ export function SurveyAssignmentCreatePage() {
           </button>
           <button
             className="secondary-button"
-            onClick={() => navigate('/app/survey-assignments')}
+            onClick={() => navigate(contextual ? '/app/context/surveys' : '/app/survey-assignments')}
             type="button"
           >
             Cancelar

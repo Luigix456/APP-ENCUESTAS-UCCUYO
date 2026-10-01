@@ -51,6 +51,7 @@ public sealed class PublicSurveySessionsController : ControllerBase
     [ProducesResponseType(typeof(SurveyResponseSubmissionDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> SubmitResponse(
         string accessCode,

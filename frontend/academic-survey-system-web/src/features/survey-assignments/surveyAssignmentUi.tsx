@@ -1,6 +1,7 @@
 import { ApiClientError } from '../../api/apiClient';
 import type { AcademicCycleDto, SubjectDto, TeacherDto, TeacherSubjectAssignmentDto } from '../../types/academicCatalog';
 import type { SurveySummaryDto } from '../../types/surveys';
+import { SURVEY_TARGET_LABELS } from '../../types/surveys';
 
 export const MANAGE_SURVEY_ASSIGNMENTS_PERMISSION = 'surveys.templates.manage';
 export const READ_ACADEMIC_CATALOG_PERMISSION = 'academic.catalog.read';
@@ -46,7 +47,20 @@ export function formatTeacherSubjectAssignment(assignment: TeacherSubjectAssignm
 }
 
 export function formatSurveyOption(survey: SurveySummaryDto): string {
-  return `${survey.title} · v${survey.versionNumber} · ${survey.target}`;
+  return `${survey.title} · v${survey.versionNumber} · ${SURVEY_TARGET_LABELS[survey.target]}`;
+}
+
+export function formatSurveyStatus(status: string): string {
+  switch (status) {
+    case 'Draft':
+      return 'Borrador';
+    case 'Published':
+      return 'Publicada';
+    case 'Archived':
+      return 'Archivada';
+    default:
+      return status;
+  }
 }
 
 export function getFriendlyAssignmentError(error: unknown, fallback: string): string {
