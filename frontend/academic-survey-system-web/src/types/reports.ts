@@ -28,4 +28,7 @@ export interface SurveyReportDto {
   firstSubmittedAtUtc: string | null;
   lastSubmittedAtUtc: string | null;
   questions: SurveyQuestionResultsDto[];
+  expectedRespondentCount: number | null;
+  remainingCount: number | null;
+  participationPercentage: number | null;
 }

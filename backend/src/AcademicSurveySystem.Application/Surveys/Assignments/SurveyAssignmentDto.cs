@@ -21,6 +21,7 @@ namespace AcademicSurveySystem.Application.Surveys.Assignments;
 /// <param name="IsActive">Indica si la asignación está activa.</param>
 /// <param name="CreatedAtUtc">Fecha de creación en UTC.</param>
 /// <param name="UpdatedAtUtc">Fecha de última actualización en UTC.</param>
+/// <param name="ExpectedRespondentCount">Cantidad esperada de respuestas tomada como snapshot al crear la asignación.</param>
 public sealed record SurveyAssignmentDto(
     Guid Id,
     Guid SurveyId,
@@ -39,4 +40,5 @@ public sealed record SurveyAssignmentDto(
     string TeachingRole,
     bool IsActive,
     DateTimeOffset CreatedAtUtc,
-    DateTimeOffset UpdatedAtUtc);
+    DateTimeOffset UpdatedAtUtc,
+    int? ExpectedRespondentCount = null);

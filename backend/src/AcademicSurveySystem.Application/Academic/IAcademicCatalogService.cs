@@ -3,6 +3,7 @@ using AcademicSurveySystem.Application.Academic.AcademicCycles;
 using AcademicSurveySystem.Application.Academic.Careers;
 using AcademicSurveySystem.Application.Academic.Common;
 using AcademicSurveySystem.Application.Academic.Subjects;
+using AcademicSurveySystem.Application.Academic.SubjectEnrollments;
 using AcademicSurveySystem.Application.Academic.Teachers;
 using AcademicSurveySystem.Application.Academic.TeacherSubjectAssignments;
 using AcademicSurveySystem.Application.Common.Results;
@@ -117,6 +118,23 @@ public interface IAcademicCatalogService
 
     Task<ApplicationResult> DeactivateSubjectAsync(
         Guid id,
+        CancellationToken cancellationToken);
+
+    Task<ApplicationResult<IReadOnlyCollection<SubjectEnrollmentDto>>> GetSubjectEnrollmentsAsync(
+        Guid? subjectId,
+        Guid? academicCycleId,
+        Guid? careerId,
+        CancellationToken cancellationToken);
+
+    Task<ApplicationResult<SubjectEnrollmentDto>> GetSubjectEnrollmentAsync(
+        Guid subjectId,
+        Guid academicCycleId,
+        CancellationToken cancellationToken);
+
+    Task<ApplicationResult<SubjectEnrollmentDto>> SetSubjectEnrollmentAsync(
+        Guid subjectId,
+        Guid academicCycleId,
+        SetSubjectEnrollmentRequest request,
         CancellationToken cancellationToken);
 
     Task<ApplicationResult<IReadOnlyCollection<TeacherDto>>> GetTeachersAsync(

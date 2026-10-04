@@ -8,7 +8,9 @@ public sealed class SurveyAssignmentConfiguration : IEntityTypeConfiguration<Sur
 {
     public void Configure(EntityTypeBuilder<SurveyAssignment> builder)
     {
-        builder.ToTable("survey_assignments");
+        builder.ToTable("survey_assignments", table => table.HasCheckConstraint(
+            "ck_survey_assignments_expected_respondent_count_positive",
+            "expected_respondent_count IS NULL OR expected_respondent_count > 0"));
 
         builder.HasKey(assignment => assignment.Id);
 
@@ -34,6 +36,9 @@ public sealed class SurveyAssignmentConfiguration : IEntityTypeConfiguration<Sur
         builder.Property(assignment => assignment.TeacherSubjectAssignmentId)
             .HasColumnName("teacher_subject_assignment_id")
             .IsRequired();
+
+        builder.Property(assignment => assignment.ExpectedRespondentCount)
+            .HasColumnName("expected_respondent_count");
 
         builder.Property(assignment => assignment.IsActive)
             .HasColumnName("is_active")

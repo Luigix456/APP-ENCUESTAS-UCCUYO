@@ -3,10 +3,12 @@ using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using AcademicSurveySystem.Api.Authorization;
+using AcademicSurveySystem.Api.Hubs;
 using AcademicSurveySystem.Api.Maintenance;
 using AcademicSurveySystem.Api.OpenApi;
 using AcademicSurveySystem.Application.Identity.AdminPasswordReset;
 using AcademicSurveySystem.Application.Identity.InitialAdministrator;
+using AcademicSurveySystem.Application.Surveys.Responses;
 using AcademicSurveySystem.Infrastructure;
 using AcademicSurveySystem.Infrastructure.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -34,6 +36,7 @@ builder.Logging.AddConsole();
 builder.Logging.AddDebug();
 
 builder.Services.AddControllers();
+builder.Services.AddSignalR();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
@@ -138,10 +141,27 @@ if (!maintenanceCommand)
                 NameClaimType = JwtTokenGenerator.NameIdentifierClaimType,
                 RoleClaimType = JwtTokenGenerator.RoleClaimType
             };
+            options.Events = new JwtBearerEvents
+            {
+                OnMessageReceived = context =>
+                {
+                    var accessToken = context.Request.Query["access_token"];
+                    var path = context.HttpContext.Request.Path;
+
+                    if (!string.IsNullOrWhiteSpace(accessToken)
+                        && path.StartsWithSegments(SurveySessionHub.Route))
+                    {
+                        context.Token = accessToken;
+                    }
+
+                    return Task.CompletedTask;
+                }
+            };
         });
 
     builder.Services.AddAuthorization(options => options.AddPermissionPolicies());
     builder.Services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHandler>();
+    builder.Services.AddScoped<ISurveyResponseProgressPublisher, SignalRSurveyResponseProgressPublisher>();
 }
 
 var app = builder.Build();
@@ -164,6 +184,10 @@ if (!maintenanceCommand)
 }
 
 app.MapControllers();
+if (!maintenanceCommand)
+{
+    app.MapHub<SurveySessionHub>(SurveySessionHub.Route);
+}
 app.MapHealthChecks("/api/health", new HealthCheckOptions
 {
     ResponseWriter = async (context, healthReport) =>

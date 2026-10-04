@@ -2,6 +2,7 @@ using AcademicSurveySystem.Application.Common.Results;
 using AcademicSurveySystem.Application.Surveys.Results;
 using AcademicSurveySystem.Domain.Surveys.Enums;
 using AcademicSurveySystem.Infrastructure.Persistence;
+using AcademicSurveySystem.Infrastructure.Surveys;
 using Microsoft.EntityFrameworkCore;
 
 namespace AcademicSurveySystem.Infrastructure.Surveys.Results;
@@ -92,7 +93,11 @@ public sealed class SurveyResultsService : ISurveyResultsService
                     sessionStats.TotalSessions ?? 0,
                     responseStats.TotalResponses ?? 0,
                     responseStats.FirstSubmittedAtUtc,
-                    responseStats.LastSubmittedAtUtc))
+                    responseStats.LastSubmittedAtUtc,
+                    assignment.ExpectedRespondentCount,
+                    CalculateParticipationPercentage(
+                        assignment.ExpectedRespondentCount,
+                        responseStats.TotalResponses ?? 0)))
             .ToArrayAsync(cancellationToken);
 
         return ApplicationResult<IReadOnlyCollection<SurveyAssignmentResultListItemDto>>.Success(results);
@@ -170,7 +175,8 @@ public sealed class SurveyResultsService : ISurveyResultsService
                 session.SurveyAssignment.TeacherSubjectAssignment.TeacherId,
                 session.SurveyAssignment.TeacherSubjectAssignment.Teacher.FirstName
                     + " "
-                    + session.SurveyAssignment.TeacherSubjectAssignment.Teacher.LastName))
+                    + session.SurveyAssignment.TeacherSubjectAssignment.Teacher.LastName,
+                session.SurveyAssignment.ExpectedRespondentCount))
             .SingleOrDefaultAsync(cancellationToken);
 
         if (context is null)
@@ -203,7 +209,8 @@ public sealed class SurveyResultsService : ISurveyResultsService
                 assignment.TeacherSubjectAssignment.TeacherId,
                 assignment.TeacherSubjectAssignment.Teacher.FirstName
                     + " "
-                    + assignment.TeacherSubjectAssignment.Teacher.LastName))
+                    + assignment.TeacherSubjectAssignment.Teacher.LastName,
+                assignment.ExpectedRespondentCount))
             .SingleOrDefaultAsync(cancellationToken);
     }
 
@@ -275,6 +282,12 @@ public sealed class SurveyResultsService : ISurveyResultsService
             .Where(session => sessionId == null || session.Id == sessionId.Value)
             .CountAsync(cancellationToken);
 
+        var responseCount = responseStats?.Count ?? 0;
+        var progress = SurveyResponseProgressCalculator.Build(
+            context.SurveyAssignmentId,
+            context.ExpectedRespondentCount,
+            responseCount);
+
         return new SurveyResultsSummaryDto(
             context.SurveyAssignmentId,
             context.SurveyId,
@@ -288,10 +301,13 @@ public sealed class SurveyResultsService : ISurveyResultsService
             context.AcademicCyclePeriod,
             context.TeacherId,
             context.TeacherFullName,
-            responseStats?.Count ?? 0,
+            responseCount,
             totalSessions,
             responseStats?.FirstSubmittedAtUtc,
-            responseStats?.LastSubmittedAtUtc);
+            responseStats?.LastSubmittedAtUtc,
+            context.ExpectedRespondentCount,
+            progress.RemainingCount,
+            progress.ParticipationPercentage);
     }
 
     private async Task<IReadOnlyCollection<SurveyQuestionResultsDto>> BuildQuestionResultsAsync(
@@ -386,5 +402,16 @@ public sealed class SurveyResultsService : ISurveyResultsService
         int AcademicCycleYear,
         string AcademicCyclePeriod,
         Guid TeacherId,
-        string TeacherFullName);
+        string TeacherFullName,
+        int? ExpectedRespondentCount);
+
+    private static decimal? CalculateParticipationPercentage(
+        int? expectedRespondentCount,
+        int responseCount)
+    {
+        return SurveyResponseProgressCalculator.Build(
+            Guid.Empty,
+            expectedRespondentCount,
+            responseCount).ParticipationPercentage;
+    }
 }

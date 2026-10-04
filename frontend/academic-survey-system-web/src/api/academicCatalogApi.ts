@@ -9,7 +9,9 @@ import type {
   CreateSubjectRequest,
   CreateTeacherRequest,
   CreateTeacherSubjectAssignmentRequest,
+  SetSubjectEnrollmentRequest,
   SubjectDto,
+  SubjectEnrollmentDto,
   TeacherDto,
   TeacherSubjectAssignmentDto,
   TeacherSubjectAssignmentFilters,
@@ -35,6 +37,12 @@ interface ListCatalogRequestOptions extends CatalogRequestOptions {
 
 interface ListCareersRequestOptions extends ListCatalogRequestOptions {
   academicUnitId?: string;
+}
+
+interface ListSubjectEnrollmentsRequestOptions extends CatalogRequestOptions {
+  subjectId?: string;
+  academicCycleId?: string;
+  careerId?: string;
 }
 
 export function getAcademicUnits({
@@ -251,6 +259,66 @@ export function deactivateSubject(id: string, options: CatalogRequestOptions): P
   return patchCatalogCommand(`/api/academic/subjects/${encodeURIComponent(id)}/deactivate`, options);
 }
 
+export function getSubjectEnrollments({
+  accessToken,
+  onUnauthorized,
+  signal,
+  subjectId,
+  academicCycleId,
+  careerId
+}: ListSubjectEnrollmentsRequestOptions): Promise<SubjectEnrollmentDto[]> {
+  const searchParams = new URLSearchParams();
+
+  appendOptionalFilter(searchParams, 'subjectId', subjectId);
+  appendOptionalFilter(searchParams, 'academicCycleId', academicCycleId);
+  appendOptionalFilter(searchParams, 'careerId', careerId);
+
+  const query = searchParams.toString();
+
+  return apiRequest<SubjectEnrollmentDto[]>(
+    `/api/academic/subject-enrollments${query ? `?${query}` : ''}`,
+    {
+      token: accessToken,
+      onUnauthorized,
+      signal
+    }
+  );
+}
+
+export function getSubjectEnrollment(
+  subjectId: string,
+  academicCycleId: string,
+  { accessToken, onUnauthorized, signal }: CatalogRequestOptions
+): Promise<SubjectEnrollmentDto> {
+  return apiRequest<SubjectEnrollmentDto>(
+    `/api/academic/subjects/${encodeURIComponent(subjectId)}/enrollment?academicCycleId=${encodeURIComponent(academicCycleId)}`,
+    {
+      token: accessToken,
+      onUnauthorized,
+      signal
+    }
+  );
+}
+
+export function setSubjectEnrollment(
+  subjectId: string,
+  academicCycleId: string,
+  enrolledStudentCount: number,
+  { accessToken, onUnauthorized }: CatalogRequestOptions
+): Promise<SubjectEnrollmentDto> {
+  const request: SetSubjectEnrollmentRequest = { enrolledStudentCount };
+
+  return apiRequest<SubjectEnrollmentDto>(
+    `/api/academic/subjects/${encodeURIComponent(subjectId)}/enrollment/${encodeURIComponent(academicCycleId)}`,
+    {
+      method: 'PUT',
+      body: request,
+      token: accessToken,
+      onUnauthorized
+    }
+  );
+}
+
 export function getAcademicCycles({
   accessToken,
   onUnauthorized,
@@ -464,4 +532,10 @@ function patchCatalogCommand(
     token: accessToken,
     onUnauthorized
   });
+}
+
+function appendOptionalFilter(searchParams: URLSearchParams, key: string, value?: string) {
+  if (value) {
+    searchParams.set(key, value);
+  }
 }

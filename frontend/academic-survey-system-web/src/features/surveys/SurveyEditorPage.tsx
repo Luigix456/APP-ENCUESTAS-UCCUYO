@@ -23,6 +23,8 @@ import {
   updateSurveySection
 } from '../../api/surveysApi';
 import { useAuth } from '../../auth/AuthProvider';
+import { ConfirmDialog } from '../../components/ui/Modal';
+import { useToast } from '../../components/ui/ToastProvider';
 import type {
   CreateSurveyMatrixRowRequest,
   CreateSurveyQuestionOptionRequest,
@@ -96,6 +98,7 @@ export function SurveyEditorPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const auth = useAuth();
+  const toast = useToast();
   const [survey, setSurvey] = useState<SurveyDetailDto | null>(null);
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const [pageError, setPageError] = useState<string | null>(null);
@@ -104,6 +107,7 @@ export function SurveyEditorPage() {
   const [surveyForm, setSurveyForm] = useState<SurveyFormState | null>(null);
   const [sectionForm, setSectionForm] = useState<SectionFormState>(createEmptySectionForm(1));
   const [activeAction, setActiveAction] = useState<string | null>(null);
+  const [confirmAction, setConfirmAction] = useState<'publish' | 'archive' | 'toggle' | null>(null);
 
   const accessToken = auth.accessToken;
   const canManageTemplates = auth.hasPermission(MANAGE_SURVEY_TEMPLATES_PERMISSION);
@@ -115,6 +119,9 @@ export function SurveyEditorPage() {
       setSuccessMessage(routeMessage);
     }
   }, [routeMessage]);
+
+  useEffect(() => { if (successMessage) toast.success(successMessage); }, [successMessage, toast]);
+  useEffect(() => { if (actionError) toast.error('No se pudo completar la acción', actionError); }, [actionError, toast]);
 
   useEffect(() => {
     if (!canManageTemplates || !accessToken || !surveyId) {
@@ -258,14 +265,6 @@ export function SurveyEditorPage() {
       return;
     }
 
-    const confirmed = window.confirm(
-      'Al publicar la encuesta, su estructura quedará bloqueada y podrá utilizarse en asignaciones y sesiones. ¿Deseás continuar?'
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
     await runCommand('publish', 'Encuesta publicada.', 'No fue posible publicar la encuesta.', () =>
       publishSurvey(survey.id, accessToken, auth.logout)
     );
@@ -273,14 +272,6 @@ export function SurveyEditorPage() {
 
   async function handleArchive() {
     if (!accessToken || !survey) {
-      return;
-    }
-
-    const confirmed = window.confirm(
-      'Al archivar la encuesta dejará de utilizarse para nuevas operaciones, pero su información histórica se conservará. ¿Deseás continuar?'
-    );
-
-    if (!confirmed) {
       return;
     }
 
@@ -370,7 +361,7 @@ export function SurveyEditorPage() {
           <button
             className="primary-button"
             disabled={activeAction !== null}
-            onClick={() => void handlePublish()}
+            onClick={() => setConfirmAction('publish')}
             type="button"
           >
             {activeAction === 'publish' ? 'Publicando...' : 'Publicar'}
@@ -380,7 +371,7 @@ export function SurveyEditorPage() {
           <button
             className="danger-button"
             disabled={activeAction !== null}
-            onClick={() => void handleArchive()}
+            onClick={() => setConfirmAction('archive')}
             type="button"
           >
             {activeAction === 'archive' ? 'Archivando...' : 'Archivar'}
@@ -389,7 +380,7 @@ export function SurveyEditorPage() {
         <button
           className="secondary-button"
           disabled={activeAction !== null}
-          onClick={() => void handleToggleSurveyActive()}
+          onClick={() => setConfirmAction('toggle')}
           type="button"
         >
           {survey.isActive ? 'Desactivar' : 'Activar'}
@@ -401,18 +392,6 @@ export function SurveyEditorPage() {
           Esta encuesta ya no está en borrador. Podés consultar su estructura, pero no modificar secciones,
           preguntas, opciones ni filas de matriz.
         </div>
-      ) : null}
-
-      {successMessage ? (
-        <div className="success-message" role="status">
-          {successMessage}
-        </div>
-      ) : null}
-
-      {actionError ? (
-        <p className="submit-error" role="alert">
-          {actionError}
-        </p>
       ) : null}
 
       <form className="survey-admin-form" noValidate onSubmit={handleSaveSurvey}>
@@ -521,6 +500,9 @@ export function SurveyEditorPage() {
           ))
         )}
       </div>
+      <ConfirmDialog busy={activeAction === 'publish'} confirmLabel="Publicar encuesta" message="La estructura quedará bloqueada y esta versión podrá utilizarse en asignaciones y sesiones." onCancel={() => setConfirmAction(null)} onConfirm={() => { void handlePublish().finally(() => setConfirmAction(null)); }} open={confirmAction === 'publish'} title="¿Publicar esta encuesta?" />
+      <ConfirmDialog busy={activeAction === 'archive'} confirmLabel="Archivar encuesta" message="La versión dejará de utilizarse para nuevas operaciones, pero su información histórica se conservará." onCancel={() => setConfirmAction(null)} onConfirm={() => { void handleArchive().finally(() => setConfirmAction(null)); }} open={confirmAction === 'archive'} title="¿Archivar esta encuesta?" tone="danger" />
+      <ConfirmDialog busy={activeAction === 'toggle-survey'} confirmLabel={survey.isActive ? 'Desactivar' : 'Activar'} message={survey.isActive ? 'La encuesta dejará de estar disponible para nuevas operaciones.' : 'La encuesta volverá a estar disponible para nuevas operaciones.'} onCancel={() => setConfirmAction(null)} onConfirm={() => { void handleToggleSurveyActive().finally(() => setConfirmAction(null)); }} open={confirmAction === 'toggle'} title={survey.isActive ? '¿Desactivar encuesta?' : '¿Activar encuesta?'} tone={survey.isActive ? 'danger' : 'primary'} />
     </section>
   );
 }

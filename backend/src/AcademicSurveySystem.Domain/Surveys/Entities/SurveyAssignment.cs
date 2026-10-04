@@ -17,6 +17,27 @@ public sealed class SurveyAssignment
         Guid academicCycleId,
         Guid teacherSubjectAssignmentId,
         DateTimeOffset createdAtUtc)
+        : this(
+            id,
+            surveyId,
+            careerId,
+            subjectId,
+            academicCycleId,
+            teacherSubjectAssignmentId,
+            null,
+            createdAtUtc)
+    {
+    }
+
+    public SurveyAssignment(
+        Guid id,
+        Guid surveyId,
+        Guid careerId,
+        Guid subjectId,
+        Guid academicCycleId,
+        Guid teacherSubjectAssignmentId,
+        int? expectedRespondentCount,
+        DateTimeOffset createdAtUtc)
     {
         EnsureRequired(id, nameof(Id));
         EnsureRequired(surveyId, nameof(SurveyId));
@@ -24,6 +45,7 @@ public sealed class SurveyAssignment
         EnsureRequired(subjectId, nameof(SubjectId));
         EnsureRequired(academicCycleId, nameof(AcademicCycleId));
         EnsureRequired(teacherSubjectAssignmentId, nameof(TeacherSubjectAssignmentId));
+        EnsureExpectedRespondentCount(expectedRespondentCount);
         EnsureUtc(createdAtUtc, nameof(createdAtUtc));
 
         Id = id;
@@ -32,6 +54,7 @@ public sealed class SurveyAssignment
         SubjectId = subjectId;
         AcademicCycleId = academicCycleId;
         TeacherSubjectAssignmentId = teacherSubjectAssignmentId;
+        ExpectedRespondentCount = expectedRespondentCount;
         IsActive = true;
         CreatedAtUtc = createdAtUtc;
         UpdatedAtUtc = createdAtUtc;
@@ -43,6 +66,7 @@ public sealed class SurveyAssignment
     public Guid SubjectId { get; private set; }
     public Guid AcademicCycleId { get; private set; }
     public Guid TeacherSubjectAssignmentId { get; private set; }
+    public int? ExpectedRespondentCount { get; private set; }
     public bool IsActive { get; private set; }
     public DateTimeOffset CreatedAtUtc { get; private set; }
     public DateTimeOffset UpdatedAtUtc { get; private set; }
@@ -75,6 +99,14 @@ public sealed class SurveyAssignment
         if (value == Guid.Empty)
         {
             throw new DomainException($"{fieldName} is required.");
+        }
+    }
+
+    private static void EnsureExpectedRespondentCount(int? value)
+    {
+        if (value is <= 0)
+        {
+            throw new DomainException("ExpectedRespondentCount must be greater than zero.");
         }
     }
 

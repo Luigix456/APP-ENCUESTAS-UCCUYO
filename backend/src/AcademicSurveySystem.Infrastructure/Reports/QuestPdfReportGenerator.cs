@@ -13,6 +13,7 @@ namespace AcademicSurveySystem.Infrastructure.Reports;
 public sealed class QuestPdfReportGenerator : IPdfReportGenerator
 {
     private const string PdfContentType = "application/pdf";
+    private static readonly CultureInfo ReportCulture = CultureInfo.GetCultureInfo("es-AR");
     private static readonly string[] ChartColors =
     [
         "#214f68",
@@ -74,6 +75,42 @@ public sealed class QuestPdfReportGenerator : IPdfReportGenerator
         sanitized = sanitized.Trim('_', '-', '.');
 
         return sanitized.Length > 48 ? sanitized[..48] : sanitized;
+    }
+
+    internal static IReadOnlyList<ReportSummaryMetric> BuildSummaryMetrics(SurveyReportDto report)
+    {
+        if (report.ExpectedRespondentCount is null)
+        {
+            return
+            [
+                new ReportSummaryMetric(
+                    "Respuestas recibidas",
+                    report.TotalResponses.ToString(CultureInfo.InvariantCulture))
+            ];
+        }
+
+        return
+        [
+            new ReportSummaryMetric(
+                "Alumnos inscriptos",
+                report.ExpectedRespondentCount.Value.ToString(CultureInfo.InvariantCulture)),
+            new ReportSummaryMetric(
+                "Respuestas recibidas",
+                report.TotalResponses.ToString(CultureInfo.InvariantCulture)),
+            new ReportSummaryMetric(
+                "Participación",
+                FormatSummaryPercentage(report.ParticipationPercentage)),
+            new ReportSummaryMetric(
+                "Pendientes",
+                report.RemainingCount?.ToString(CultureInfo.InvariantCulture) ?? "-")
+        ];
+    }
+
+    private static string FormatSummaryPercentage(decimal? percentage)
+    {
+        return percentage is null
+            ? "-"
+            : $"{percentage.Value.ToString("0.##", ReportCulture)} %";
     }
 
     private sealed class SurveyReportDocument : IDocument
@@ -189,12 +226,9 @@ public sealed class QuestPdfReportGenerator : IPdfReportGenerator
                 column.Item().PaddingTop(6).Element(content =>
                     ComposeMetadataGrid(
                         content,
-                        [
-                            ("Total de respuestas", _report.TotalResponses.ToString(CultureInfo.InvariantCulture)),
-                            ("Total de sesiones", _report.TotalSessions.ToString(CultureInfo.InvariantCulture)),
-                            ("Primera respuesta", FormatDateTimeUtc(_report.FirstSubmittedAtUtc)),
-                            ("Última respuesta", FormatDateTimeUtc(_report.LastSubmittedAtUtc))
-                        ],
+                        BuildSummaryMetrics(_report)
+                            .Select(metric => (metric.Label, metric.Value))
+                            .ToArray(),
                         columns: 2));
             });
         }
@@ -585,4 +619,6 @@ public sealed class QuestPdfReportGenerator : IPdfReportGenerator
         int Count,
         decimal Percentage,
         string Color = "#214f68");
+
+    internal readonly record struct ReportSummaryMetric(string Label, string Value);
 }

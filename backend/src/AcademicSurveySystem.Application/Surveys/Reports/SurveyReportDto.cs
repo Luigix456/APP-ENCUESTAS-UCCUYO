@@ -23,7 +23,10 @@ public sealed record SurveyReportDto(
     int TotalSessions,
     DateTimeOffset? FirstSubmittedAtUtc,
     DateTimeOffset? LastSubmittedAtUtc,
-    IReadOnlyCollection<SurveyQuestionResultsDto> Questions);
+    IReadOnlyCollection<SurveyQuestionResultsDto> Questions,
+    int? ExpectedRespondentCount = null,
+    int? RemainingCount = null,
+    decimal? ParticipationPercentage = null);
 
 public sealed record ReportInstitutionDto(
     string InstitutionName,

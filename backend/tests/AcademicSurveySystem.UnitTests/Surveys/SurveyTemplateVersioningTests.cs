@@ -361,8 +361,14 @@ public sealed class SurveyTemplateVersioningTests
             cycle.Id,
             "Titular",
             CreatedAtUtc);
+        var enrollment = new SubjectEnrollment(
+            Guid.NewGuid(),
+            subject.Id,
+            cycle.Id,
+            35,
+            CreatedAtUtc);
 
-        context.AddRange(academicUnit, career, subject, cycle, teacher, teacherAssignment);
+        context.AddRange(academicUnit, career, subject, cycle, teacher, teacherAssignment, enrollment);
         context.SaveChanges();
 
         return new AcademicFixture(career, subject, cycle, teacherAssignment);

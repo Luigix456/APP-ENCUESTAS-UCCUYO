@@ -329,6 +329,10 @@ function getLoadError(error: unknown): PageError {
 
 function getSubmitError(error: unknown): string {
   if (error instanceof ApiError) {
+    if (isResponseLimitError(error)) {
+      return 'La encuesta alcanzó la cantidad máxima de respuestas prevista.';
+    }
+
     if (error.status === 409 || error.status === 410 || isAvailabilityError(error)) {
       return 'La sesión de esta encuesta ya finalizó y no es posible enviar respuestas.';
     }
@@ -337,6 +341,25 @@ function getSubmitError(error: unknown): string {
   }
 
   return 'No fue posible enviar la respuesta. Intentá nuevamente.';
+}
+
+function isResponseLimitError(error: ApiError): boolean {
+  const code = error.code?.toLowerCase() ?? '';
+  const messages = [
+    error.message,
+    error.detail,
+    ...error.details
+  ]
+    .filter((message): message is string => Boolean(message))
+    .map((message) => message.toLowerCase());
+
+  return (
+    code === 'survey.responselimitreached' ||
+    messages.some((message) =>
+      message.includes('cantidad máxima de respuestas') ||
+      message.includes('maximum') && message.includes('responses')
+    )
+  );
 }
 
 function isAvailabilityError(error: ApiError): boolean {

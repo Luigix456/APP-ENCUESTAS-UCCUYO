@@ -141,6 +141,8 @@ function getValidationMessage(code: string | null): string {
       return 'La asignación docente-materia no corresponde a la materia seleccionada.';
     case 'SurveyAssignment.TeacherSubjectAssignmentCycleMismatch':
       return 'La asignación docente-materia no corresponde al ciclo lectivo seleccionado.';
+    case 'Subject.EnrollmentRequired':
+      return 'Falta cargar la cantidad de alumnos inscriptos.';
     default:
       return 'No fue posible procesar la solicitud. Revisá los datos e intentá nuevamente.';
   }

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { getResultAssignments } from '../../api/resultsApi';
 import { useAuth } from '../../auth/AuthProvider';
 import { PaginationControls, usePagination } from '../../components/Pagination';
+import { formatParticipation } from '../../components/ResponseProgress';
 import type { ResultsAssignmentFilters, SurveyAssignmentResultListItemDto } from '../../types/results';
 import { useAcademicContext } from '../academic-context/AcademicContextProvider';
 import {
@@ -291,8 +292,24 @@ function ResultAssignmentCard({ assignment }: { assignment: SurveyAssignmentResu
         </div>
         <div>
           <dt>Respuestas</dt>
-          <dd>{assignment.totalResponses}</dd>
+          <dd>
+            {assignment.expectedRespondentCount
+              ? `${assignment.totalResponses} / ${assignment.expectedRespondentCount}`
+              : assignment.totalResponses}
+          </dd>
         </div>
+        {assignment.expectedRespondentCount ? (
+          <div>
+            <dt>Participación</dt>
+            <dd>{formatParticipation(assignment.participationPercentage)}</dd>
+          </div>
+        ) : null}
+        {assignment.expectedRespondentCount ? (
+          <div>
+            <dt>Pendientes</dt>
+            <dd>{Math.max(0, assignment.expectedRespondentCount - assignment.totalResponses)}</dd>
+          </div>
+        ) : null}
         <div>
           <dt>Sesiones</dt>
           <dd>{assignment.totalSessions}</dd>

@@ -7,6 +7,7 @@ namespace AcademicSurveySystem.Domain.Academic.Entities;
 public sealed partial class Subject
 {
     private readonly List<TeacherSubjectAssignment> _teacherSubjectAssignments = [];
+    private readonly List<SubjectEnrollment> _enrollments = [];
 
     private Subject()
     {
@@ -60,6 +61,7 @@ public sealed partial class Subject
     public Career Career { get; private set; } = null!;
     public IReadOnlyCollection<TeacherSubjectAssignment> TeacherSubjectAssignments =>
         _teacherSubjectAssignments.AsReadOnly();
+    public IReadOnlyCollection<SubjectEnrollment> Enrollments => _enrollments.AsReadOnly();
 
     public void UpdateName(string name, DateTimeOffset updatedAtUtc)
     {

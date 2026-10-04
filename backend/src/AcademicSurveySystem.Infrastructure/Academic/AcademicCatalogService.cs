@@ -4,6 +4,7 @@ using AcademicSurveySystem.Application.Academic.AcademicCycles;
 using AcademicSurveySystem.Application.Academic.Careers;
 using AcademicSurveySystem.Application.Academic.Common;
 using AcademicSurveySystem.Application.Academic.Subjects;
+using AcademicSurveySystem.Application.Academic.SubjectEnrollments;
 using AcademicSurveySystem.Application.Academic.Teachers;
 using AcademicSurveySystem.Application.Academic.TeacherSubjectAssignments;
 using AcademicSurveySystem.Application.Common.Results;
@@ -736,6 +737,142 @@ public sealed class AcademicCatalogService : IAcademicCatalogService
         return ChangeSubjectStateAsync(id, activate: false, cancellationToken);
     }
 
+    public async Task<ApplicationResult<IReadOnlyCollection<SubjectEnrollmentDto>>> GetSubjectEnrollmentsAsync(
+        Guid? subjectId,
+        Guid? academicCycleId,
+        Guid? careerId,
+        CancellationToken cancellationToken)
+    {
+        var enrollments = await _dbContext.SubjectEnrollments
+            .AsNoTracking()
+            .Include(enrollment => enrollment.Subject)
+                .ThenInclude(subject => subject.Career)
+            .Include(enrollment => enrollment.AcademicCycle)
+            .Where(enrollment => subjectId == null || enrollment.SubjectId == subjectId.Value)
+            .Where(enrollment => academicCycleId == null || enrollment.AcademicCycleId == academicCycleId.Value)
+            .Where(enrollment => careerId == null || enrollment.Subject.CareerId == careerId.Value)
+            .OrderBy(enrollment => enrollment.Subject.Career.Name)
+            .ThenBy(enrollment => enrollment.Subject.Year)
+            .ThenBy(enrollment => enrollment.Subject.Name)
+            .ThenByDescending(enrollment => enrollment.AcademicCycle.Year)
+            .ThenBy(enrollment => enrollment.AcademicCycle.Period)
+            .Select(enrollment => MapSubjectEnrollment(enrollment))
+            .ToArrayAsync(cancellationToken);
+
+        return ApplicationResult<IReadOnlyCollection<SubjectEnrollmentDto>>.Success(enrollments);
+    }
+
+    public async Task<ApplicationResult<SubjectEnrollmentDto>> GetSubjectEnrollmentAsync(
+        Guid subjectId,
+        Guid academicCycleId,
+        CancellationToken cancellationToken)
+    {
+        var enrollment = await _dbContext.SubjectEnrollments
+            .AsNoTracking()
+            .Include(item => item.Subject)
+                .ThenInclude(subject => subject.Career)
+            .Include(item => item.AcademicCycle)
+            .Where(item => item.SubjectId == subjectId && item.AcademicCycleId == academicCycleId)
+            .Select(item => MapSubjectEnrollment(item))
+            .SingleOrDefaultAsync(cancellationToken);
+
+        return enrollment is null
+            ? ApplicationResult<SubjectEnrollmentDto>.NotFound("Subject enrollment was not found.")
+            : ApplicationResult<SubjectEnrollmentDto>.Success(enrollment);
+    }
+
+    public async Task<ApplicationResult<SubjectEnrollmentDto>> SetSubjectEnrollmentAsync(
+        Guid subjectId,
+        Guid academicCycleId,
+        SetSubjectEnrollmentRequest request,
+        CancellationToken cancellationToken)
+    {
+        var validationErrors = request.Validate();
+
+        if (subjectId == Guid.Empty)
+        {
+            validationErrors = validationErrors
+                .Append(new ApplicationError("SubjectEnrollment.SubjectIdRequired", "SubjectId is required."))
+                .ToArray();
+        }
+
+        if (academicCycleId == Guid.Empty)
+        {
+            validationErrors = validationErrors
+                .Append(new ApplicationError(
+                    "SubjectEnrollment.AcademicCycleIdRequired",
+                    "AcademicCycleId is required."))
+                .ToArray();
+        }
+
+        if (validationErrors.Count > 0)
+        {
+            return ApplicationResult<SubjectEnrollmentDto>.Validation(validationErrors);
+        }
+
+        var subjectExists = await _dbContext.Subjects
+            .AsNoTracking()
+            .AnyAsync(subject => subject.Id == subjectId, cancellationToken);
+
+        if (!subjectExists)
+        {
+            return ApplicationResult<SubjectEnrollmentDto>.NotFound("Subject was not found.");
+        }
+
+        var academicCycleExists = await _dbContext.AcademicCycles
+            .AsNoTracking()
+            .AnyAsync(cycle => cycle.Id == academicCycleId, cancellationToken);
+
+        if (!academicCycleExists)
+        {
+            return ApplicationResult<SubjectEnrollmentDto>.NotFound("Academic cycle was not found.");
+        }
+
+        var enrollment = await _dbContext.SubjectEnrollments
+            .SingleOrDefaultAsync(
+                item => item.SubjectId == subjectId && item.AcademicCycleId == academicCycleId,
+                cancellationToken);
+
+        try
+        {
+            if (enrollment is null)
+            {
+                enrollment = new SubjectEnrollment(
+                    Guid.NewGuid(),
+                    subjectId,
+                    academicCycleId,
+                    request.EnrolledStudentCount!.Value,
+                    DateTimeOffset.UtcNow);
+                _dbContext.SubjectEnrollments.Add(enrollment);
+            }
+            else
+            {
+                enrollment.UpdateEnrolledStudentCount(
+                    request.EnrolledStudentCount!.Value,
+                    DateTimeOffset.UtcNow);
+            }
+
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DomainException exception)
+        {
+            return ApplicationResult<SubjectEnrollmentDto>.Validation([
+                new ApplicationError("SubjectEnrollment.Validation", exception.Message)
+            ]);
+        }
+        catch (DbUpdateException exception) when (IsUniqueViolation(exception))
+        {
+            return ApplicationResult<SubjectEnrollmentDto>.Conflict(
+                "A subject enrollment for the same subject and academic cycle already exists.");
+        }
+        catch (DbUpdateException)
+        {
+            return ApplicationResult<SubjectEnrollmentDto>.Failure("The subject enrollment could not be saved.");
+        }
+
+        return await GetSubjectEnrollmentAsync(subjectId, academicCycleId, cancellationToken);
+    }
+
     public async Task<ApplicationResult<IReadOnlyCollection<TeacherDto>>> GetTeachersAsync(
         bool includeInactive,
         CancellationToken cancellationToken)
@@ -1368,6 +1505,22 @@ public sealed class AcademicCatalogService : IAcademicCatalogService
             subject.IsActive,
             subject.CreatedAtUtc,
             subject.UpdatedAtUtc);
+    }
+
+    private static SubjectEnrollmentDto MapSubjectEnrollment(SubjectEnrollment enrollment)
+    {
+        return new SubjectEnrollmentDto(
+            enrollment.Id,
+            enrollment.SubjectId,
+            enrollment.Subject.Name,
+            enrollment.Subject.CareerId,
+            enrollment.Subject.Career.Name,
+            enrollment.AcademicCycleId,
+            enrollment.AcademicCycle.Year,
+            enrollment.AcademicCycle.Period.ToString(),
+            enrollment.EnrolledStudentCount,
+            enrollment.CreatedAtUtc,
+            enrollment.UpdatedAtUtc);
     }
 
     private static TeacherDto MapTeacher(Teacher teacher)

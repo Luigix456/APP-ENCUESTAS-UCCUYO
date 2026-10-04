@@ -1,4 +1,5 @@
 using AcademicSurveySystem.Application.Common.Results;
+using AcademicSurveySystem.Application.Surveys.Responses;
 using AcademicSurveySystem.Application.Surveys.Sessions;
 using AcademicSurveySystem.Domain.Common;
 using AcademicSurveySystem.Domain.Surveys.Entities;
@@ -66,8 +67,18 @@ public sealed class SurveySessionService : ISurveySessionService
             .ThenByDescending(session => session.UpdatedAtUtc)
             .ToArrayAsync(cancellationToken);
 
+        var progressByAssignment = await LoadProgressByAssignmentAsync(
+            sessions.Select(session => session.SurveyAssignmentId).Distinct().ToArray(),
+            cancellationToken);
+        var responseCountBySession = await LoadResponseCountBySessionAsync(
+            sessions.Select(session => session.Id).ToArray(),
+            cancellationToken);
+
         return ApplicationResult<IReadOnlyCollection<SurveySessionDto>>.Success(
-            sessions.Select(MapDto).ToArray());
+            sessions.Select(session => MapDto(
+                session,
+                responseCountBySession.GetValueOrDefault(session.Id),
+                progressByAssignment.GetValueOrDefault(session.SurveyAssignmentId))).ToArray());
     }
 
     public async Task<ApplicationResult<SurveySessionDto>> GetSessionByIdAsync(
@@ -78,9 +89,25 @@ public sealed class SurveySessionService : ISurveySessionService
             .AsNoTracking()
             .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
 
-        return session is null
-            ? ApplicationResult<SurveySessionDto>.NotFound("Survey session was not found.")
-            : ApplicationResult<SurveySessionDto>.Success(MapDto(session));
+        if (session is null)
+        {
+            return ApplicationResult<SurveySessionDto>.NotFound("Survey session was not found.");
+        }
+
+        var sessionResponseCount = await _dbContext.SurveyResponses
+            .AsNoTracking()
+            .CountAsync(response => response.SurveySessionId == session.Id, cancellationToken);
+        var assignmentResponseCount = await _dbContext.SurveyResponses
+            .AsNoTracking()
+            .CountAsync(
+                response => response.SurveySession.SurveyAssignmentId == session.SurveyAssignmentId,
+                cancellationToken);
+        var progress = SurveyResponseProgressCalculator.Build(
+            session.SurveyAssignmentId,
+            session.SurveyAssignment.ExpectedRespondentCount,
+            assignmentResponseCount);
+
+        return ApplicationResult<SurveySessionDto>.Success(MapDto(session, sessionResponseCount, progress));
     }
 
     public async Task<ApplicationResult<SurveySessionDto>> CreateSessionAsync(
@@ -509,10 +536,81 @@ public sealed class SurveySessionService : ISurveySessionService
             && postgresException.SqlState == UniqueViolationSqlState;
     }
 
-    private static SurveySessionDto MapDto(SurveySession session)
+    private async Task<Dictionary<Guid, SurveyResponseProgressDto>> LoadProgressByAssignmentAsync(
+        IReadOnlyCollection<Guid> surveyAssignmentIds,
+        CancellationToken cancellationToken)
+    {
+        if (surveyAssignmentIds.Count == 0)
+        {
+            return [];
+        }
+
+        var responseCounts = await _dbContext.SurveyResponses
+            .AsNoTracking()
+            .Where(response => surveyAssignmentIds.Contains(response.SurveySession.SurveyAssignmentId))
+            .GroupBy(response => response.SurveySession.SurveyAssignmentId)
+            .Select(group => new
+            {
+                SurveyAssignmentId = group.Key,
+                ResponseCount = group.Count()
+            })
+            .ToDictionaryAsync(
+                item => item.SurveyAssignmentId,
+                item => item.ResponseCount,
+                cancellationToken);
+
+        return await _dbContext.SurveyAssignments
+            .AsNoTracking()
+            .Where(assignment => surveyAssignmentIds.Contains(assignment.Id))
+            .Select(assignment => new
+            {
+                assignment.Id,
+                assignment.ExpectedRespondentCount
+            })
+            .ToDictionaryAsync(
+                item => item.Id,
+                item => SurveyResponseProgressCalculator.Build(
+                    item.Id,
+                    item.ExpectedRespondentCount,
+                    responseCounts.GetValueOrDefault(item.Id)),
+                cancellationToken);
+    }
+
+    private Task<Dictionary<Guid, int>> LoadResponseCountBySessionAsync(
+        IReadOnlyCollection<Guid> surveySessionIds,
+        CancellationToken cancellationToken)
+    {
+        if (surveySessionIds.Count == 0)
+        {
+            return Task.FromResult(new Dictionary<Guid, int>());
+        }
+
+        return _dbContext.SurveyResponses
+            .AsNoTracking()
+            .Where(response => surveySessionIds.Contains(response.SurveySessionId))
+            .GroupBy(response => response.SurveySessionId)
+            .Select(group => new
+            {
+                SurveySessionId = group.Key,
+                ResponseCount = group.Count()
+            })
+            .ToDictionaryAsync(
+                item => item.SurveySessionId,
+                item => item.ResponseCount,
+                cancellationToken);
+    }
+
+    private static SurveySessionDto MapDto(
+        SurveySession session,
+        int sessionResponseCount,
+        SurveyResponseProgressDto? progress)
     {
         var assignment = session.SurveyAssignment;
         var teacher = assignment.TeacherSubjectAssignment.Teacher;
+        progress ??= SurveyResponseProgressCalculator.Build(
+            assignment.Id,
+            assignment.ExpectedRespondentCount,
+            0);
 
         return new SurveySessionDto(
             session.Id,
@@ -541,7 +639,12 @@ public sealed class SurveySessionService : ISurveySessionService
             assignment.TeacherSubjectAssignment.TeachingRole,
             session.CreatedByUserId,
             session.CreatedAtUtc,
-            session.UpdatedAtUtc);
+            session.UpdatedAtUtc,
+            sessionResponseCount,
+            progress.ResponseCount,
+            progress.ExpectedRespondentCount,
+            progress.RemainingCount,
+            progress.ParticipationPercentage);
     }
 
     private static PublicSurveySessionDto MapPublicDto(SurveySession session)

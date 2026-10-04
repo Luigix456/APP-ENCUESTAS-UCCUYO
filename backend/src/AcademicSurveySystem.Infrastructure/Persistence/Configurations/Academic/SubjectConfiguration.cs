@@ -70,7 +70,15 @@ public sealed class SubjectConfiguration : IEntityTypeConfiguration<Subject>
             .HasForeignKey(assignment => assignment.SubjectId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        builder.HasMany(subject => subject.Enrollments)
+            .WithOne(enrollment => enrollment.Subject)
+            .HasForeignKey(enrollment => enrollment.SubjectId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.Navigation(subject => subject.TeacherSubjectAssignments)
+            .UsePropertyAccessMode(PropertyAccessMode.Field);
+
+        builder.Navigation(subject => subject.Enrollments)
             .UsePropertyAccessMode(PropertyAccessMode.Field);
     }
 }

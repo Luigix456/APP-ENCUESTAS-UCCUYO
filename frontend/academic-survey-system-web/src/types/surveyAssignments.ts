@@ -17,6 +17,7 @@ export interface SurveyAssignmentDto {
   isActive: boolean;
   createdAtUtc: string;
   updatedAtUtc: string;
+  expectedRespondentCount: number | null;
 }
 
 export interface SurveyAssignmentFilters {

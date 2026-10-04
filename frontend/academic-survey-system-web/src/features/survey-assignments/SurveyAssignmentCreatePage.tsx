@@ -3,16 +3,22 @@ import { useNavigate } from 'react-router-dom';
 import {
   getAcademicCycles,
   getCareers,
+  getSubjectEnrollment,
   getSubjects,
-  getTeacherSubjectAssignments
+  getTeacherSubjectAssignments,
+  setSubjectEnrollment
 } from '../../api/academicCatalogApi';
+import { ApiClientError } from '../../api/apiClient';
 import { createSurveyAssignment } from '../../api/surveyAssignmentsApi';
 import { getSurveys } from '../../api/surveysApi';
 import { useAuth } from '../../auth/AuthProvider';
+import { Modal } from '../../components/ui/Modal';
+import { useToast } from '../../components/ui/ToastProvider';
 import type {
   AcademicCycleDto,
   CareerDto,
   SubjectDto,
+  SubjectEnrollmentDto,
   TeacherSubjectAssignmentDto
 } from '../../types/academicCatalog';
 import type { CreateSurveyAssignmentRequest } from '../../types/surveyAssignments';
@@ -50,6 +56,7 @@ const initialForm: AssignmentFormState = {
 
 export function SurveyAssignmentCreatePage({ contextual = false }: { contextual?: boolean }) {
   const auth = useAuth();
+  const toast = useToast();
   const academicContext = useAcademicContext();
   const navigate = useNavigate();
   const [surveys, setSurveys] = useState<SurveySummaryDto[]>([]);
@@ -70,10 +77,15 @@ export function SurveyAssignmentCreatePage({ contextual = false }: { contextual?
   const [teacherAssignmentsError, setTeacherAssignmentsError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [subjectEnrollment, setSubjectEnrollmentState] = useState<SubjectEnrollmentDto | null>(null);
+  const [enrollmentState, setEnrollmentState] = useState<DependentLoadState>('idle');
+  const [enrollmentValue, setEnrollmentValue] = useState('');
+  const [showEnrollmentModal, setShowEnrollmentModal] = useState(false);
 
   const accessToken = auth.accessToken;
   const canManageAssignments = auth.hasPermission(MANAGE_SURVEY_ASSIGNMENTS_PERMISSION);
   const canReadCatalog = auth.hasPermission(READ_ACADEMIC_CATALOG_PERMISSION);
+  const canManageCatalog = auth.hasPermission('academic.catalog.manage');
 
   useEffect(() => {
     if (!canManageAssignments || !canReadCatalog || !accessToken) {
@@ -109,6 +121,46 @@ export function SurveyAssignmentCreatePage({ contextual = false }: { contextual?
     canReadCatalog,
     contextual
   ]);
+
+  useEffect(() => {
+    if (!accessToken || !form.subjectId || !form.academicCycleId || !canReadCatalog) {
+      setSubjectEnrollmentState(null);
+      setEnrollmentState('idle');
+      return;
+    }
+
+    const abortController = new AbortController();
+
+    setSubjectEnrollmentState(null);
+    setEnrollmentState('loading');
+
+    getSubjectEnrollment(form.subjectId, form.academicCycleId, {
+      accessToken,
+      onUnauthorized: auth.logout,
+      signal: abortController.signal
+    })
+      .then((enrollment) => {
+        setSubjectEnrollmentState(enrollment);
+        setEnrollmentValue(String(enrollment.enrolledStudentCount));
+        setEnrollmentState('ready');
+      })
+      .catch((error) => {
+        if (abortController.signal.aborted) {
+          return;
+        }
+
+        if (error instanceof ApiClientError && error.status === 404) {
+          setSubjectEnrollmentState(null);
+          setEnrollmentValue('');
+          setEnrollmentState('ready');
+          return;
+        }
+
+        setEnrollmentState('error');
+      });
+
+    return () => abortController.abort();
+  }, [accessToken, auth.logout, canReadCatalog, form.academicCycleId, form.subjectId]);
 
   useEffect(() => {
     if (!contextual) {
@@ -227,6 +279,15 @@ export function SurveyAssignmentCreatePage({ contextual = false }: { contextual?
     () => careers.find((career) => career.id === form.careerId) ?? null,
     [careers, form.careerId]
   );
+  const selectedSurvey = useMemo(
+    () => surveys.find((survey) => survey.id === form.surveyId) ?? null,
+    [form.surveyId, surveys]
+  );
+  const selectedSubject = useMemo(
+    () => subjects.find((subject) => subject.id === form.subjectId) ?? null,
+    [form.subjectId, subjects]
+  );
+  const isStudentSurvey = selectedSurvey?.target === 'Student';
 
   if (!canManageAssignments) {
     return <SurveyAssignmentPermissionPanel />;
@@ -250,6 +311,11 @@ export function SurveyAssignmentCreatePage({ contextual = false }: { contextual?
       return;
     }
 
+    if (isStudentSurvey && !subjectEnrollment) {
+      setFormError('Falta cargar la cantidad de alumnos inscriptos.');
+      return;
+    }
+
     setIsSubmitting(true);
     setFormError(null);
 
@@ -261,6 +327,40 @@ export function SurveyAssignmentCreatePage({ contextual = false }: { contextual?
       });
     } catch (error) {
       setFormError(getFriendlyAssignmentError(error, 'No fue posible crear la asignación.'));
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleSaveEnrollment(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!accessToken || !form.subjectId || !form.academicCycleId) {
+      return;
+    }
+
+    const enrolledStudentCount = Number(enrollmentValue);
+
+    if (!Number.isInteger(enrolledStudentCount) || enrolledStudentCount <= 0) {
+      setFormError('Ingresá una cantidad de alumnos mayor a cero.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setFormError(null);
+
+    try {
+      const savedEnrollment = await setSubjectEnrollment(
+        form.subjectId,
+        form.academicCycleId,
+        enrolledStudentCount,
+        { accessToken, onUnauthorized: auth.logout }
+      );
+      setSubjectEnrollmentState(savedEnrollment);
+      setShowEnrollmentModal(false);
+      toast.success('Matrícula guardada correctamente.');
+    } catch (error) {
+      setFormError(getFriendlyAssignmentError(error, 'No fue posible guardar la matrícula.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -372,6 +472,32 @@ export function SurveyAssignmentCreatePage({ contextual = false }: { contextual?
               : 'Sólo se muestran plantillas publicadas y activas.'}
           </small>
         </label>
+
+        {isStudentSurvey && form.subjectId && form.academicCycleId ? (
+          <div className="assignment-form__wide enrollment-hint-panel">
+            <span>Materia: {selectedSubject?.name ?? 'Materia seleccionada'}</span>
+            {enrollmentState === 'loading' ? <strong>Cargando matrícula...</strong> : null}
+            {enrollmentState === 'error' ? <strong>No fue posible consultar la matrícula.</strong> : null}
+            {enrollmentState === 'ready' && subjectEnrollment ? (
+              <>
+                <strong>Alumnos inscriptos: {subjectEnrollment.enrolledStudentCount}</strong>
+                <small>Cantidad máxima esperada de respuestas: {subjectEnrollment.enrolledStudentCount}</small>
+              </>
+            ) : null}
+            {enrollmentState === 'ready' && !subjectEnrollment ? (
+              <>
+                <strong>Falta cargar la cantidad de alumnos inscriptos.</strong>
+                {canManageCatalog ? (
+                  <button className="secondary-button" onClick={() => setShowEnrollmentModal(true)} type="button">
+                    Cargar matrícula
+                  </button>
+                ) : (
+                  <small>Solicitá a un administrador que cargue la matrícula de esta materia.</small>
+                )}
+              </>
+            ) : null}
+          </div>
+        ) : null}
 
         <label>
           <span>Carrera</span>
@@ -488,6 +614,32 @@ export function SurveyAssignmentCreatePage({ contextual = false }: { contextual?
           </button>
         </div>
       </form>
+
+      <Modal
+        description="Este valor se usará para nuevas asignaciones de encuestas a estudiantes."
+        open={showEnrollmentModal}
+        onClose={() => { if (!isSubmitting) setShowEnrollmentModal(false); }}
+        closeDisabled={isSubmitting}
+        title="Cantidad de alumnos inscriptos"
+      >
+        <form className="modal-form" onSubmit={handleSaveEnrollment}>
+          <div className="enrollment-context">
+            <div><span>Materia</span><strong>{selectedSubject?.name}</strong></div>
+            <div><span>Carrera</span><strong>{selectedCareer?.name}</strong></div>
+            <div><span>Ciclo lectivo</span><strong>{cycles.find((cycle) => cycle.id === form.academicCycleId)?.year ?? ''}</strong></div>
+          </div>
+          <label>
+            <span>Alumnos inscriptos</span>
+            <input autoFocus className="text-input" min={1} onChange={(event) => setEnrollmentValue(event.target.value)} required step={1} type="number" value={enrollmentValue} />
+            <small>Este valor se utilizará para calcular la participación y limitar la cantidad máxima de respuestas en nuevas encuestas de estudiantes.</small>
+          </label>
+          {formError ? <p className="submit-error" role="alert">{formError}</p> : null}
+          <div className="modal-footer-actions">
+            <button className="secondary-button" disabled={isSubmitting} onClick={() => setShowEnrollmentModal(false)} type="button">Cancelar</button>
+            <button className="primary-button" disabled={isSubmitting} type="submit">{isSubmitting ? 'Guardando...' : 'Guardar'}</button>
+          </div>
+        </form>
+      </Modal>
     </section>
   );
 }

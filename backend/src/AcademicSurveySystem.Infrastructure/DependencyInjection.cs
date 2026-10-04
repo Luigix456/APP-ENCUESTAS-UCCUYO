@@ -135,6 +135,7 @@ public static class DependencyInjection
         services.AddScoped<ISurveyAssignmentService, SurveyAssignmentService>();
         services.AddSingleton<ISurveySessionAccessCodeGenerator, SurveySessionAccessCodeGenerator>();
         services.AddScoped<ISurveySessionService, SurveySessionService>();
+        services.AddScoped<ISurveyResponseProgressPublisher, NoOpSurveyResponseProgressPublisher>();
         services.AddScoped<ISurveyResponseService, SurveyResponseService>();
         services.AddScoped<ISurveyResultsService, SurveyResultsService>();
         services.AddScoped<IResultsAccessService, ResultsAccessService>();

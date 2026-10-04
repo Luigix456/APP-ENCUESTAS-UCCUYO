@@ -16,4 +16,7 @@ public sealed record SurveyResultsSummaryDto(
     int TotalResponses,
     int TotalSessions,
     DateTimeOffset? FirstSubmittedAtUtc,
-    DateTimeOffset? LastSubmittedAtUtc);
+    DateTimeOffset? LastSubmittedAtUtc,
+    int? ExpectedRespondentCount = null,
+    int? RemainingCount = null,
+    decimal? ParticipationPercentage = null);

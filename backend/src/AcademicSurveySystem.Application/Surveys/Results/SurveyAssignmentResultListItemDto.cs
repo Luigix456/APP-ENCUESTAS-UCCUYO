@@ -18,4 +18,6 @@ public sealed record SurveyAssignmentResultListItemDto(
     int TotalSessions,
     int TotalResponses,
     DateTimeOffset? FirstSubmittedAtUtc,
-    DateTimeOffset? LastSubmittedAtUtc);
+    DateTimeOffset? LastSubmittedAtUtc,
+    int? ExpectedRespondentCount = null,
+    decimal? ParticipationPercentage = null);

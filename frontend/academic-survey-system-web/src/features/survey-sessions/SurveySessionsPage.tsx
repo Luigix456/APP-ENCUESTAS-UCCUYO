@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { ApiClientError } from '../../api/apiClient';
 import { getSurveyAssignments } from '../../api/surveyAssignmentsApi';
@@ -11,13 +11,18 @@ import {
 } from '../../api/surveySessionsApi';
 import { useAuth } from '../../auth/AuthProvider';
 import { PaginationControls, usePagination } from '../../components/Pagination';
+import { ResponseProgress } from '../../components/ResponseProgress';
+import { ConfirmDialog, Modal } from '../../components/ui/Modal';
+import { useToast } from '../../components/ui/ToastProvider';
 import { useAcademicContext } from '../academic-context/AcademicContextProvider';
 import type {
   CreateSurveySessionRequest,
   SurveyAssignmentDto,
+  SurveyResponseProgressDto,
   SurveySessionDto,
   SurveySessionStatus
 } from '../../types/surveyOperations';
+import { useSurveyResponseProgress } from './useSurveyResponseProgress';
 
 const MANAGE_SESSIONS_PERMISSION = 'surveys.sessions.manage';
 const SESSION_DURATION_HOURS = 2;
@@ -39,6 +44,7 @@ interface SessionFiltersState {
 
 export function SurveySessionsPage({ contextual = false }: { contextual?: boolean }) {
   const auth = useAuth();
+  const toast = useToast();
   const academicContext = useAcademicContext();
   const [assignments, setAssignments] = useState<SurveyAssignmentDto[]>([]);
   const [sessions, setSessions] = useState<SurveySessionDto[]>([]);
@@ -51,6 +57,7 @@ export function SurveySessionsPage({ contextual = false }: { contextual?: boolea
   const [isCreating, setIsCreating] = useState(false);
   const [activeAction, setActiveAction] = useState<'open' | 'close' | 'refresh' | null>(null);
   const [isFormVisible, setIsFormVisible] = useState(false);
+  const [confirmCloseOpen, setConfirmCloseOpen] = useState(false);
   const [form, setForm] = useState<SessionFormState>(() => createInitialForm());
   const [filters, setFilters] = useState<SessionFiltersState>({
     subjectId: '',
@@ -71,6 +78,14 @@ export function SurveySessionsPage({ contextual = false }: { contextual?: boolea
     setIsFormVisible(false);
     setForm(createInitialForm());
   }, [academicContext.academicCycleId, academicContext.careerId, contextual]);
+
+  useEffect(() => {
+    if (successMessage) toast.success(successMessage);
+  }, [successMessage, toast]);
+
+  useEffect(() => {
+    if (actionError) toast.error('No se pudo completar la acción', actionError);
+  }, [actionError, toast]);
 
   useEffect(() => {
     if (
@@ -116,6 +131,37 @@ export function SurveySessionsPage({ contextual = false }: { contextual?: boolea
   const publicSurveyUrl = selectedSession?.accessCode
     ? `${window.location.origin}/survey/${encodeURIComponent(selectedSession.accessCode)}`
     : null;
+  const handleRealtimeProgress = useCallback((progress: SurveyResponseProgressDto) => {
+    const applyProgress = (session: SurveySessionDto): SurveySessionDto =>
+      session.surveyAssignmentId === progress.surveyAssignmentId
+        ? {
+            ...session,
+            assignmentResponseCount: progress.responseCount,
+            expectedRespondentCount: progress.expectedRespondentCount,
+            remainingCount: progress.remainingCount,
+            participationPercentage: progress.participationPercentage
+          }
+        : session;
+
+    setSessions((current) => current.map(applyProgress));
+    setSelectedSession((current) => current ? applyProgress(current) : current);
+  }, []);
+  const refreshSelectedSessionForRealtime = useCallback(async () => {
+    if (!accessToken || !selectedSession) {
+      return;
+    }
+
+    const refreshedSession = await getSurveySession(selectedSession.id, accessToken, auth.logout);
+    upsertSession(refreshedSession);
+    setSelectedSession(refreshedSession);
+  }, [accessToken, auth.logout, selectedSession?.id]);
+  const liveStatus = useSurveyResponseProgress({
+    accessToken,
+    canConnect: canManageSessions && selectedSession?.status === 'Open',
+    surveyAssignmentId: selectedSession?.surveyAssignmentId ?? null,
+    onProgress: handleRealtimeProgress,
+    onReconnectRefresh: refreshSelectedSessionForRealtime
+  });
 
   if (!canManageSessions) {
     return (
@@ -273,14 +319,6 @@ export function SurveySessionsPage({ contextual = false }: { contextual?: boolea
 
   async function handleCloseSession() {
     if (!accessToken || !selectedSession) {
-      return;
-    }
-
-    const confirmed = window.confirm(
-      'Al cerrar la sesión, el código QR dejará de aceptar respuestas. ¿Deseás continuar?'
-    );
-
-    if (!confirmed) {
       return;
     }
 
@@ -446,28 +484,8 @@ export function SurveySessionsPage({ contextual = false }: { contextual?: boolea
         </div>
       ) : null}
 
-      {successMessage ? (
-        <div className="success-message" role="status">
-          {successMessage}
-        </div>
-      ) : null}
-
-      {isFormVisible ? (
-        <form className="session-form" noValidate onSubmit={handleCreateSession}>
-          <header>
-            <h3>Nueva sesión</h3>
-            <button
-              className="secondary-button"
-              onClick={() => {
-                setIsFormVisible(false);
-                setFormError(null);
-              }}
-              type="button"
-            >
-              Cancelar
-            </button>
-          </header>
-
+      <Modal open={isFormVisible} onClose={() => { if (!isCreating) { setIsFormVisible(false); setFormError(null); } }} closeDisabled={isCreating} title="Nueva sesión de encuesta" description="Seleccioná la asignación, el aula y el vencimiento. La sesión se crea cerrada hasta que decidas abrirla.">
+<form className="modal-form" noValidate onSubmit={handleCreateSession}>
           <label>
             <span>Asignación de encuesta</span>
             <select
@@ -484,6 +502,18 @@ export function SurveySessionsPage({ contextual = false }: { contextual?: boolea
               ))}
             </select>
           </label>
+
+          {selectedAssignment ? (
+            <div className="enrollment-hint-panel">
+              <span>Alumnos esperados</span>
+              <strong>{selectedAssignment.expectedRespondentCount ?? 'No aplica para esta encuesta'}</strong>
+              {selectedAssignment.expectedRespondentCount ? (
+                <small>La sesión usará este valor histórico para mostrar el progreso de respuestas.</small>
+              ) : (
+                <small>Se mostrará únicamente la cantidad de respuestas recibidas.</small>
+              )}
+            </div>
+          ) : null}
 
           <label>
             <span>Título de sesión</span>
@@ -534,11 +564,12 @@ export function SurveySessionsPage({ contextual = false }: { contextual?: boolea
             </p>
           ) : null}
 
-          <button className="primary-button" disabled={isCreating} type="submit">
-            {isCreating ? 'Creando...' : 'Crear sesión'}
-          </button>
+          <div className="modal-footer-actions">
+            <button className="secondary-button" disabled={isCreating} onClick={() => { setIsFormVisible(false); setFormError(null); }} type="button">Cancelar</button>
+            <button className="primary-button" disabled={isCreating} type="submit">{isCreating ? 'Creando...' : 'Crear sesión'}</button>
+          </div>
         </form>
-      ) : null}
+      </Modal>
 
       <div className="sessions-workspace">
         <div className="sessions-list" aria-label="Sesiones recientes">
@@ -590,11 +621,20 @@ export function SurveySessionsPage({ contextual = false }: { contextual?: boolea
             <>
               <SessionSummary session={selectedSession} />
 
-              {actionError ? (
-                <p className="submit-error" role="alert">
-                  {actionError}
-                </p>
-              ) : null}
+              <ResponseProgress
+                expectedRespondentCount={selectedSession.expectedRespondentCount}
+                participationPercentage={selectedSession.participationPercentage}
+                remainingCount={selectedSession.remainingCount}
+                responseCount={selectedSession.assignmentResponseCount}
+                sessionResponseCount={selectedSession.sessionResponseCount}
+              />
+
+              <LiveStatusPanel
+                liveStatus={liveStatus}
+                onRefresh={() => void refreshSelectedSession()}
+                refreshDisabled={activeAction !== null}
+                sessionStatus={selectedSession.status}
+              />
 
               <div className="session-command-bar">
                 <button
@@ -621,7 +661,7 @@ export function SurveySessionsPage({ contextual = false }: { contextual?: boolea
                   <button
                     className="danger-button"
                     disabled={activeAction !== null}
-                    onClick={() => void handleCloseSession()}
+                    onClick={() => setConfirmCloseOpen(true)}
                     type="button"
                   >
                     {activeAction === 'close' ? 'Cerrando...' : 'Cerrar sesión'}
@@ -655,8 +695,59 @@ export function SurveySessionsPage({ contextual = false }: { contextual?: boolea
           )}
         </div>
       </div>
+      <ConfirmDialog
+        busy={activeAction === 'close'}
+        confirmLabel="Cerrar sesión"
+        message="El código QR dejará de aceptar nuevas respuestas. Las respuestas ya enviadas se conservarán."
+        onCancel={() => setConfirmCloseOpen(false)}
+        onConfirm={() => { void handleCloseSession().finally(() => setConfirmCloseOpen(false)); }}
+        open={confirmCloseOpen}
+        title="¿Cerrar esta sesión?"
+        tone="danger"
+      />
     </section>
   );
+}
+
+function LiveStatusPanel({
+  liveStatus,
+  onRefresh,
+  refreshDisabled,
+  sessionStatus
+}: {
+  liveStatus: 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'unavailable';
+  onRefresh: () => void;
+  refreshDisabled: boolean;
+  sessionStatus: SurveySessionStatus;
+}) {
+  if (sessionStatus !== 'Open') {
+    return null;
+  }
+
+  if (liveStatus === 'connected') {
+    return <p className="live-status live-status--connected">Actualización en vivo activa</p>;
+  }
+
+  if (liveStatus === 'connecting') {
+    return <p className="live-status">Conectando actualización en vivo...</p>;
+  }
+
+  if (liveStatus === 'reconnecting') {
+    return <p className="live-status">Reconectando actualización en vivo...</p>;
+  }
+
+  if (liveStatus === 'unavailable') {
+    return (
+      <div className="live-status live-status--fallback">
+        <span>No se pudo activar la actualización en vivo. Podés actualizar el estado manualmente.</span>
+        <button className="secondary-button" disabled={refreshDisabled} onClick={onRefresh} type="button">
+          Actualizar
+        </button>
+      </div>
+    );
+  }
+
+  return null;
 }
 
 function SessionSummary({ session }: { session: SurveySessionDto }) {

@@ -38,6 +38,7 @@ interface AcademicContextValue {
   setAcademicUnit: (academicUnitId: string) => void;
   setCareer: (careerId: string) => void;
   setAcademicCycle: (academicCycleId: string) => void;
+  selectCareerContext: (academicUnitId: string, careerId: string) => void;
   clearContext: () => void;
   refreshContext: () => Promise<void>;
 }
@@ -208,6 +209,13 @@ export function AcademicContextProvider({ children }: { children: ReactNode }) {
         persistContext({
           ...storedIds,
           academicCycleId: academicCycleId || undefined
+        });
+      },
+      selectCareerContext: (academicUnitId, careerId) => {
+        persistContext({
+          academicUnitId: academicUnitId || undefined,
+          careerId: careerId || undefined,
+          academicCycleId: storedIds.academicCycleId
         });
       },
       clearContext: () => persistContext({}),

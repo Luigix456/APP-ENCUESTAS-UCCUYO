@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using AcademicSurveySystem.Application.Common.Results;
 using AcademicSurveySystem.Application.Surveys.Responses;
 using AcademicSurveySystem.Domain.Common;
@@ -10,11 +11,17 @@ namespace AcademicSurveySystem.Infrastructure.Surveys;
 
 public sealed class SurveyResponseService : ISurveyResponseService
 {
-    private readonly ApplicationDbContext _dbContext;
+    private static readonly ConcurrentDictionary<Guid, SemaphoreSlim> FallbackAssignmentLocks = new();
 
-    public SurveyResponseService(ApplicationDbContext dbContext)
+    private readonly ApplicationDbContext _dbContext;
+    private readonly ISurveyResponseProgressPublisher _progressPublisher;
+
+    public SurveyResponseService(
+        ApplicationDbContext dbContext,
+        ISurveyResponseProgressPublisher progressPublisher)
     {
         _dbContext = dbContext;
+        _progressPublisher = progressPublisher;
     }
 
     public async Task<ApplicationResult<SurveyResponseSubmissionDto>> SubmitResponseAsync(
@@ -84,13 +91,47 @@ public sealed class SurveyResponseService : ISurveyResponseService
             return ApplicationResult<SurveyResponseSubmissionDto>.Validation(lastAvailabilityCheck);
         }
 
-        var response = BuildResponse(session, request, persistedAtUtc);
+        SurveyResponse response;
+        SurveyResponseProgressDto progress;
+        var assignmentId = session.SurveyAssignmentId;
+        var fallbackLock = await AcquireFallbackLockAsync(assignmentId, cancellationToken);
 
-        _dbContext.SurveyResponses.Add(response);
+        await using var transaction = _dbContext.Database.IsRelational()
+            ? await _dbContext.Database.BeginTransactionAsync(cancellationToken)
+            : null;
 
         try
         {
+            await LockAssignmentAsync(assignmentId, cancellationToken);
+
+            var currentResponseCount = await CountAssignmentResponsesAsync(assignmentId, cancellationToken);
+            var expectedRespondentCount = session.SurveyAssignment.ExpectedRespondentCount;
+
+            if (expectedRespondentCount is not null && currentResponseCount >= expectedRespondentCount.Value)
+            {
+                return new ApplicationResult<SurveyResponseSubmissionDto>(
+                    ApplicationResultStatus.Conflict,
+                    default,
+                    [
+                        new ApplicationError(
+                            "Survey.ResponseLimitReached",
+                            "La encuesta alcanzó la cantidad máxima de respuestas prevista.")
+                    ]);
+            }
+
+            response = BuildResponse(session, request, persistedAtUtc);
+            _dbContext.SurveyResponses.Add(response);
             await _dbContext.SaveChangesAsync(cancellationToken);
+
+            progress = SurveyResponseProgressCalculator.Build(
+                assignmentId,
+                expectedRespondentCount,
+                currentResponseCount + 1);
+
+            if (transaction is not null)
+            {
+                await transaction.CommitAsync(cancellationToken);
+            }
         }
         catch (DomainException exception)
         {
@@ -103,6 +144,12 @@ public sealed class SurveyResponseService : ISurveyResponseService
             return ApplicationResult<SurveyResponseSubmissionDto>.Failure(
                 "The survey response could not be saved.");
         }
+        finally
+        {
+            fallbackLock.Release();
+        }
+
+        await PublishProgressAsync(progress, cancellationToken);
 
         return ApplicationResult<SurveyResponseSubmissionDto>.Success(
             new SurveyResponseSubmissionDto(response.Id, response.SubmittedAtUtc));
@@ -202,5 +249,55 @@ public sealed class SurveyResponseService : ISurveyResponseService
         return ApplicationResult<SurveyResponseSubmissionDto>.Validation([
             new ApplicationError("SurveySession.NotAvailable", "Survey session is not available.")
         ]);
+    }
+
+    private async Task LockAssignmentAsync(
+        Guid surveyAssignmentId,
+        CancellationToken cancellationToken)
+    {
+        if (!string.Equals(
+            _dbContext.Database.ProviderName,
+            "Npgsql.EntityFrameworkCore.PostgreSQL",
+            StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        await _dbContext.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT pg_advisory_xact_lock(hashtext({surveyAssignmentId.ToString()})::bigint)",
+            cancellationToken);
+    }
+
+    private static async Task<SemaphoreSlim> AcquireFallbackLockAsync(
+        Guid surveyAssignmentId,
+        CancellationToken cancellationToken)
+    {
+        var semaphore = FallbackAssignmentLocks.GetOrAdd(surveyAssignmentId, _ => new SemaphoreSlim(1, 1));
+        await semaphore.WaitAsync(cancellationToken);
+        return semaphore;
+    }
+
+    private Task<int> CountAssignmentResponsesAsync(
+        Guid surveyAssignmentId,
+        CancellationToken cancellationToken)
+    {
+        return _dbContext.SurveyResponses
+            .CountAsync(
+                response => response.SurveySession.SurveyAssignmentId == surveyAssignmentId,
+                cancellationToken);
+    }
+
+    private async Task PublishProgressAsync(
+        SurveyResponseProgressDto progress,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _progressPublisher.PublishAsync(progress, cancellationToken);
+        }
+        catch
+        {
+            // Response persistence is authoritative; realtime progress is best-effort.
+        }
     }
 }

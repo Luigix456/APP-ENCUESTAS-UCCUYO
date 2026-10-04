@@ -77,6 +77,24 @@ export interface TeacherSubjectAssignmentDto {
   updatedAtUtc: string;
 }
 
+export interface SubjectEnrollmentDto {
+  id: string;
+  subjectId: string;
+  subjectName: string;
+  careerId: string;
+  careerName: string;
+  academicCycleId: string;
+  academicCycleYear: number;
+  academicCyclePeriod: AcademicCyclePeriod;
+  enrolledStudentCount: number;
+  createdAtUtc: string;
+  updatedAtUtc: string;
+}
+
+export interface SetSubjectEnrollmentRequest {
+  enrolledStudentCount: number;
+}
+
 export interface TeacherSubjectAssignmentFilters {
   includeInactive: boolean;
   careerId?: string;

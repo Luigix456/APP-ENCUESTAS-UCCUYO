@@ -17,6 +17,8 @@ export interface SurveyAssignmentResultListItemDto {
   totalResponses: number;
   firstSubmittedAtUtc: string | null;
   lastSubmittedAtUtc: string | null;
+  expectedRespondentCount: number | null;
+  participationPercentage: number | null;
 }
 
 export interface ResultsAssignmentFilters {
@@ -44,6 +46,9 @@ export interface SurveyResultsSummaryDto {
   totalSessions: number;
   firstSubmittedAtUtc: string | null;
   lastSubmittedAtUtc: string | null;
+  expectedRespondentCount: number | null;
+  remainingCount: number | null;
+  participationPercentage: number | null;
 }
 
 export type SurveyQuestionResultType =

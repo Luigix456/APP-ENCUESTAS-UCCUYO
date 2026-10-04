@@ -17,6 +17,8 @@ import {
   updateUser
 } from '../../api/usersApi';
 import { useAuth } from '../../auth/AuthProvider';
+import { ConfirmDialog, Modal } from '../../components/ui/Modal';
+import { useToast } from '../../components/ui/ToastProvider';
 import type { CareerDto } from '../../types/academicCatalog';
 import type { RoleDto, UserCareerDto, UserDto } from '../../types/users';
 import { USER_STATUS_LABELS } from '../../types/users';
@@ -45,6 +47,7 @@ interface CreateUserFormState extends UserFormState {
 
 export function UsersPage() {
   const auth = useAuth();
+  const toast = useToast();
   const [users, setUsers] = useState<UserDto[]>([]);
   const [roles, setRoles] = useState<RoleDto[]>([]);
   const [state, setState] = useState<LoadState>('loading');
@@ -52,6 +55,10 @@ export function UsersPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [createForm, setCreateForm] = useState<CreateUserFormState>({ firstName: '', lastName: '', email: '', password: '', roleIds: [] });
   const accessToken = auth.accessToken;
   const canReadUsers = canReadIdentityUsers(auth.hasPermission);
   const canCreateUsers = canCreateIdentityUsers(auth.hasPermission);
@@ -118,6 +125,31 @@ export function UsersPage() {
     return <UsersPermissionPanel />;
   }
 
+  async function handleCreateUser(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!accessToken) return;
+    const validationError = validateCreateUserForm(createForm);
+    if (validationError) { setCreateError(validationError); return; }
+    setIsCreating(true); setCreateError(null);
+    try {
+      const created = await createUser({
+        firstName: createForm.firstName.trim(),
+        lastName: createForm.lastName.trim(),
+        email: createForm.email.trim(),
+        password: createForm.password,
+        roleIds: createForm.roleIds
+      }, { accessToken, onUnauthorized: auth.logout });
+      setCreateForm({ firstName: '', lastName: '', email: '', password: '', roleIds: [] });
+      setShowCreateModal(false);
+      const nextUsers = await getUsers({ accessToken, onUnauthorized: auth.logout, includeInactive: true });
+      setUsers(nextUsers);
+      toast.success('Usuario creado', `${created.firstName} ${created.lastName} ya puede acceder al sistema.`);
+    } catch (submitError) {
+      const message = getFriendlyUserError(submitError, 'No fue posible crear el usuario.');
+      setCreateError(message); toast.error('No se pudo crear el usuario', message);
+    } finally { setIsCreating(false); }
+  }
+
   return (
     <section className="app-content users-page">
       <header className="surveys-header">
@@ -127,9 +159,7 @@ export function UsersPage() {
           <p>Administrá cuentas, roles, carreras asociadas y estado operativo.</p>
         </div>
         {canCreateUsers ? (
-          <Link className="primary-link-button" to="/app/users/new">
-            Nuevo usuario
-          </Link>
+          <button className="primary-button" onClick={() => setShowCreateModal(true)} type="button">Nuevo usuario</button>
         ) : null}
       </header>
 
@@ -206,6 +236,16 @@ export function UsersPage() {
           ))}
         </div>
       ) : null}
+
+      <Modal open={showCreateModal} onClose={() => { if (!isCreating) { setShowCreateModal(false); setCreateError(null); } }} closeDisabled={isCreating} title="Nuevo usuario" description="Creá la cuenta, definí la contraseña inicial y asigná al menos un rol.">
+        <form className="modal-form" noValidate onSubmit={handleCreateUser}>
+          <UserProfileFields form={createForm} onChange={(nextForm) => setCreateForm((current) => ({ ...current, ...nextForm }))} />
+          <label><span>Contraseña inicial</span><input autoComplete="new-password" className="text-input" onChange={(event) => setCreateForm((current) => ({ ...current, password: event.target.value }))} required type="password" value={createForm.password} /><small>12 a 64 caracteres, con mayúscula, minúscula, número y símbolo.</small></label>
+          <RoleSelector disabled={!canReadRoles || isCreating} roles={roles} selectedRoleIds={createForm.roleIds} onChange={(roleIds) => setCreateForm((current) => ({ ...current, roleIds }))} />
+          {createError ? <p className="submit-error" role="alert">{createError}</p> : null}
+          <div className="modal-footer-actions"><button className="secondary-button" disabled={isCreating} onClick={() => setShowCreateModal(false)} type="button">Cancelar</button><button className="primary-button" disabled={isCreating} type="submit">{isCreating ? 'Creando...' : 'Crear usuario'}</button></div>
+        </form>
+      </Modal>
     </section>
   );
 }
@@ -343,6 +383,7 @@ export function UserCreatePage() {
 export function UserDetailPage() {
   const { userId } = useParams();
   const auth = useAuth();
+  const toast = useToast();
   const navigate = useNavigate();
   const [user, setUser] = useState<UserDto | null>(null);
   const [roles, setRoles] = useState<RoleDto[]>([]);
@@ -353,9 +394,10 @@ export function UserDetailPage() {
   const [careerIds, setCareerIds] = useState<string[]>([]);
   const [password, setPassword] = useState('');
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [editSection, setEditSection] = useState<'profile' | 'roles' | 'careers' | null>(null);
+  const [confirmAction, setConfirmAction] = useState<'status' | 'delete' | null>(null);
   const [state, setState] = useState<LoadState>('loading');
   const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
   const [activeAction, setActiveAction] = useState<string | null>(null);
   const accessToken = auth.accessToken;
   const canReadUsers = canReadIdentityUsers(auth.hasPermission);
@@ -418,16 +460,16 @@ export function UserDetailPage() {
   async function runAction(action: string, success: string, fallback: string, callback: () => Promise<unknown>) {
     setActiveAction(action);
     setError(null);
-    setMessage(null);
 
     try {
       await callback();
-      setMessage(success);
-      if (accessToken && userId) {
-        await loadUserDetail(accessToken, userId);
-      }
+      if (accessToken && userId) await loadUserDetail(accessToken, userId);
+      toast.success(success);
+      return true;
     } catch (actionError) {
-      setError(getFriendlyUserError(actionError, fallback));
+      const friendly = getFriendlyUserError(actionError, fallback);
+      toast.error('No se pudo completar la acción', friendly);
+      return false;
     } finally {
       setActiveAction(null);
     }
@@ -447,7 +489,7 @@ export function UserDetailPage() {
       return;
     }
 
-    await runAction('profile', 'Perfil actualizado.', 'No fue posible actualizar el perfil.', () =>
+    const succeeded = await runAction('profile', 'Perfil actualizado.', 'No fue posible actualizar el perfil.', () =>
       updateUser(
         user.id,
         {
@@ -458,6 +500,7 @@ export function UserDetailPage() {
         { accessToken, onUnauthorized: auth.logout }
       )
     );
+    if (succeeded) setEditSection(null);
   }
 
   async function handleSaveRoles(event: FormEvent<HTMLFormElement>) {
@@ -467,9 +510,10 @@ export function UserDetailPage() {
       return;
     }
 
-    await runAction('roles', 'Roles actualizados.', 'No fue posible actualizar los roles.', () =>
+    const succeeded = await runAction('roles', 'Roles actualizados.', 'No fue posible actualizar los roles.', () =>
       replaceUserRoles(user.id, { roleIds }, { accessToken, onUnauthorized: auth.logout })
     );
+    if (succeeded) setEditSection(null);
   }
 
   async function handleSaveCareers(event: FormEvent<HTMLFormElement>) {
@@ -479,9 +523,10 @@ export function UserDetailPage() {
       return;
     }
 
-    await runAction('careers', 'Carreras asociadas actualizadas.', 'No fue posible actualizar las carreras.', () =>
+    const succeeded = await runAction('careers', 'Carreras asociadas actualizadas.', 'No fue posible actualizar las carreras.', () =>
       replaceUserCareers(user.id, { careerIds }, { accessToken, onUnauthorized: auth.logout })
     );
+    if (succeeded) setEditSection(null);
   }
 
   async function handlePasswordReset(event: FormEvent<HTMLFormElement>) {
@@ -498,11 +543,13 @@ export function UserDetailPage() {
       return;
     }
 
-    await runAction('password', 'Contraseña actualizada.', 'No fue posible actualizar la contraseña.', () =>
+    const succeeded = await runAction('password', 'Contraseña actualizada.', 'No fue posible actualizar la contraseña.', () =>
       resetUserPassword(user.id, { newPassword: password }, { accessToken, onUnauthorized: auth.logout })
     );
-    setPassword('');
-    setShowPasswordModal(false);
+    if (succeeded) {
+      setPassword('');
+      setShowPasswordModal(false);
+    }
   }
 
   async function handleToggleStatus() {
@@ -526,17 +573,10 @@ export function UserDetailPage() {
       return;
     }
 
-    const confirmed = window.confirm(
-      'Esta baja es operativa: el usuario dejará de poder utilizar la aplicación, pero se conserva el historial. ¿Deseás continuar?'
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
     await runAction('delete', 'Usuario dado de baja.', 'No fue posible dar de baja el usuario.', () =>
       deleteUser(user.id, { accessToken, onUnauthorized: auth.logout })
     );
+    setConfirmAction(null);
   }
 
   if (state === 'loading') {
@@ -572,153 +612,72 @@ export function UserDetailPage() {
         </div>
       </header>
 
-      {message ? <div className="success-message" role="status">{message}</div> : null}
-      {error ? <p className="submit-error" role="alert">{error}</p> : null}
-
       <div className="user-detail-grid">
-        <form className="survey-admin-form" noValidate onSubmit={handleSaveProfile}>
-          <header>
-            <h3>Perfil</h3>
-          </header>
-          <UserProfileFields form={profileForm} onChange={setProfileForm} />
-          <button className="primary-button" disabled={!canUpdateUsers || activeAction !== null} type="submit">
-            {activeAction === 'profile' ? 'Guardando...' : 'Guardar perfil'}
-          </button>
-        </form>
+        <section className="crud-summary-card">
+          <header><div><p className="eyebrow">Perfil</p><h3>Datos personales</h3></div><button className="secondary-button" disabled={!canUpdateUsers} onClick={() => setEditSection('profile')} type="button">Editar</button></header>
+          <dl className="summary-list"><div><dt>Nombre</dt><dd>{formatUserName(user)}</dd></div><div><dt>Email</dt><dd>{user.email}</dd></div></dl>
+        </section>
 
-        <form className="survey-admin-form" noValidate onSubmit={handleSaveRoles}>
-          <header>
-            <h3>Roles</h3>
-          </header>
-          <RoleSelector
-            disabled={!canAssignRoles || !canReadRoles || activeAction !== null}
-            roles={roles}
-            selectedRoleIds={roleIds}
-            onChange={setRoleIds}
-          />
-          <button className="primary-button" disabled={!canAssignRoles || activeAction !== null} type="submit">
-            {activeAction === 'roles' ? 'Guardando...' : 'Guardar roles'}
-          </button>
-        </form>
+        <section className="crud-summary-card">
+          <header><div><p className="eyebrow">Acceso</p><h3>Roles</h3></div><button className="secondary-button" disabled={!canAssignRoles || !canReadRoles} onClick={() => setEditSection('roles')} type="button">Editar</button></header>
+          <div className="tag-list">{user.roles.length ? user.roles.map((role) => <span className="soft-tag" key={role.id}>{role.name}</span>) : <span className="muted-text">Sin roles asignados</span>}</div>
+        </section>
 
-        <form className="survey-admin-form" noValidate onSubmit={handleSaveCareers}>
-          <header>
-            <h3>Carreras asociadas</h3>
-            <p>{userCareers.length > 0 ? `${userCareers.length} asignadas actualmente.` : 'Sin carreras asignadas.'}</p>
-          </header>
-          {canReadCatalog ? (
-            <CareerSelector
-              careers={careers}
-              disabled={!canUpdateUsers || activeAction !== null}
-              selectedCareerIds={careerIds}
-              onChange={setCareerIds}
-            />
-          ) : (
-            <p className="inline-message">No tenés permiso de lectura del catálogo para modificar carreras.</p>
-          )}
-          <button
-            className="primary-button"
-            disabled={!canReadCatalog || !canUpdateUsers || activeAction !== null}
-            type="submit"
-          >
-            {activeAction === 'careers' ? 'Guardando...' : 'Guardar carreras'}
-          </button>
-        </form>
+        <section className="crud-summary-card">
+          <header><div><p className="eyebrow">Alcance</p><h3>Carreras asociadas</h3></div><button className="secondary-button" disabled={!canReadCatalog || !canUpdateUsers} onClick={() => setEditSection('careers')} type="button">Editar</button></header>
+          <div className="tag-list">{userCareers.length ? userCareers.map((career) => <span className="soft-tag" key={career.careerId}>{career.careerName}</span>) : <span className="muted-text">Sin carreras asociadas</span>}</div>
+        </section>
 
-        <section className="survey-admin-form">
-          <header>
-            <h3>Seguridad y estado</h3>
-          </header>
-          <dl className="user-security-meta">
-            <div>
-              <dt>Creado</dt>
-              <dd>{formatDateTime(user.createdAtUtc)}</dd>
-            </div>
-            <div>
-              <dt>Actualizado</dt>
-              <dd>{formatDateTime(user.updatedAtUtc)}</dd>
-            </div>
-          </dl>
+        <section className="crud-summary-card">
+          <header><div><p className="eyebrow">Seguridad</p><h3>Cuenta y estado</h3></div></header>
+          <dl className="user-security-meta"><div><dt>Creado</dt><dd>{formatDateTime(user.createdAtUtc)}</dd></div><div><dt>Actualizado</dt><dd>{formatDateTime(user.updatedAtUtc)}</dd></div></dl>
           <div className="form-actions">
-            <button
-              className="secondary-button"
-              disabled={!canUpdateUsers || activeAction !== null}
-              onClick={() => setShowPasswordModal(true)}
-              type="button"
-            >
-              Restablecer contraseña
-            </button>
-            <button
-              className="secondary-button"
-              disabled={!canUpdateUsers || isSelf || activeAction !== null}
-              onClick={() => void handleToggleStatus()}
-              type="button"
-            >
-              {activeAction === 'status'
-                ? 'Procesando...'
-                : user.status === 'Active'
-                  ? 'Desactivar'
-                  : 'Activar'}
-            </button>
-            <button
-              className="danger-button"
-              disabled={!canDeleteUsers || isSelf || activeAction !== null}
-              onClick={() => void handleDelete()}
-              type="button"
-            >
-              {activeAction === 'delete' ? 'Procesando...' : 'Dar de baja'}
-            </button>
+            <button className="secondary-button" disabled={!canUpdateUsers || activeAction !== null} onClick={() => setShowPasswordModal(true)} type="button">Restablecer contraseña</button>
+            <button className="secondary-button" disabled={!canUpdateUsers || isSelf || activeAction !== null} onClick={() => setConfirmAction('status')} type="button">{user.status === 'Active' ? 'Desactivar' : 'Activar'}</button>
+            <button className="danger-button" disabled={!canDeleteUsers || isSelf || activeAction !== null} onClick={() => setConfirmAction('delete')} type="button">Dar de baja</button>
           </div>
-          {isSelf ? (
-            <p className="inline-message">
-              Para proteger la sesión actual, no podés desactivar ni dar de baja tu propia cuenta desde esta pantalla.
-            </p>
-          ) : null}
+          {isSelf ? <p className="inline-message">No podés desactivar ni dar de baja tu propia cuenta desde esta pantalla.</p> : null}
         </section>
       </div>
 
-      <div className="form-actions">
-        <button className="secondary-button" onClick={() => navigate('/app/users')} type="button">
-          Volver a usuarios
-        </button>
-      </div>
+      <div className="form-actions"><button className="secondary-button" onClick={() => navigate('/app/users')} type="button">Volver a usuarios</button></div>
 
-      {showPasswordModal ? (
-        <div className="modal-backdrop" role="presentation">
-          <form className="modal-panel" noValidate onSubmit={handlePasswordReset} role="dialog" aria-modal="true">
-            <header>
-              <h3>Restablecer contraseña</h3>
-              <p>No se mostrará ni almacenará la contraseña en el cliente.</p>
-            </header>
-            <label>
-              <span>Nueva contraseña</span>
-              <input
-                className="text-input"
-                onChange={(event) => setPassword(event.target.value)}
-                required
-                type="password"
-                value={password}
-              />
-            </label>
-            <div className="form-actions">
-              <button className="primary-button" disabled={activeAction !== null} type="submit">
-                {activeAction === 'password' ? 'Guardando...' : 'Guardar contraseña'}
-              </button>
-              <button
-                className="secondary-button"
-                disabled={activeAction !== null}
-                onClick={() => {
-                  setPassword('');
-                  setShowPasswordModal(false);
-                }}
-                type="button"
-              >
-                Cancelar
-              </button>
-            </div>
-          </form>
-        </div>
-      ) : null}
+      <Modal open={editSection === 'profile'} onClose={() => setEditSection(null)} title="Editar datos personales" description="Actualizá nombre, apellido o correo del usuario.">
+        <form className="modal-form" noValidate onSubmit={handleSaveProfile}><UserProfileFields form={profileForm} onChange={setProfileForm} />{error ? <p className="submit-error" role="alert">{error}</p> : null}<div className="modal-footer-actions"><button className="secondary-button" onClick={() => setEditSection(null)} type="button">Cancelar</button><button className="primary-button" disabled={activeAction !== null} type="submit">{activeAction === 'profile' ? 'Guardando...' : 'Guardar cambios'}</button></div></form>
+      </Modal>
+
+      <Modal open={editSection === 'roles'} onClose={() => setEditSection(null)} title="Editar roles" description="Los roles determinan qué módulos y acciones puede utilizar esta cuenta.">
+        <form className="modal-form" noValidate onSubmit={handleSaveRoles}><RoleSelector disabled={!canAssignRoles || !canReadRoles || activeAction !== null} roles={roles} selectedRoleIds={roleIds} onChange={setRoleIds} /><div className="modal-footer-actions"><button className="secondary-button" onClick={() => setEditSection(null)} type="button">Cancelar</button><button className="primary-button" disabled={!canAssignRoles || activeAction !== null} type="submit">{activeAction === 'roles' ? 'Guardando...' : 'Guardar roles'}</button></div></form>
+      </Modal>
+
+      <Modal open={editSection === 'careers'} onClose={() => setEditSection(null)} title="Editar carreras asociadas" description="Estas carreras delimitan el alcance de usuarios como Director/a de carrera.">
+        <form className="modal-form" noValidate onSubmit={handleSaveCareers}>{canReadCatalog ? <CareerSelector careers={careers} disabled={!canUpdateUsers || activeAction !== null} selectedCareerIds={careerIds} onChange={setCareerIds} /> : <p className="inline-message">No tenés permiso de lectura del catálogo para modificar carreras.</p>}<div className="modal-footer-actions"><button className="secondary-button" onClick={() => setEditSection(null)} type="button">Cancelar</button><button className="primary-button" disabled={!canReadCatalog || !canUpdateUsers || activeAction !== null} type="submit">{activeAction === 'careers' ? 'Guardando...' : 'Guardar carreras'}</button></div></form>
+      </Modal>
+
+      <Modal open={showPasswordModal} onClose={() => { if (activeAction === null) { setPassword(''); setShowPasswordModal(false); } }} closeDisabled={activeAction !== null} title="Restablecer contraseña" description="Ingresá una contraseña nueva. La contraseña actual nunca se muestra en pantalla.">
+        <form className="modal-form" noValidate onSubmit={handlePasswordReset}><label><span>Nueva contraseña</span><input autoComplete="new-password" className="text-input" onChange={(event) => setPassword(event.target.value)} required type="password" value={password} /><small>12 a 64 caracteres, con mayúscula, minúscula, número y símbolo.</small></label>{error ? <p className="submit-error" role="alert">{error}</p> : null}<div className="modal-footer-actions"><button className="secondary-button" disabled={activeAction !== null} onClick={() => { setPassword(''); setShowPasswordModal(false); }} type="button">Cancelar</button><button className="primary-button" disabled={activeAction !== null} type="submit">{activeAction === 'password' ? 'Guardando...' : 'Guardar contraseña'}</button></div></form>
+      </Modal>
+
+      <ConfirmDialog
+        busy={activeAction === 'status'}
+        confirmLabel={user.status === 'Active' ? 'Desactivar usuario' : 'Activar usuario'}
+        message={user.status === 'Active' ? 'El usuario perderá acceso al sistema hasta que vuelva a activarse. Su historial se conservará.' : 'El usuario recuperará el acceso de acuerdo con sus roles y permisos.'}
+        onCancel={() => setConfirmAction(null)}
+        onConfirm={() => { void handleToggleStatus().finally(() => setConfirmAction(null)); }}
+        open={confirmAction === 'status'}
+        title={user.status === 'Active' ? '¿Desactivar este usuario?' : '¿Activar este usuario?'}
+        tone={user.status === 'Active' ? 'danger' : 'primary'}
+      />
+      <ConfirmDialog
+        busy={activeAction === 'delete'}
+        confirmLabel="Dar de baja"
+        message="Esta baja es operativa: el usuario dejará de poder utilizar la aplicación, pero su historial será conservado."
+        onCancel={() => setConfirmAction(null)}
+        onConfirm={() => void handleDelete()}
+        open={confirmAction === 'delete'}
+        title="¿Dar de baja este usuario?"
+        tone="danger"
+      />
     </section>
   );
 }

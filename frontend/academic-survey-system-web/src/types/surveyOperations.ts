@@ -19,6 +19,7 @@ export interface SurveyAssignmentDto {
   isActive: boolean;
   createdAtUtc: string;
   updatedAtUtc: string;
+  expectedRespondentCount: number | null;
 }
 
 export interface SurveySessionDto {
@@ -49,6 +50,19 @@ export interface SurveySessionDto {
   createdByUserId: string;
   createdAtUtc: string;
   updatedAtUtc: string;
+  sessionResponseCount: number;
+  assignmentResponseCount: number;
+  expectedRespondentCount: number | null;
+  remainingCount: number | null;
+  participationPercentage: number | null;
+}
+
+export interface SurveyResponseProgressDto {
+  surveyAssignmentId: string;
+  expectedRespondentCount: number | null;
+  responseCount: number;
+  remainingCount: number | null;
+  participationPercentage: number | null;
 }
 
 export interface CreateSurveySessionRequest {

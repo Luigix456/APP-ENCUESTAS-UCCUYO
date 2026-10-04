@@ -60,6 +60,8 @@ import {
   CAREER_TYPES,
   SUBJECT_PERIODS
 } from '../../types/academicCatalog';
+import { ConfirmDialog, Modal } from '../../components/ui/Modal';
+import { useToast } from '../../components/ui/ToastProvider';
 import { ActivityBadge } from '../surveys/surveyUi';
 import {
   AcademicCatalogPermissionPanel,
@@ -107,6 +109,7 @@ export function AcademicUnitsCatalogPage() {
   const [createForm, setCreateForm] = useState<CreateAcademicUnitRequest>({ code: '', name: '' });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<UpdateAcademicUnitRequest>({ name: '' });
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   useEffect(() => {
     if (!runtime || !canManageCatalog) {
@@ -157,7 +160,7 @@ export function AcademicUnitsCatalogPage() {
       return;
     }
 
-    await runPageAction(setPage, 'Unidad académica creada.', 'No fue posible crear la unidad académica.', async () => {
+    const succeeded = await runPageAction(setPage, 'Unidad académica creada.', 'No fue posible crear la unidad académica.', async () => {
       await createAcademicUnit(
         { code: createForm.code.trim(), name: createForm.name.trim() },
         runtime
@@ -165,6 +168,7 @@ export function AcademicUnitsCatalogPage() {
       setCreateForm({ code: '', name: '' });
       await loadAcademicUnits(runtime);
     });
+    if (succeeded) setShowCreateModal(false);
   }
 
   async function handleUpdate(event: FormEvent<HTMLFormElement>, academicUnit: AcademicUnitDto) {
@@ -184,16 +188,6 @@ export function AcademicUnitsCatalogPage() {
   async function handleToggle(academicUnit: AcademicUnitDto) {
     if (!runtime) {
       return;
-    }
-
-    if (academicUnit.isActive) {
-      const confirmed = window.confirm(
-        'Al desactivar esta unidad académica dejará de estar disponible para nuevas carreras. Los datos históricos se conservarán.'
-      );
-
-      if (!confirmed) {
-        return;
-      }
     }
 
     await runPageAction(
@@ -220,20 +214,10 @@ export function AcademicUnitsCatalogPage() {
       page={page}
       title="Unidades académicas"
     >
-      <form className="survey-admin-form" onSubmit={handleCreate}>
-        <h3>Nueva unidad académica</h3>
-        <label>
-          <span>Código</span>
-          <input className="text-input" onChange={(event) => setCreateForm((current) => ({ ...current, code: event.target.value }))} required type="text" value={createForm.code} />
-        </label>
-        <label>
-          <span>Nombre</span>
-          <input className="text-input" onChange={(event) => setCreateForm((current) => ({ ...current, name: event.target.value }))} required type="text" value={createForm.name} />
-        </label>
-        <button className="primary-button" type="submit">
-          Crear
-        </button>
-      </form>
+      <div className="crud-toolbar">
+        <p>Creá nuevas unidades o seleccioná una tarjeta para editarla.</p>
+        <button className="primary-button" onClick={() => setShowCreateModal(true)} type="button">Nueva unidad académica</button>
+      </div>
 
       <div className="assignment-card-list">
         {academicUnits.map((academicUnit) => (
@@ -245,30 +229,38 @@ export function AcademicUnitsCatalogPage() {
               </div>
               <ActivityBadge isActive={academicUnit.isActive} />
             </header>
-            {editingId === academicUnit.id ? (
-              <form className="nested-form" onSubmit={(event) => void handleUpdate(event, academicUnit)}>
-                <p className="inline-message">Código: {academicUnit.code}</p>
-                <label>
-                  <span>Nombre</span>
-                  <input className="text-input" onChange={(event) => setEditForm({ name: event.target.value })} required type="text" value={editForm.name} />
-                </label>
-                <ActionButtons onCancel={() => setEditingId(null)} submitText="Guardar" />
-              </form>
-            ) : (
-              <CatalogActions
-                activeActionId={page.activeActionId}
-                isActive={academicUnit.isActive}
-                itemId={academicUnit.id}
-                onEdit={() => {
-                  setEditingId(academicUnit.id);
-                  setEditForm({ name: academicUnit.name });
-                }}
-                onToggle={() => void handleToggle(academicUnit)}
-              />
-            )}
+            <CatalogActions
+              activeActionId={page.activeActionId}
+              isActive={academicUnit.isActive}
+              itemId={academicUnit.id}
+              itemLabel={academicUnit.name}
+              onEdit={() => {
+                setEditingId(academicUnit.id);
+                setEditForm({ name: academicUnit.name });
+              }}
+              onToggle={() => void handleToggle(academicUnit)}
+            />
           </article>
         ))}
       </div>
+
+      <Modal open={showCreateModal} onClose={() => setShowCreateModal(false)} title="Nueva unidad académica" description="Creá una unidad para agrupar sus carreras.">
+        <form className="modal-form" onSubmit={(event) => void handleCreate(event)}>
+          <label><span>Código</span><input autoFocus className="text-input" onChange={(event) => setCreateForm((current) => ({ ...current, code: event.target.value }))} required type="text" value={createForm.code} /></label>
+          <label><span>Nombre</span><input className="text-input" onChange={(event) => setCreateForm((current) => ({ ...current, name: event.target.value }))} required type="text" value={createForm.name} /></label>
+          <div className="modal-footer-actions"><button className="secondary-button" onClick={() => setShowCreateModal(false)} type="button">Cancelar</button><button className="primary-button" type="submit">Crear unidad</button></div>
+        </form>
+      </Modal>
+
+      <Modal open={Boolean(editingId)} onClose={() => setEditingId(null)} title="Editar unidad académica" description="El código se conserva para mantener referencias consistentes.">
+        {editingId ? (() => { const item = academicUnits.find((unit) => unit.id === editingId); return item ? (
+          <form className="modal-form" onSubmit={(event) => void handleUpdate(event, item)}>
+            <p className="inline-message">Código: {item.code}</p>
+            <label><span>Nombre</span><input autoFocus className="text-input" onChange={(event) => setEditForm({ name: event.target.value })} required type="text" value={editForm.name} /></label>
+            <div className="modal-footer-actions"><button className="secondary-button" onClick={() => setEditingId(null)} type="button">Cancelar</button><button className="primary-button" type="submit">Guardar cambios</button></div>
+          </form>
+        ) : null; })() : null}
+      </Modal>
     </CatalogPageShell>
   );
 }
@@ -288,6 +280,7 @@ export function CareersCatalogPage() {
   });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<UpdateCareerRequest>({ name: '', type: 'Undergraduate' });
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   useEffect(() => {
     if (!runtime || !canManageCatalog) {
@@ -343,7 +336,7 @@ export function CareersCatalogPage() {
       return;
     }
 
-    await runPageAction(setPage, 'Nueva carrera creada.', 'No fue posible crear la carrera.', async () => {
+    const succeeded = await runPageAction(setPage, 'Nueva carrera creada.', 'No fue posible crear la carrera.', async () => {
       await createCareer(
         { ...createForm, code: createForm.code.trim(), name: createForm.name.trim() },
         runtime
@@ -351,6 +344,7 @@ export function CareersCatalogPage() {
       setCreateForm({ academicUnitId: '', code: '', name: '', type: 'Undergraduate' });
       await loadCareers(runtime);
     });
+    if (succeeded) setShowCreateModal(false);
   }
 
   async function handleUpdate(event: FormEvent<HTMLFormElement>, career: CareerDto) {
@@ -370,16 +364,6 @@ export function CareersCatalogPage() {
   async function handleToggle(career: CareerDto) {
     if (!runtime) {
       return;
-    }
-
-    if (career.isActive) {
-      const confirmed = window.confirm(
-        'Al desactivar esta carrera dejará de estar disponible para nuevas operaciones académicas. Los datos históricos se conservarán.'
-      );
-
-      if (!confirmed) {
-        return;
-      }
     }
 
     await runPageAction(
@@ -402,52 +386,7 @@ export function CareersCatalogPage() {
       page={page}
       title="Carreras"
     >
-      <form className="survey-admin-form" onSubmit={handleCreate}>
-        <h3>Nueva carrera</h3>
-        <label>
-          <span>Unidad académica</span>
-          <select
-            className="text-input"
-            onChange={(event) => setCreateForm((current) => ({ ...current, academicUnitId: event.target.value }))}
-            required
-            value={createForm.academicUnitId}
-          >
-            <option value="">Seleccionar...</option>
-            {academicUnits.map((unit) => (
-              <option key={unit.id} value={unit.id}>
-                {unit.code} · {unit.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          <span>Código</span>
-          <input
-            className="text-input"
-            onChange={(event) => setCreateForm((current) => ({ ...current, code: event.target.value }))}
-            required
-            type="text"
-            value={createForm.code}
-          />
-        </label>
-        <label>
-          <span>Nombre</span>
-          <input
-            className="text-input"
-            onChange={(event) => setCreateForm((current) => ({ ...current, name: event.target.value }))}
-            required
-            type="text"
-            value={createForm.name}
-          />
-        </label>
-        <CareerTypeSelect
-          value={createForm.type}
-          onChange={(type) => setCreateForm((current) => ({ ...current, type }))}
-        />
-        <button className="primary-button" type="submit">
-          Crear
-        </button>
-      </form>
+      <div className="crud-toolbar"><p>Las carreras se organizan dentro de una unidad académica.</p><button className="primary-button" onClick={() => setShowCreateModal(true)} type="button">Nueva carrera</button></div>
 
       <div className="assignment-card-list">
         {careers.map((career) => (
@@ -460,38 +399,40 @@ export function CareersCatalogPage() {
               </div>
               <ActivityBadge isActive={career.isActive} />
             </header>
-            {editingId === career.id ? (
-              <form className="nested-form" onSubmit={(event) => void handleUpdate(event, career)}>
-                <p className="inline-message">Código: {career.code}</p>
-                <p className="inline-message">Unidad académica: {career.academicUnitName ?? 'Sin unidad académica'}</p>
-                <label>
-                  <span>Nombre</span>
-                  <input
-                    className="text-input"
-                    onChange={(event) => setEditForm((current) => ({ ...current, name: event.target.value }))}
-                    required
-                    type="text"
-                    value={editForm.name}
-                  />
-                </label>
-                <CareerTypeSelect value={editForm.type} onChange={(type) => setEditForm((current) => ({ ...current, type }))} />
-                <ActionButtons onCancel={() => setEditingId(null)} submitText="Guardar" />
-              </form>
-            ) : (
-              <CatalogActions
-                activeActionId={page.activeActionId}
-                isActive={career.isActive}
-                itemId={career.id}
-                onEdit={() => {
-                  setEditingId(career.id);
-                  setEditForm({ name: career.name, type: career.type });
-                }}
-                onToggle={() => void handleToggle(career)}
-              />
-            )}
+            <CatalogActions
+              activeActionId={page.activeActionId}
+              isActive={career.isActive}
+              itemId={career.id}
+              itemLabel={career.name}
+              onEdit={() => {
+                setEditingId(career.id);
+                setEditForm({ name: career.name, type: career.type });
+              }}
+              onToggle={() => void handleToggle(career)}
+            />
           </article>
         ))}
       </div>
+
+      <Modal open={showCreateModal} onClose={() => setShowCreateModal(false)} title="Nueva carrera" description="Elegí la unidad académica y completá los datos básicos.">
+        <form className="modal-form" onSubmit={(event) => void handleCreate(event)}>
+          <label><span>Unidad académica</span><select className="text-input" onChange={(event) => setCreateForm((current) => ({ ...current, academicUnitId: event.target.value }))} required value={createForm.academicUnitId}><option value="">Seleccionar...</option>{academicUnits.map((unit) => <option key={unit.id} value={unit.id}>{unit.code} · {unit.name}</option>)}</select></label>
+          <label><span>Código</span><input className="text-input" onChange={(event) => setCreateForm((current) => ({ ...current, code: event.target.value }))} required type="text" value={createForm.code} /></label>
+          <label><span>Nombre</span><input className="text-input" onChange={(event) => setCreateForm((current) => ({ ...current, name: event.target.value }))} required type="text" value={createForm.name} /></label>
+          <CareerTypeSelect value={createForm.type} onChange={(type) => setCreateForm((current) => ({ ...current, type }))} />
+          <div className="modal-footer-actions"><button className="secondary-button" onClick={() => setShowCreateModal(false)} type="button">Cancelar</button><button className="primary-button" type="submit">Crear carrera</button></div>
+        </form>
+      </Modal>
+      <Modal open={Boolean(editingId)} onClose={() => setEditingId(null)} title="Editar carrera" description="La unidad académica y el código no se modifican para proteger el histórico.">
+        {editingId ? (() => { const item = careers.find((career) => career.id === editingId); return item ? (
+          <form className="modal-form" onSubmit={(event) => void handleUpdate(event, item)}>
+            <p className="inline-message">{item.academicUnitName} · {item.code}</p>
+            <label><span>Nombre</span><input autoFocus className="text-input" onChange={(event) => setEditForm((current) => ({ ...current, name: event.target.value }))} required type="text" value={editForm.name} /></label>
+            <CareerTypeSelect value={editForm.type} onChange={(type) => setEditForm((current) => ({ ...current, type }))} />
+            <div className="modal-footer-actions"><button className="secondary-button" onClick={() => setEditingId(null)} type="button">Cancelar</button><button className="primary-button" type="submit">Guardar cambios</button></div>
+          </form>
+        ) : null; })() : null}
+      </Modal>
     </CatalogPageShell>
   );
 }
@@ -517,6 +458,7 @@ export function SubjectsCatalogPage() {
     year: 1,
     period: 'Annual'
   });
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   useEffect(() => {
     if (!runtime || !canManageCatalog) {
@@ -574,7 +516,7 @@ export function SubjectsCatalogPage() {
       return;
     }
 
-    await runPageAction(setPage, 'Materia creada.', 'No fue posible crear la materia.', async () => {
+    const succeeded = await runPageAction(setPage, 'Materia creada.', 'No fue posible crear la materia.', async () => {
       await createSubject(
         {
           ...createForm,
@@ -586,6 +528,7 @@ export function SubjectsCatalogPage() {
       setCreateForm({ careerId: '', code: '', name: '', year: 1, period: 'Annual' });
       await loadSubjects(runtime);
     });
+    if (succeeded) setShowCreateModal(false);
   }
 
   async function handleUpdate(event: FormEvent<HTMLFormElement>, subject: SubjectDto) {
@@ -651,33 +594,7 @@ export function SubjectsCatalogPage() {
         </label>
       </div>
 
-      <form className="survey-admin-form" onSubmit={handleCreate}>
-        <h3>Nueva materia</h3>
-        <label>
-          <span>Carrera</span>
-          <select
-            className="text-input"
-            onChange={(event) => setCreateForm((current) => ({ ...current, careerId: event.target.value }))}
-            required
-            value={createForm.careerId}
-          >
-            <option value="">Seleccionar...</option>
-            {careers.filter((career) => career.isActive).map((career) => (
-              <option key={career.id} value={career.id}>
-                {career.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          <span>Código</span>
-          <input className="text-input" onChange={(event) => setCreateForm((current) => ({ ...current, code: event.target.value }))} required type="text" value={createForm.code} />
-        </label>
-        <SubjectMutableFields form={createForm} onChange={setCreateForm} />
-        <button className="primary-button" type="submit">
-          Crear
-        </button>
-      </form>
+      <div className="crud-toolbar"><p>Filtrá por carrera o agregá una nueva materia.</p><button className="primary-button" onClick={() => setShowCreateModal(true)} type="button">Nueva materia</button></div>
 
       <div className="assignment-card-list">
         {subjects.map((subject) => (
@@ -692,29 +609,36 @@ export function SubjectsCatalogPage() {
               </div>
               <ActivityBadge isActive={subject.isActive} />
             </header>
-            {editingId === subject.id ? (
-              <form className="nested-form" onSubmit={(event) => void handleUpdate(event, subject)}>
-                <p className="inline-message">
-                  Carrera: {subject.careerName} · Código: {subject.code}
-                </p>
-                <SubjectMutableFields form={editForm} onChange={setEditForm} />
-                <ActionButtons onCancel={() => setEditingId(null)} submitText="Guardar" />
-              </form>
-            ) : (
-              <CatalogActions
-                activeActionId={page.activeActionId}
-                isActive={subject.isActive}
-                itemId={subject.id}
-                onEdit={() => {
-                  setEditingId(subject.id);
-                  setEditForm({ name: subject.name, year: subject.year, period: subject.period });
-                }}
-                onToggle={() => void handleToggle(subject)}
-              />
-            )}
+            <CatalogActions
+              activeActionId={page.activeActionId}
+              isActive={subject.isActive}
+              itemId={subject.id}
+              itemLabel={subject.name}
+              onEdit={() => {
+                setEditingId(subject.id);
+                setEditForm({ name: subject.name, year: subject.year, period: subject.period });
+              }}
+              onToggle={() => void handleToggle(subject)}
+            />
           </article>
         ))}
       </div>
+      <Modal open={showCreateModal} onClose={() => setShowCreateModal(false)} title="Nueva materia" description="La materia quedará vinculada a la carrera seleccionada.">
+        <form className="modal-form" onSubmit={(event) => void handleCreate(event)}>
+          <label><span>Carrera</span><select className="text-input" onChange={(event) => setCreateForm((current) => ({ ...current, careerId: event.target.value }))} required value={createForm.careerId}><option value="">Seleccionar...</option>{careers.filter((career) => career.isActive).map((career) => <option key={career.id} value={career.id}>{career.name}</option>)}</select></label>
+          <label><span>Código</span><input className="text-input" onChange={(event) => setCreateForm((current) => ({ ...current, code: event.target.value }))} required type="text" value={createForm.code} /></label>
+          <SubjectMutableFields form={createForm} onChange={setCreateForm} />
+          <div className="modal-footer-actions"><button className="secondary-button" onClick={() => setShowCreateModal(false)} type="button">Cancelar</button><button className="primary-button" type="submit">Crear materia</button></div>
+        </form>
+      </Modal>
+      <Modal open={Boolean(editingId)} onClose={() => setEditingId(null)} title="Editar materia" description="Podés modificar nombre, año y período.">
+        {editingId ? (() => { const item = subjects.find((subject) => subject.id === editingId); return item ? (
+          <form className="modal-form" onSubmit={(event) => void handleUpdate(event, item)}>
+            <p className="inline-message">{item.careerName} · {item.code}</p><SubjectMutableFields form={editForm} onChange={setEditForm} />
+            <div className="modal-footer-actions"><button className="secondary-button" onClick={() => setEditingId(null)} type="button">Cancelar</button><button className="primary-button" type="submit">Guardar cambios</button></div>
+          </form>
+        ) : null; })() : null}
+      </Modal>
     </CatalogPageShell>
   );
 }
@@ -737,6 +661,7 @@ export function AcademicCyclesCatalogPage() {
     startDate: '',
     endDate: ''
   });
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   useEffect(() => {
     if (!runtime || !canManageCatalog) {
@@ -787,11 +712,12 @@ export function AcademicCyclesCatalogPage() {
       return;
     }
 
-    await runPageAction(setPage, 'Ciclo lectivo creado.', 'No fue posible crear el ciclo lectivo.', async () => {
+    const succeeded = await runPageAction(setPage, 'Ciclo lectivo creado.', 'No fue posible crear el ciclo lectivo.', async () => {
       await createAcademicCycle(createForm, runtime);
       setCreateForm({ year: new Date().getFullYear(), period: 'Annual', startDate: '', endDate: '' });
       await loadCycles(runtime);
     });
+    if (succeeded) setShowCreateModal(false);
   }
 
   async function handleUpdate(event: FormEvent<HTMLFormElement>, cycle: AcademicCycleDto) {
@@ -833,17 +759,7 @@ export function AcademicCyclesCatalogPage() {
       page={page}
       title="Ciclos lectivos"
     >
-      <form className="survey-admin-form" onSubmit={handleCreate}>
-        <h3>Nuevo ciclo</h3>
-        <label>
-          <span>Año</span>
-          <input className="text-input" max={2100} min={2000} onChange={(event) => setCreateForm((current) => ({ ...current, year: Number(event.target.value) }))} required type="number" value={createForm.year} />
-        </label>
-        <CycleMutableFields form={createForm} onChange={setCreateForm} />
-        <button className="primary-button" type="submit">
-          Crear
-        </button>
-      </form>
+      <div className="crud-toolbar"><p>Los ciclos lectivos son globales y se reutilizan en todas las carreras.</p><button className="primary-button" onClick={() => setShowCreateModal(true)} type="button">Nuevo ciclo lectivo</button></div>
 
       <div className="assignment-card-list">
         {cycles.map((cycle) => (
@@ -858,27 +774,32 @@ export function AcademicCyclesCatalogPage() {
               </div>
               <ActivityBadge isActive={cycle.isActive} />
             </header>
-            {editingId === cycle.id ? (
-              <form className="nested-form" onSubmit={(event) => void handleUpdate(event, cycle)}>
-                <p className="inline-message">Año: {cycle.year}</p>
-                <CycleMutableFields form={editForm} onChange={setEditForm} />
-                <ActionButtons onCancel={() => setEditingId(null)} submitText="Guardar" />
-              </form>
-            ) : (
-              <CatalogActions
-                activeActionId={page.activeActionId}
-                isActive={cycle.isActive}
-                itemId={cycle.id}
-                onEdit={() => {
-                  setEditingId(cycle.id);
-                  setEditForm({ period: cycle.period, startDate: cycle.startDate, endDate: cycle.endDate });
-                }}
-                onToggle={() => void handleToggle(cycle)}
-              />
-            )}
+            <CatalogActions
+              activeActionId={page.activeActionId}
+              isActive={cycle.isActive}
+              itemId={cycle.id}
+              itemLabel={`${cycle.year} · ${formatPeriod(cycle.period)}`}
+              onEdit={() => {
+                setEditingId(cycle.id);
+                setEditForm({ period: cycle.period, startDate: cycle.startDate, endDate: cycle.endDate });
+              }}
+              onToggle={() => void handleToggle(cycle)}
+            />
           </article>
         ))}
       </div>
+      <Modal open={showCreateModal} onClose={() => setShowCreateModal(false)} title="Nuevo ciclo lectivo" description="Definí el año, período y fechas de vigencia.">
+        <form className="modal-form" onSubmit={(event) => void handleCreate(event)}>
+          <label><span>Año</span><input autoFocus className="text-input" max={2100} min={2000} onChange={(event) => setCreateForm((current) => ({ ...current, year: Number(event.target.value) }))} required type="number" value={createForm.year} /></label>
+          <CycleMutableFields form={createForm} onChange={setCreateForm} />
+          <div className="modal-footer-actions"><button className="secondary-button" onClick={() => setShowCreateModal(false)} type="button">Cancelar</button><button className="primary-button" type="submit">Crear ciclo</button></div>
+        </form>
+      </Modal>
+      <Modal open={Boolean(editingId)} onClose={() => setEditingId(null)} title="Editar ciclo lectivo" description="El año se conserva; podés ajustar período y fechas.">
+        {editingId ? (() => { const item = cycles.find((cycle) => cycle.id === editingId); return item ? (
+          <form className="modal-form" onSubmit={(event) => void handleUpdate(event, item)}><p className="inline-message">Año: {item.year}</p><CycleMutableFields form={editForm} onChange={setEditForm} /><div className="modal-footer-actions"><button className="secondary-button" onClick={() => setEditingId(null)} type="button">Cancelar</button><button className="primary-button" type="submit">Guardar cambios</button></div></form>
+        ) : null; })() : null}
+      </Modal>
     </CatalogPageShell>
   );
 }
@@ -900,6 +821,7 @@ export function TeachersCatalogPage() {
     lastName: '',
     email: null
   });
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   useEffect(() => {
     if (!runtime || !canManageCatalog) {
@@ -950,11 +872,12 @@ export function TeachersCatalogPage() {
       return;
     }
 
-    await runPageAction(setPage, 'Docente creado.', 'No fue posible crear el docente.', async () => {
+    const succeeded = await runPageAction(setPage, 'Docente creado.', 'No fue posible crear el docente.', async () => {
       await createTeacher(normalizeTeacherRequest(createForm), runtime);
       setCreateForm({ firstName: '', lastName: '', email: null });
       await loadTeachers(runtime);
     });
+    if (succeeded) setShowCreateModal(false);
   }
 
   async function handleUpdate(event: FormEvent<HTMLFormElement>, teacher: TeacherDto) {
@@ -996,13 +919,7 @@ export function TeachersCatalogPage() {
       page={page}
       title="Docentes"
     >
-      <form className="survey-admin-form" onSubmit={handleCreate}>
-        <h3>Nuevo docente</h3>
-        <TeacherFields form={createForm} onChange={setCreateForm} />
-        <button className="primary-button" type="submit">
-          Crear
-        </button>
-      </form>
+      <div className="crud-toolbar"><p>Gestioná docentes y luego vinculalos a materias y ciclos lectivos.</p><button className="primary-button" onClick={() => setShowCreateModal(true)} type="button">Nuevo docente</button></div>
 
       <div className="assignment-card-list">
         {teachers.map((teacher) => (
@@ -1017,30 +934,28 @@ export function TeachersCatalogPage() {
               </div>
               <ActivityBadge isActive={teacher.isActive} />
             </header>
-            {editingId === teacher.id ? (
-              <form className="nested-form" onSubmit={(event) => void handleUpdate(event, teacher)}>
-                <TeacherFields form={editForm} onChange={setEditForm} />
-                <ActionButtons onCancel={() => setEditingId(null)} submitText="Guardar" />
-              </form>
-            ) : (
-              <CatalogActions
-                activeActionId={page.activeActionId}
-                isActive={teacher.isActive}
-                itemId={teacher.id}
-                onEdit={() => {
-                  setEditingId(teacher.id);
-                  setEditForm({
-                    firstName: teacher.firstName,
-                    lastName: teacher.lastName,
-                    email: teacher.email
-                  });
-                }}
-                onToggle={() => void handleToggle(teacher)}
-              />
-            )}
+            <CatalogActions
+              activeActionId={page.activeActionId}
+              isActive={teacher.isActive}
+              itemId={teacher.id}
+              itemLabel={`${teacher.lastName}, ${teacher.firstName}`}
+              onEdit={() => {
+                setEditingId(teacher.id);
+                setEditForm({ firstName: teacher.firstName, lastName: teacher.lastName, email: teacher.email });
+              }}
+              onToggle={() => void handleToggle(teacher)}
+            />
           </article>
         ))}
       </div>
+      <Modal open={showCreateModal} onClose={() => setShowCreateModal(false)} title="Nuevo docente" description="Completá los datos básicos del docente.">
+        <form className="modal-form" onSubmit={(event) => void handleCreate(event)}><TeacherFields form={createForm} onChange={setCreateForm} /><div className="modal-footer-actions"><button className="secondary-button" onClick={() => setShowCreateModal(false)} type="button">Cancelar</button><button className="primary-button" type="submit">Crear docente</button></div></form>
+      </Modal>
+      <Modal open={Boolean(editingId)} onClose={() => setEditingId(null)} title="Editar docente" description="Actualizá los datos visibles del docente.">
+        {editingId ? (() => { const item = teachers.find((teacher) => teacher.id === editingId); return item ? (
+          <form className="modal-form" onSubmit={(event) => void handleUpdate(event, item)}><TeacherFields form={editForm} onChange={setEditForm} /><div className="modal-footer-actions"><button className="secondary-button" onClick={() => setEditingId(null)} type="button">Cancelar</button><button className="primary-button" type="submit">Guardar cambios</button></div></form>
+        ) : null; })() : null}
+      </Modal>
     </CatalogPageShell>
   );
 }
@@ -1069,6 +984,7 @@ export function TeacherAssignmentsCatalogPage() {
   const [filters, setFilters] = useState({ teacherId: '', subjectId: '', academicCycleId: '' });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<UpdateTeacherSubjectAssignmentRequest>({ teachingRole: '' });
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   useEffect(() => {
     if (!runtime || !canManageCatalog) {
@@ -1167,7 +1083,7 @@ export function TeacherAssignmentsCatalogPage() {
       return;
     }
 
-    await runPageAction(setPage, 'Asignación docente creada.', 'No fue posible crear la asignación docente.', async () => {
+    const succeeded = await runPageAction(setPage, 'Asignación docente creada.', 'No fue posible crear la asignación docente.', async () => {
       await createTeacherSubjectAssignment(
         { ...createForm, teachingRole: createForm.teachingRole.trim() },
         runtime
@@ -1176,6 +1092,7 @@ export function TeacherAssignmentsCatalogPage() {
       setCreateForm({ teacherId: '', subjectId: '', academicCycleId: '', teachingRole: '' });
       await loadTeacherAssignments(runtime);
     });
+    if (succeeded) setShowCreateModal(false);
   }
 
   async function handleUpdate(event: FormEvent<HTMLFormElement>, assignment: TeacherSubjectAssignmentDto) {
@@ -1261,74 +1178,7 @@ export function TeacherAssignmentsCatalogPage() {
         </label>
       </div>
 
-      <form className="survey-admin-form" onSubmit={handleCreate}>
-        <h3>Nueva asignación docente</h3>
-        <label>
-          <span>Carrera</span>
-          <select
-            className="text-input"
-            onChange={(event) => {
-              setCreateCareerId(event.target.value);
-              setCreateForm((current) => ({ ...current, subjectId: '' }));
-            }}
-            required
-            value={createCareerId}
-          >
-            <option value="">Seleccionar...</option>
-            {careers.map((career) => (
-              <option key={career.id} value={career.id}>
-                {career.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          <span>Materia</span>
-          <select
-            className="text-input"
-            disabled={!createCareerId || subjectsState === 'loading'}
-            onChange={(event) => setCreateForm((current) => ({ ...current, subjectId: event.target.value }))}
-            required
-            value={createForm.subjectId}
-          >
-            <option value="">Seleccionar...</option>
-            {createSubjects.map((subject) => (
-              <option key={subject.id} value={subject.id}>
-                {subject.name}
-              </option>
-            ))}
-          </select>
-          <small>
-            {getDependentSubjectsHelpText(createCareerId, subjectsState, createSubjects)}
-          </small>
-        </label>
-        <label>
-          <span>Ciclo</span>
-          <select className="text-input" onChange={(event) => setCreateForm((current) => ({ ...current, academicCycleId: event.target.value }))} required value={createForm.academicCycleId}>
-            <option value="">Seleccionar...</option>
-            {cycles.map((cycle) => (
-              <option key={cycle.id} value={cycle.id}>
-                {formatAcademicCycle(cycle)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          <span>Docente</span>
-          <select className="text-input" onChange={(event) => setCreateForm((current) => ({ ...current, teacherId: event.target.value }))} required value={createForm.teacherId}>
-            <option value="">Seleccionar...</option>
-            {teachers.map((teacher) => (
-              <option key={teacher.id} value={teacher.id}>
-                {teacher.lastName}, {teacher.firstName}
-              </option>
-            ))}
-          </select>
-        </label>
-        <TeachingRoleField form={createForm} onChange={setCreateForm} />
-        <button className="primary-button" type="submit">
-          Crear
-        </button>
-      </form>
+      <div className="crud-toolbar"><p>Relacioná docentes con materias y ciclos lectivos.</p><button className="primary-button" onClick={() => setShowCreateModal(true)} type="button">Nueva asignación docente</button></div>
 
       <div className="assignment-card-list">
         {assignments.map((assignment) => (
@@ -1344,29 +1194,32 @@ export function TeacherAssignmentsCatalogPage() {
               </div>
               <ActivityBadge isActive={assignment.isActive} />
             </header>
-            {editingId === assignment.id ? (
-              <form className="nested-form" onSubmit={(event) => void handleUpdate(event, assignment)}>
-                <p className="inline-message">
-                  Docente: {assignment.teacherFullName} · Materia: {assignment.subjectName} · Ciclo: {assignment.academicCycleYear} {formatPeriod(assignment.academicCyclePeriod)}
-                </p>
-                <TeachingRoleField form={editForm} onChange={setEditForm} />
-                <ActionButtons onCancel={() => setEditingId(null)} submitText="Guardar" />
-              </form>
-            ) : (
-              <CatalogActions
-                activeActionId={page.activeActionId}
-                isActive={assignment.isActive}
-                itemId={assignment.id}
-                onEdit={() => {
-                  setEditingId(assignment.id);
-                  setEditForm({ teachingRole: assignment.teachingRole });
-                }}
-                onToggle={() => void handleToggle(assignment)}
-              />
-            )}
+            <CatalogActions
+              activeActionId={page.activeActionId}
+              isActive={assignment.isActive}
+              itemId={assignment.id}
+              itemLabel={`${assignment.teacherFullName} · ${assignment.subjectName}`}
+              onEdit={() => { setEditingId(assignment.id); setEditForm({ teachingRole: assignment.teachingRole }); }}
+              onToggle={() => void handleToggle(assignment)}
+            />
           </article>
         ))}
       </div>
+      <Modal open={showCreateModal} onClose={() => setShowCreateModal(false)} title="Nueva asignación docente" description="Seleccioná carrera, materia, ciclo y docente.">
+        <form className="modal-form" onSubmit={(event) => void handleCreate(event)}>
+          <label><span>Carrera</span><select className="text-input" onChange={(event) => { setCreateCareerId(event.target.value); setCreateForm((current) => ({ ...current, subjectId: '' })); }} required value={createCareerId}><option value="">Seleccionar...</option>{careers.map((career) => <option key={career.id} value={career.id}>{career.name}</option>)}</select></label>
+          <label><span>Materia</span><select className="text-input" disabled={!createCareerId || subjectsState === 'loading'} onChange={(event) => setCreateForm((current) => ({ ...current, subjectId: event.target.value }))} required value={createForm.subjectId}><option value="">Seleccionar...</option>{createSubjects.map((subject) => <option key={subject.id} value={subject.id}>{subject.name}</option>)}</select><small>{getDependentSubjectsHelpText(createCareerId, subjectsState, createSubjects)}</small></label>
+          <label><span>Ciclo</span><select className="text-input" onChange={(event) => setCreateForm((current) => ({ ...current, academicCycleId: event.target.value }))} required value={createForm.academicCycleId}><option value="">Seleccionar...</option>{cycles.map((cycle) => <option key={cycle.id} value={cycle.id}>{formatAcademicCycle(cycle)}</option>)}</select></label>
+          <label><span>Docente</span><select className="text-input" onChange={(event) => setCreateForm((current) => ({ ...current, teacherId: event.target.value }))} required value={createForm.teacherId}><option value="">Seleccionar...</option>{teachers.map((teacher) => <option key={teacher.id} value={teacher.id}>{teacher.lastName}, {teacher.firstName}</option>)}</select></label>
+          <TeachingRoleField form={createForm} onChange={setCreateForm} />
+          <div className="modal-footer-actions"><button className="secondary-button" onClick={() => setShowCreateModal(false)} type="button">Cancelar</button><button className="primary-button" type="submit">Crear asignación</button></div>
+        </form>
+      </Modal>
+      <Modal open={Boolean(editingId)} onClose={() => setEditingId(null)} title="Editar asignación docente" description="Podés actualizar el rol docente sin cambiar el vínculo académico.">
+        {editingId ? (() => { const item = assignments.find((assignment) => assignment.id === editingId); return item ? (
+          <form className="modal-form" onSubmit={(event) => void handleUpdate(event, item)}><p className="inline-message">{item.teacherFullName} · {item.subjectName} · {item.academicCycleYear}</p><TeachingRoleField form={editForm} onChange={setEditForm} /><div className="modal-footer-actions"><button className="secondary-button" onClick={() => setEditingId(null)} type="button">Cancelar</button><button className="primary-button" type="submit">Guardar cambios</button></div></form>
+        ) : null; })() : null}
+      </Modal>
     </CatalogPageShell>
   );
 }
@@ -1386,6 +1239,16 @@ function CatalogPageShell({
   page: BasePageState;
   title: string;
 }) {
+  const toast = useToast();
+
+  useEffect(() => {
+    if (page.successMessage) toast.success(page.successMessage);
+  }, [page.successMessage, toast]);
+
+  useEffect(() => {
+    if (page.actionError) toast.error('No se pudo completar la acción', page.actionError);
+  }, [page.actionError, toast]);
+
   return (
     <section className="app-content academic-page">
       <header className="surveys-header">
@@ -1400,8 +1263,6 @@ function CatalogPageShell({
         </label>
       </header>
 
-      {page.successMessage ? <div className="success-message" role="status">{page.successMessage}</div> : null}
-      {page.actionError ? <p className="submit-error" role="alert">{page.actionError}</p> : null}
       {page.loadState === 'loading' ? <p aria-live="polite">Cargando...</p> : null}
       {page.loadState === 'error' ? (
         <div className="empty-detail" role="alert">
@@ -1418,42 +1279,41 @@ function CatalogActions({
   activeActionId,
   isActive,
   itemId,
+  itemLabel,
   onEdit,
   onToggle
 }: {
   activeActionId: string | null;
   isActive: boolean;
   itemId: string;
+  itemLabel: string;
   onEdit: () => void;
   onToggle: () => void;
 }) {
-  return (
-    <div className="survey-card-actions">
-      <button className="secondary-button" onClick={onEdit} type="button">
-        Editar
-      </button>
-      <button
-        className={isActive ? 'danger-button' : 'secondary-button'}
-        disabled={activeActionId === itemId}
-        onClick={onToggle}
-        type="button"
-      >
-        {activeActionId === itemId ? 'Procesando...' : isActive ? 'Desactivar' : 'Reactivar'}
-      </button>
-    </div>
-  );
-}
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const busy = activeActionId === itemId;
 
-function ActionButtons({ onCancel, submitText }: { onCancel: () => void; submitText: string }) {
   return (
-    <div className="form-actions">
-      <button className="secondary-button" type="submit">
-        {submitText}
-      </button>
-      <button className="secondary-button" onClick={onCancel} type="button">
-        Cancelar
-      </button>
-    </div>
+    <>
+      <div className="survey-card-actions">
+        <button className="secondary-button" onClick={onEdit} type="button">Editar</button>
+        <button className={isActive ? 'danger-button' : 'secondary-button'} disabled={busy} onClick={() => setConfirmOpen(true)} type="button">
+          {busy ? 'Procesando...' : isActive ? 'Desactivar' : 'Reactivar'}
+        </button>
+      </div>
+      <ConfirmDialog
+        busy={busy}
+        confirmLabel={isActive ? 'Desactivar' : 'Reactivar'}
+        message={isActive
+          ? `“${itemLabel}” dejará de estar disponible para nuevas operaciones. Los datos históricos se conservarán.`
+          : `“${itemLabel}” volverá a estar disponible para nuevas operaciones.`}
+        onCancel={() => setConfirmOpen(false)}
+        onConfirm={() => { setConfirmOpen(false); onToggle(); }}
+        open={confirmOpen}
+        title={isActive ? '¿Desactivar este registro?' : '¿Reactivar este registro?'}
+        tone={isActive ? 'danger' : 'primary'}
+      />
+    </>
   );
 }
 
@@ -1592,12 +1452,14 @@ async function runPageAction(
   try {
     await action();
     setPage((current) => ({ ...current, activeActionId: null, successMessage: success }));
+    return true;
   } catch (error) {
     setPage((current) => ({
       ...current,
       activeActionId: null,
       actionError: getFriendlyCatalogError(error, fallback)
     }));
+    return false;
   }
 }
 

@@ -5,6 +5,7 @@ import {
   getSurveyAssignmentResultSummary
 } from '../../api/resultsApi';
 import { useAuth } from '../../auth/AuthProvider';
+import { ResponseProgress, formatParticipation } from '../../components/ResponseProgress';
 import type { SurveyQuestionResultsDto, SurveyResultsSummaryDto } from '../../types/results';
 import { QuestionResultCard } from './components/QuestionResultCard';
 import {
@@ -163,10 +164,21 @@ export function SurveyAssignmentResultsPage() {
 
       <div className="metric-grid" aria-label="Resumen de resultados">
         <MetricCard label="Respuestas" value={String(summary.totalResponses)} />
+        <MetricCard label="Alumnos esperados" value={summary.expectedRespondentCount?.toString() ?? 'No aplica'} />
+        <MetricCard label="Participación" value={formatParticipation(summary.participationPercentage)} />
+        <MetricCard label="Pendientes" value={summary.remainingCount?.toString() ?? 'No aplica'} />
         <MetricCard label="Sesiones" value={String(summary.totalSessions)} />
         <MetricCard label="Primera respuesta" value={formatDateTimeOrEmpty(summary.firstSubmittedAtUtc)} />
         <MetricCard label="Última respuesta" value={formatDateTimeOrEmpty(summary.lastSubmittedAtUtc)} />
       </div>
+
+      <ResponseProgress
+        compact
+        expectedRespondentCount={summary.expectedRespondentCount}
+        participationPercentage={summary.participationPercentage}
+        remainingCount={summary.remainingCount}
+        responseCount={summary.totalResponses}
+      />
 
       {summary.totalResponses === 0 ? (
         <div className="empty-detail">

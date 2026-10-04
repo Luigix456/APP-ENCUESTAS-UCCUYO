@@ -21,6 +21,7 @@ public sealed class ApplicationDbContext : DbContext
     public DbSet<AcademicUnit> AcademicUnits => Set<AcademicUnit>();
     public DbSet<Career> Careers => Set<Career>();
     public DbSet<Subject> Subjects => Set<Subject>();
+    public DbSet<SubjectEnrollment> SubjectEnrollments => Set<SubjectEnrollment>();
     public DbSet<Teacher> Teachers => Set<Teacher>();
     public DbSet<AcademicCycle> AcademicCycles => Set<AcademicCycle>();
     public DbSet<TeacherSubjectAssignment> TeacherSubjectAssignments =>

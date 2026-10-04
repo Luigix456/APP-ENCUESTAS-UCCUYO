@@ -1,5 +1,6 @@
 using AcademicSurveySystem.Application.Academic.AcademicUnits;
 using AcademicSurveySystem.Application.Academic.Careers;
+using AcademicSurveySystem.Application.Academic.SubjectEnrollments;
 using AcademicSurveySystem.Application.Common.Results;
 using AcademicSurveySystem.Domain.Academic.Entities;
 using AcademicSurveySystem.Domain.Academic.Enums;
@@ -165,6 +166,111 @@ public sealed class AcademicCatalogServiceTests
         Assert.DoesNotContain(otherCareerResult.Value!, item => item.Id == unassignedTeacher.Id);
     }
 
+    [Fact]
+    public async Task SetSubjectEnrollmentAsync_CreatesEnrollmentForSubjectAndCycle()
+    {
+        using var context = CreateContext();
+        var academic = SeedAcademicContext(context);
+        var service = new AcademicCatalogService(context);
+
+        var result = await service.SetSubjectEnrollmentAsync(
+            academic.Subject.Id,
+            academic.Cycle.Id,
+            new SetSubjectEnrollmentRequest(35),
+            CancellationToken.None);
+
+        Assert.Equal(ApplicationResultStatus.Success, result.Status);
+        Assert.Equal(35, result.Value!.EnrolledStudentCount);
+        Assert.Equal(academic.Subject.Id, result.Value.SubjectId);
+        Assert.Equal(academic.Cycle.Id, result.Value.AcademicCycleId);
+        Assert.Equal(academic.Career.Id, result.Value.CareerId);
+    }
+
+    [Fact]
+    public async Task SetSubjectEnrollmentAsync_UpdatesExistingEnrollmentWithoutDuplicating()
+    {
+        using var context = CreateContext();
+        var academic = SeedAcademicContext(context);
+        var service = new AcademicCatalogService(context);
+
+        await service.SetSubjectEnrollmentAsync(
+            academic.Subject.Id,
+            academic.Cycle.Id,
+            new SetSubjectEnrollmentRequest(35),
+            CancellationToken.None);
+        var update = await service.SetSubjectEnrollmentAsync(
+            academic.Subject.Id,
+            academic.Cycle.Id,
+            new SetSubjectEnrollmentRequest(42),
+            CancellationToken.None);
+
+        Assert.Equal(ApplicationResultStatus.Success, update.Status);
+        Assert.Equal(42, update.Value!.EnrolledStudentCount);
+        Assert.Equal(1, await context.SubjectEnrollments.CountAsync());
+    }
+
+    [Fact]
+    public async Task SetSubjectEnrollmentAsync_RejectsNonPositiveCount()
+    {
+        using var context = CreateContext();
+        var academic = SeedAcademicContext(context);
+        var service = new AcademicCatalogService(context);
+
+        var result = await service.SetSubjectEnrollmentAsync(
+            academic.Subject.Id,
+            academic.Cycle.Id,
+            new SetSubjectEnrollmentRequest(0),
+            CancellationToken.None);
+
+        Assert.Equal(ApplicationResultStatus.Validation, result.Status);
+        Assert.Contains(result.Errors, error => error.Code == "SubjectEnrollment.EnrolledStudentCountInvalid");
+    }
+
+    [Fact]
+    public async Task SetSubjectEnrollmentAsync_RejectsMissingSubjectOrCycle()
+    {
+        using var context = CreateContext();
+        var academic = SeedAcademicContext(context);
+        var service = new AcademicCatalogService(context);
+
+        var missingSubject = await service.SetSubjectEnrollmentAsync(
+            Guid.NewGuid(),
+            academic.Cycle.Id,
+            new SetSubjectEnrollmentRequest(20),
+            CancellationToken.None);
+        var missingCycle = await service.SetSubjectEnrollmentAsync(
+            academic.Subject.Id,
+            Guid.NewGuid(),
+            new SetSubjectEnrollmentRequest(20),
+            CancellationToken.None);
+
+        Assert.Equal(ApplicationResultStatus.NotFound, missingSubject.Status);
+        Assert.Equal(ApplicationResultStatus.NotFound, missingCycle.Status);
+    }
+
+    [Fact]
+    public async Task GetSubjectEnrollmentsAsync_FiltersByCareer()
+    {
+        using var context = CreateContext();
+        var academic = SeedAcademicContext(context);
+        var other = SeedAcademicContext(context, "other-unit", "other-career", "other-subject", 2027);
+        context.SubjectEnrollments.AddRange(
+            new SubjectEnrollment(Guid.NewGuid(), academic.Subject.Id, academic.Cycle.Id, 35, CreatedAtUtc),
+            new SubjectEnrollment(Guid.NewGuid(), other.Subject.Id, other.Cycle.Id, 12, CreatedAtUtc));
+        await context.SaveChangesAsync();
+        var service = new AcademicCatalogService(context);
+
+        var result = await service.GetSubjectEnrollmentsAsync(
+            subjectId: null,
+            academicCycleId: null,
+            careerId: academic.Career.Id,
+            CancellationToken.None);
+
+        var enrollment = Assert.Single(result.Value!);
+        Assert.Equal(academic.Subject.Id, enrollment.SubjectId);
+        Assert.Equal(35, enrollment.EnrolledStudentCount);
+    }
+
     private static ApplicationDbContext CreateContext()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
@@ -188,4 +294,51 @@ public sealed class AcademicCatalogServiceTests
 
         return unit;
     }
+
+    private static AcademicFixture SeedAcademicContext(
+        ApplicationDbContext context,
+        string academicUnitCode = "economicas",
+        string careerCode = "contador",
+        string subjectCode = "contabilidad",
+        int year = 2026)
+    {
+        var academicUnit = new AcademicUnit(
+            Guid.NewGuid(),
+            academicUnitCode,
+            $"Unidad {academicUnitCode}",
+            CreatedAtUtc);
+        var career = new Career(
+            Guid.NewGuid(),
+            academicUnit.Id,
+            careerCode,
+            $"Carrera {careerCode}",
+            CareerType.Undergraduate,
+            CreatedAtUtc);
+        var subject = new Subject(
+            Guid.NewGuid(),
+            career.Id,
+            subjectCode,
+            $"Materia {subjectCode}",
+            1,
+            SubjectPeriod.Annual,
+            CreatedAtUtc);
+        var cycle = new AcademicCycle(
+            Guid.NewGuid(),
+            year,
+            AcademicCyclePeriod.Annual,
+            new DateOnly(year, 1, 1),
+            new DateOnly(year, 12, 31),
+            CreatedAtUtc);
+
+        context.AddRange(academicUnit, career, subject, cycle);
+        context.SaveChanges();
+
+        return new AcademicFixture(academicUnit, career, subject, cycle);
+    }
+
+    private sealed record AcademicFixture(
+        AcademicUnit AcademicUnit,
+        Career Career,
+        Subject Subject,
+        AcademicCycle Cycle);
 }

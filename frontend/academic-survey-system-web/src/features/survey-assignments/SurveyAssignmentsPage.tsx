@@ -14,6 +14,8 @@ import {
 import { getSurveys } from '../../api/surveysApi';
 import { useAuth } from '../../auth/AuthProvider';
 import { PaginationControls, usePagination } from '../../components/Pagination';
+import { ConfirmDialog } from '../../components/ui/Modal';
+import { useToast } from '../../components/ui/ToastProvider';
 import type { AcademicCycleDto, CareerDto, TeacherDto } from '../../types/academicCatalog';
 import type { SurveyAssignmentDto, SurveyAssignmentFilters } from '../../types/surveyAssignments';
 import type { SurveySummaryDto } from '../../types/surveys';
@@ -44,6 +46,7 @@ const initialFilters: SurveyAssignmentFilters = {
 
 export function SurveyAssignmentsPage({ contextual = false }: { contextual?: boolean }) {
   const auth = useAuth();
+  const toast = useToast();
   const academicContext = useAcademicContext();
   const location = useLocation();
   const navigate = useNavigate();
@@ -55,9 +58,8 @@ export function SurveyAssignmentsPage({ contextual = false }: { contextual?: boo
   const [filters, setFilters] = useState<SurveyAssignmentFilters>(initialFilters);
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const [pageError, setPageError] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [activeActionId, setActiveActionId] = useState<string | null>(null);
+  const [toggleTarget, setToggleTarget] = useState<SurveyAssignmentDto | null>(null);
 
   const accessToken = auth.accessToken;
   const canManageAssignments = auth.hasPermission(MANAGE_SURVEY_ASSIGNMENTS_PERMISSION);
@@ -66,10 +68,10 @@ export function SurveyAssignmentsPage({ contextual = false }: { contextual?: boo
 
   useEffect(() => {
     if (isCreatedAssignmentState(location.state)) {
-      setSuccessMessage('Asignación creada. Ya queda disponible para el panel de sesiones.');
+      toast.success('Asignación creada', 'Ya queda disponible para el panel de sesiones.');
       navigate(location.pathname, { replace: true, state: null });
     }
-  }, [location.pathname, location.state, navigate]);
+  }, [location.pathname, location.state, navigate, toast]);
 
   useEffect(() => {
     if (!contextual) {
@@ -199,39 +201,24 @@ export function SurveyAssignmentsPage({ contextual = false }: { contextual?: boo
       return;
     }
 
-    if (assignment.isActive) {
-      const confirmed = window.confirm(
-        'Al desactivar esta asignación ya no debería utilizarse para nuevas sesiones. ¿Deseás continuar?'
-      );
-
-      if (!confirmed) {
-        return;
-      }
-    }
-
     setActiveActionId(assignment.id);
-    setActionError(null);
-    setSuccessMessage(null);
 
     try {
       if (assignment.isActive) {
         await deactivateSurveyAssignment(assignment.id, accessToken, auth.logout);
-        setSuccessMessage('Asignación desactivada.');
+        toast.success('Asignación desactivada', 'Ya no se utilizará para nuevas sesiones.');
       } else {
         await activateSurveyAssignment(assignment.id, accessToken, auth.logout);
-        setSuccessMessage('Asignación reactivada.');
+        toast.success('Asignación reactivada');
       }
 
       await loadData(accessToken);
     } catch (error) {
-      setActionError(
-        getFriendlyAssignmentError(
-          error,
-          assignment.isActive
-            ? 'No fue posible desactivar la asignación.'
-            : 'No fue posible reactivar la asignación.'
-        )
+      const message = getFriendlyAssignmentError(
+        error,
+        assignment.isActive ? 'No fue posible desactivar la asignación.' : 'No fue posible reactivar la asignación.'
       );
+      toast.error('No se pudo actualizar la asignación', message);
     } finally {
       setActiveActionId(null);
     }
@@ -371,18 +358,6 @@ export function SurveyAssignmentsPage({ contextual = false }: { contextual?: boo
         </label>
       </div>
 
-      {successMessage ? (
-        <div className="success-message" role="status">
-          {successMessage}
-        </div>
-      ) : null}
-
-      {actionError ? (
-        <p className="submit-error" role="alert">
-          {actionError}
-        </p>
-      ) : null}
-
       {loadState === 'loading' ? <p aria-live="polite">Cargando asignaciones...</p> : null}
 
       {loadState === 'error' ? (
@@ -450,13 +425,17 @@ export function SurveyAssignmentsPage({ contextual = false }: { contextual?: boo
                     <dt>Estado plantilla</dt>
                     <dd>{formatSurveyStatus(assignment.surveyStatus)}</dd>
                   </div>
+                  <div>
+                    <dt>Alumnos esperados</dt>
+                    <dd>{assignment.expectedRespondentCount ?? 'No aplica'}</dd>
+                  </div>
                 </dl>
 
                 <div className="survey-card-actions">
                   <button
                     className={assignment.isActive ? 'danger-button' : 'secondary-button'}
                     disabled={activeActionId === assignment.id}
-                    onClick={() => void handleToggleAssignment(assignment)}
+                    onClick={() => setToggleTarget(assignment)}
                     type="button"
                   >
                     {activeActionId === assignment.id
@@ -471,6 +450,16 @@ export function SurveyAssignmentsPage({ contextual = false }: { contextual?: boo
           </div>
         </>
       ) : null}
+      <ConfirmDialog
+        busy={Boolean(toggleTarget && activeActionId === toggleTarget.id)}
+        confirmLabel={toggleTarget?.isActive ? 'Desactivar' : 'Reactivar'}
+        message={toggleTarget?.isActive ? 'La asignación dejará de utilizarse para nuevas sesiones, pero su historial se conservará.' : 'La asignación volverá a estar disponible para nuevas sesiones.'}
+        onCancel={() => setToggleTarget(null)}
+        onConfirm={() => { if (toggleTarget) void handleToggleAssignment(toggleTarget).finally(() => setToggleTarget(null)); }}
+        open={toggleTarget !== null}
+        title={toggleTarget?.isActive ? '¿Desactivar esta asignación?' : '¿Reactivar esta asignación?'}
+        tone={toggleTarget?.isActive ? 'danger' : 'primary'}
+      />
     </section>
   );
 }

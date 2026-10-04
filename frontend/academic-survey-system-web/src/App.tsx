@@ -1,4 +1,5 @@
 import { BrowserRouter, Navigate, Route, Routes, useParams } from 'react-router-dom';
+import { ToastProvider } from './components/ui/ToastProvider';
 import { AuthProvider, useAuth } from './auth/AuthProvider';
 import { AuthLoadingScreen, ProtectedRoute } from './auth/ProtectedRoute';
 import { AcademicContextProvider } from './features/academic-context/AcademicContextProvider';
@@ -36,6 +37,7 @@ import { UserCreatePage, UserDetailPage, UsersPage } from './features/users/User
 export function App() {
   return (
     <BrowserRouter>
+      <ToastProvider>
       <AuthProvider>
         <AcademicContextProvider>
           <Routes>
@@ -336,6 +338,7 @@ export function App() {
           </Routes>
         </AcademicContextProvider>
       </AuthProvider>
+      </ToastProvider>
     </BrowserRouter>
   );
 }

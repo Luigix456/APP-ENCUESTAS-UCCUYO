@@ -100,7 +100,10 @@ public sealed class ReportService : IReportService
             summaryResult.Value.TotalSessions,
             summaryResult.Value.FirstSubmittedAtUtc,
             summaryResult.Value.LastSubmittedAtUtc,
-            questions);
+            questions,
+            summaryResult.Value.ExpectedRespondentCount,
+            summaryResult.Value.RemainingCount,
+            summaryResult.Value.ParticipationPercentage);
 
         return ApplicationResult<SurveyReportDto>.Success(report);
     }

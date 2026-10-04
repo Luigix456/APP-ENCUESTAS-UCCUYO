@@ -212,6 +212,48 @@ namespace AcademicSurveySystem.Infrastructure.Persistence.Migrations
                     b.ToTable("subjects", (string)null);
                 });
 
+            modelBuilder.Entity("AcademicSurveySystem.Domain.Academic.Entities.SubjectEnrollment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AcademicCycleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("academic_cycle_id");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<int>("EnrolledStudentCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("enrolled_student_count");
+
+                    b.Property<Guid>("SubjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("subject_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at_utc");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AcademicCycleId");
+
+                    b.HasIndex("SubjectId");
+
+                    b.HasIndex("SubjectId", "AcademicCycleId")
+                        .IsUnique();
+
+                    b.ToTable("subject_enrollments", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_subject_enrollments_enrolled_student_count_positive", "enrolled_student_count > 0");
+                        });
+                });
+
             modelBuilder.Entity("AcademicSurveySystem.Domain.Academic.Entities.Teacher", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1021,6 +1063,10 @@ namespace AcademicSurveySystem.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at_utc");
 
+                    b.Property<int?>("ExpectedRespondentCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("expected_respondent_count");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean")
                         .HasColumnName("is_active");
@@ -1056,7 +1102,10 @@ namespace AcademicSurveySystem.Infrastructure.Persistence.Migrations
                     b.HasIndex("SurveyId", "CareerId", "SubjectId", "AcademicCycleId", "TeacherSubjectAssignmentId")
                         .IsUnique();
 
-                    b.ToTable("survey_assignments", (string)null);
+                    b.ToTable("survey_assignments", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_survey_assignments_expected_respondent_count_positive", "expected_respondent_count IS NULL OR expected_respondent_count > 0");
+                        });
                 });
 
             modelBuilder.Entity("AcademicSurveySystem.Domain.Surveys.Entities.SurveyMatrixAnswer", b =>
@@ -1420,6 +1469,25 @@ namespace AcademicSurveySystem.Infrastructure.Persistence.Migrations
                     b.Navigation("Career");
                 });
 
+            modelBuilder.Entity("AcademicSurveySystem.Domain.Academic.Entities.SubjectEnrollment", b =>
+                {
+                    b.HasOne("AcademicSurveySystem.Domain.Academic.Entities.AcademicCycle", "AcademicCycle")
+                        .WithMany()
+                        .HasForeignKey("AcademicCycleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AcademicSurveySystem.Domain.Academic.Entities.Subject", "Subject")
+                        .WithMany("Enrollments")
+                        .HasForeignKey("SubjectId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("AcademicCycle");
+
+                    b.Navigation("Subject");
+                });
+
             modelBuilder.Entity("AcademicSurveySystem.Domain.Academic.Entities.TeacherSubjectAssignment", b =>
                 {
                     b.HasOne("AcademicSurveySystem.Domain.Academic.Entities.AcademicCycle", "AcademicCycle")
@@ -1725,6 +1793,8 @@ namespace AcademicSurveySystem.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("AcademicSurveySystem.Domain.Academic.Entities.Subject", b =>
                 {
+                    b.Navigation("Enrollments");
+
                     b.Navigation("TeacherSubjectAssignments");
                 });
 

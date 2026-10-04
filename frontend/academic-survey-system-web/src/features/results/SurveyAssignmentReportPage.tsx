@@ -6,6 +6,7 @@ import {
   getSurveyAssignmentReport
 } from '../../api/reportsApi';
 import { useAuth } from '../../auth/AuthProvider';
+import { formatParticipation } from '../../components/ResponseProgress';
 import type {
   SurveyChoiceResultsDto,
   SurveyMatrixResultsDto,
@@ -228,7 +229,10 @@ export function SurveyAssignmentReportPage() {
         </dl>
 
         <section className="report-summary-grid" aria-label="Resumen del informe">
+          <ReportSummaryCard label="Alumnos inscriptos" value={report.expectedRespondentCount?.toString() ?? 'No aplica'} />
           <ReportSummaryCard label="Respuestas" value={String(report.totalResponses)} />
+          <ReportSummaryCard label="Participación" value={formatParticipation(report.participationPercentage)} />
+          <ReportSummaryCard label="Pendientes" value={report.remainingCount?.toString() ?? 'No aplica'} />
           <ReportSummaryCard label="Sesiones" value={String(report.totalSessions)} />
           <ReportSummaryCard
             label="Primera respuesta"

@@ -89,6 +89,8 @@ public sealed class SurveyAssignmentService : ISurveyAssignmentService
             };
         }
 
+        var expectedRespondentCount = relationshipValidation.Value;
+
         var duplicateExists = await _dbContext.SurveyAssignments
             .AsNoTracking()
             .AnyAsync(
@@ -114,6 +116,7 @@ public sealed class SurveyAssignmentService : ISurveyAssignmentService
             request.SubjectId,
             request.AcademicCycleId,
             request.TeacherSubjectAssignmentId,
+            expectedRespondentCount,
             now);
 
         _dbContext.SurveyAssignments.Add(assignment);
@@ -147,7 +150,7 @@ public sealed class SurveyAssignmentService : ISurveyAssignmentService
         CancellationToken cancellationToken) =>
         ChangeAssignmentStateAsync(id, isActive: false, cancellationToken);
 
-    private async Task<ApplicationResult> ValidateRelatedEntitiesAsync(
+    private async Task<ApplicationResult<int?>> ValidateRelatedEntitiesAsync(
         CreateSurveyAssignmentRequest request,
         CancellationToken cancellationToken)
     {
@@ -157,19 +160,19 @@ public sealed class SurveyAssignmentService : ISurveyAssignmentService
 
         if (survey is null)
         {
-            return ApplicationResult.NotFound("Survey was not found.");
+            return ApplicationResult<int?>.NotFound("Survey was not found.");
         }
 
         if (!survey.IsActive)
         {
-            return ApplicationResult.Validation([
+            return ApplicationResult<int?>.Validation([
                 new ApplicationError("SurveyAssignment.SurveyInactive", "Survey must be active.")
             ]);
         }
 
         if (survey.Status != SurveyStatus.Published)
         {
-            return ApplicationResult.Validation([
+            return ApplicationResult<int?>.Validation([
                 new ApplicationError("SurveyAssignment.SurveyNotPublished", "Survey must be published.")
             ]);
         }
@@ -180,12 +183,12 @@ public sealed class SurveyAssignmentService : ISurveyAssignmentService
 
         if (career is null)
         {
-            return ApplicationResult.NotFound("Career was not found.");
+            return ApplicationResult<int?>.NotFound("Career was not found.");
         }
 
         if (!career.IsActive)
         {
-            return ApplicationResult.Validation([
+            return ApplicationResult<int?>.Validation([
                 new ApplicationError("SurveyAssignment.CareerInactive", "Career must be active.")
             ]);
         }
@@ -196,19 +199,19 @@ public sealed class SurveyAssignmentService : ISurveyAssignmentService
 
         if (subject is null)
         {
-            return ApplicationResult.NotFound("Subject was not found.");
+            return ApplicationResult<int?>.NotFound("Subject was not found.");
         }
 
         if (!subject.IsActive)
         {
-            return ApplicationResult.Validation([
+            return ApplicationResult<int?>.Validation([
                 new ApplicationError("SurveyAssignment.SubjectInactive", "Subject must be active.")
             ]);
         }
 
         if (subject.CareerId != request.CareerId)
         {
-            return ApplicationResult.Validation([
+            return ApplicationResult<int?>.Validation([
                 new ApplicationError(
                     "SurveyAssignment.SubjectCareerMismatch",
                     "Subject must belong to the selected career.")
@@ -221,12 +224,12 @@ public sealed class SurveyAssignmentService : ISurveyAssignmentService
 
         if (academicCycle is null)
         {
-            return ApplicationResult.NotFound("Academic cycle was not found.");
+            return ApplicationResult<int?>.NotFound("Academic cycle was not found.");
         }
 
         if (!academicCycle.IsActive)
         {
-            return ApplicationResult.Validation([
+            return ApplicationResult<int?>.Validation([
                 new ApplicationError("SurveyAssignment.AcademicCycleInactive", "Academic cycle must be active.")
             ]);
         }
@@ -237,12 +240,12 @@ public sealed class SurveyAssignmentService : ISurveyAssignmentService
 
         if (teacherSubjectAssignment is null)
         {
-            return ApplicationResult.NotFound("Teacher-subject assignment was not found.");
+            return ApplicationResult<int?>.NotFound("Teacher-subject assignment was not found.");
         }
 
         if (!teacherSubjectAssignment.IsActive)
         {
-            return ApplicationResult.Validation([
+            return ApplicationResult<int?>.Validation([
                 new ApplicationError(
                     "SurveyAssignment.TeacherSubjectAssignmentInactive",
                     "Teacher-subject assignment must be active.")
@@ -251,7 +254,7 @@ public sealed class SurveyAssignmentService : ISurveyAssignmentService
 
         if (teacherSubjectAssignment.SubjectId != request.SubjectId)
         {
-            return ApplicationResult.Validation([
+            return ApplicationResult<int?>.Validation([
                 new ApplicationError(
                     "SurveyAssignment.TeacherSubjectAssignmentSubjectMismatch",
                     "Teacher-subject assignment must belong to the selected subject.")
@@ -260,14 +263,35 @@ public sealed class SurveyAssignmentService : ISurveyAssignmentService
 
         if (teacherSubjectAssignment.AcademicCycleId != request.AcademicCycleId)
         {
-            return ApplicationResult.Validation([
+            return ApplicationResult<int?>.Validation([
                 new ApplicationError(
                     "SurveyAssignment.TeacherSubjectAssignmentCycleMismatch",
                     "Teacher-subject assignment must belong to the selected academic cycle.")
             ]);
         }
 
-        return ApplicationResult.Success();
+        if (survey.Target == SurveyTarget.Student)
+        {
+            var enrollment = await _dbContext.SubjectEnrollments
+                .AsNoTracking()
+                .SingleOrDefaultAsync(
+                    item => item.SubjectId == request.SubjectId
+                        && item.AcademicCycleId == request.AcademicCycleId,
+                    cancellationToken);
+
+            if (enrollment is null)
+            {
+                return ApplicationResult<int?>.Validation([
+                    new ApplicationError(
+                        "Subject.EnrollmentRequired",
+                        "Debe indicar la cantidad de alumnos inscriptos en la materia para el ciclo lectivo seleccionado.")
+                ]);
+            }
+
+            return ApplicationResult<int?>.Success(enrollment.EnrolledStudentCount);
+        }
+
+        return ApplicationResult<int?>.Success(null);
     }
 
     private async Task<ApplicationResult> ChangeAssignmentStateAsync(
@@ -365,6 +389,7 @@ public sealed class SurveyAssignmentService : ISurveyAssignmentService
             assignment.TeacherSubjectAssignment.TeachingRole,
             assignment.IsActive,
             assignment.CreatedAtUtc,
-            assignment.UpdatedAtUtc);
+            assignment.UpdatedAtUtc,
+            assignment.ExpectedRespondentCount);
     }
 }

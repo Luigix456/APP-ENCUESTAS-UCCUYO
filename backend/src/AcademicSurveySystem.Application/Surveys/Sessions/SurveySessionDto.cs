@@ -30,4 +30,9 @@ public sealed record SurveySessionDto(
     string TeachingRole,
     Guid CreatedByUserId,
     DateTimeOffset CreatedAtUtc,
-    DateTimeOffset UpdatedAtUtc);
+    DateTimeOffset UpdatedAtUtc,
+    int SessionResponseCount = 0,
+    int AssignmentResponseCount = 0,
+    int? ExpectedRespondentCount = null,
+    int? RemainingCount = null,
+    decimal? ParticipationPercentage = null);
