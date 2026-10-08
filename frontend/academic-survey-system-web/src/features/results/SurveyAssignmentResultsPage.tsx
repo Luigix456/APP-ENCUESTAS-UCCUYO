@@ -39,21 +39,22 @@ export function SurveyAssignmentResultsPage() {
     setLoadState('loading');
     setPageError(null);
 
-    Promise.all([
-      getSurveyAssignmentResultSummary(
-        surveyAssignmentId,
-        accessToken,
-        auth.logout,
-        controller.signal
-      ),
-      getSurveyAssignmentQuestionResults(
-        surveyAssignmentId,
-        accessToken,
-        auth.logout,
-        controller.signal
-      )
-    ])
-      .then(([nextSummary, nextQuestions]) => {
+    getSurveyAssignmentResultSummary(
+      surveyAssignmentId,
+      accessToken,
+      auth.logout,
+      controller.signal
+    )
+      .then(async (nextSummary) => {
+        const nextQuestions = nextSummary.detailedResultsAvailable
+          ? await getSurveyAssignmentQuestionResults(
+              surveyAssignmentId,
+              accessToken,
+              auth.logout,
+              controller.signal
+            )
+          : [];
+
         setSummary(nextSummary);
         setQuestions([...nextQuestions].sort((left, right) => left.order - right.order));
         setLoadState('ready');
@@ -187,11 +188,27 @@ export function SurveyAssignmentResultsPage() {
         </div>
       ) : null}
 
-      <div className="question-result-list">
-        {questions.map((question) => (
-          <QuestionResultCard key={question.questionId} question={question} />
-        ))}
-      </div>
+      {summary.totalResponses > 0 && !summary.detailedResultsAvailable ? (
+        <section className="privacy-threshold-panel">
+          <p className="eyebrow">Resultados protegidos</p>
+          <h3>Hay {summary.totalResponses} respuestas.</h3>
+          <p>
+            Se necesitan {summary.minimumResponsesRequired} para mostrar resultados detallados y proteger el anonimato.
+          </p>
+          <p>
+            Faltan {summary.responsesNeededToUnlock} respuestas. No se muestran respuestas individuales ni
+            distribuciones todavía.
+          </p>
+        </section>
+      ) : null}
+
+      {summary.detailedResultsAvailable ? (
+        <div className="question-result-list">
+          {questions.map((question) => (
+            <QuestionResultCard key={question.questionId} question={question} />
+          ))}
+        </div>
+      ) : null}
     </section>
   );
 }

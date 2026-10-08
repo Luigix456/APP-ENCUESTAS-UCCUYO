@@ -1,7 +1,9 @@
 using AcademicSurveySystem.Application.Common.Results;
+using AcademicSurveySystem.Application.Audit;
 using AcademicSurveySystem.Application.Identity.UserCareers;
 using AcademicSurveySystem.Domain.Identity.Entities;
 using AcademicSurveySystem.Domain.Identity.Enums;
+using AcademicSurveySystem.Infrastructure.Audit;
 using AcademicSurveySystem.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -10,10 +12,14 @@ namespace AcademicSurveySystem.Infrastructure.Identity;
 public sealed class UserCareerService : IUserCareerService
 {
     private readonly ApplicationDbContext _dbContext;
+    private readonly IAuditWriter _auditWriter;
 
-    public UserCareerService(ApplicationDbContext dbContext)
+    public UserCareerService(
+        ApplicationDbContext dbContext,
+        IAuditWriter? auditWriter = null)
     {
         _dbContext = dbContext;
+        _auditWriter = auditWriter ?? NoOpAuditWriter.Instance;
     }
 
     public async Task<ApplicationResult<IReadOnlyCollection<UserCareerDto>>> GetUserCareersAsync(
@@ -48,7 +54,6 @@ public sealed class UserCareerService : IUserCareerService
         }
 
         var user = await _dbContext.Users
-            .AsNoTracking()
             .SingleOrDefaultAsync(item => item.Id == userId, cancellationToken);
 
         if (user is null)
@@ -99,6 +104,8 @@ public sealed class UserCareerService : IUserCareerService
             .Select(userCareer => userCareer.CareerId)
             .ToHashSet();
         var requestedCareerIdSet = requestedCareerIds.ToHashSet();
+        var oldCareerCodes = await LoadCareerCodesAsync(currentCareerIds, cancellationToken);
+        var newCareerCodes = await LoadCareerCodesAsync(requestedCareerIds, cancellationToken);
 
         var userCareersToRemove = currentUserCareers
             .Where(userCareer => !requestedCareerIdSet.Contains(userCareer.CareerId))
@@ -113,6 +120,14 @@ public sealed class UserCareerService : IUserCareerService
             _dbContext.UserCareers.Add(new UserCareer(userId, careerId, now));
         }
 
+        await _auditWriter.WriteAsync(
+            "identity.user.careers_updated",
+            "identity",
+            "User",
+            userId,
+            $"Actualizó las carreras asignadas al usuario {BuildDisplayName(user)}.",
+            new { oldCareerCodes, newCareerCodes },
+            cancellationToken);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         var updatedCareers = await QueryUserCareers(userId)
@@ -133,5 +148,30 @@ public sealed class UserCareerService : IUserCareerService
                 userCareer.Career.Name,
                 userCareer.Career.IsActive,
                 userCareer.AssignedAtUtc));
+    }
+
+    private Task<string[]> LoadCareerCodesAsync(
+        IEnumerable<Guid> careerIds,
+        CancellationToken cancellationToken)
+    {
+        var ids = careerIds.Distinct().ToArray();
+
+        if (ids.Length == 0)
+        {
+            return Task.FromResult(Array.Empty<string>());
+        }
+
+        return _dbContext.Careers
+            .AsNoTracking()
+            .Where(career => ids.Contains(career.Id))
+            .OrderBy(career => career.Code)
+            .Select(career => career.Code)
+            .ToArrayAsync(cancellationToken);
+    }
+
+    private static string BuildDisplayName(Domain.Identity.Entities.User user)
+    {
+        var displayName = $"{user.FirstName} {user.LastName}".Trim();
+        return string.IsNullOrWhiteSpace(displayName) ? user.Email : displayName;
     }
 }

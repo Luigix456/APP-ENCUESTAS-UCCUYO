@@ -1,5 +1,6 @@
 using AcademicSurveySystem.Api.Authorization;
 using AcademicSurveySystem.Application.Academic;
+using AcademicSurveySystem.Application.Academic.Attention;
 using AcademicSurveySystem.Application.Academic.Careers;
 using AcademicSurveySystem.Application.Common.Results;
 using Microsoft.AspNetCore.Mvc;
@@ -67,6 +68,39 @@ public sealed class CareersController : ControllerBase
             id,
             academicCycleId,
             includeInactive,
+            cancellationToken);
+
+        return ToActionResult(result);
+    }
+
+    /// <summary>
+    /// Obtiene alertas de configuración incompleta para una carrera y ciclo lectivo.
+    /// </summary>
+    /// <remarks>Requiere permiso de lectura: academic.catalog.read.</remarks>
+    [HttpGet("{id:guid}/attention")]
+    [RequirePermission(ReadPermission)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> GetAttention(
+        Guid id,
+        [FromQuery] Guid? academicCycleId,
+        CancellationToken cancellationToken)
+    {
+        if (academicCycleId is null || academicCycleId == Guid.Empty)
+        {
+            return BadRequest(CreateErrorResponse([
+                new ApplicationError("AcademicCycle.IdRequired", "AcademicCycleId is required.")
+            ]));
+        }
+
+        var result = await _academicCatalogService.GetCareerAttentionAsync(
+            id,
+            academicCycleId.Value,
+            new AcademicAttentionPermissions(IncludeSurveyAlerts: CanReadSurveyTemplates()),
             cancellationToken);
 
         return ToActionResult(result);
@@ -228,5 +262,11 @@ public sealed class CareersController : ControllerBase
         {
             errors
         };
+    }
+
+    private bool CanReadSurveyTemplates()
+    {
+        return User.HasClaim("permission", "surveys.templates.read")
+            || User.HasClaim("permission", "surveys.templates.manage");
     }
 }

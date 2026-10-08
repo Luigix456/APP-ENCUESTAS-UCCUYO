@@ -218,12 +218,14 @@ export function UsersPage() {
         <div className="users-table" role="list">
           {filteredUsers.map((user) => (
             <Link className="user-row" key={user.id} role="listitem" to={`/app/users/${user.id}`}>
-              <div className="avatar-token" aria-hidden="true">
-                {getInitials(user)}
-              </div>
-              <div>
-                <strong>{formatUserName(user)}</strong>
-                <span>{user.email}</span>
+              <div className="user-row__identity">
+                <div className="avatar-token" aria-hidden="true">
+                  {getInitials(user)}
+                </div>
+                <div className="user-row__identity-text">
+                  <strong>{formatUserName(user)}</strong>
+                  <span>{user.email}</span>
+                </div>
               </div>
               <div className="user-row__roles">
                 {formatUserRoles(user)}

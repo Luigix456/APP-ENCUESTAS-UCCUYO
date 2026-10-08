@@ -248,7 +248,17 @@ export function ResultsPage({ contextual = false }: { contextual?: boolean }) {
           />
           <div className="result-card-list" role="list">
             {resultsPagination.items.map((assignment) => (
-              <ResultAssignmentCard assignment={assignment} key={assignment.surveyAssignmentId} />
+              <ResultAssignmentCard
+                assignment={assignment}
+                contextual={contextual}
+                key={assignment.surveyAssignmentId}
+                workspaceBasePath={
+                  contextual && academicContext.academicUnitId && academicContext.careerId
+                    ? `/app/academic/units/${academicContext.academicUnitId}/careers/${academicContext.careerId}`
+                    : ''
+                }
+                workspaceCycleId={academicContext.academicCycleId}
+              />
             ))}
           </div>
         </>
@@ -257,7 +267,28 @@ export function ResultsPage({ contextual = false }: { contextual?: boolean }) {
   );
 }
 
-function ResultAssignmentCard({ assignment }: { assignment: SurveyAssignmentResultListItemDto }) {
+function ResultAssignmentCard({
+  assignment,
+  contextual = false,
+  workspaceBasePath = '',
+  workspaceCycleId = ''
+}: {
+  assignment: SurveyAssignmentResultListItemDto;
+  contextual?: boolean;
+  workspaceBasePath?: string;
+  workspaceCycleId?: string;
+}) {
+  const historyQuery = new URLSearchParams({
+    careerId: assignment.careerId,
+    subjectId: assignment.subjectId,
+    teacherId: assignment.teacherId,
+    surveyVersionGroupId: assignment.surveyVersionGroupId ?? ''
+  });
+
+  if (workspaceCycleId) {
+    historyQuery.set('cycle', workspaceCycleId);
+  }
+
   return (
     <article className="result-card" role="listitem">
       <header>
@@ -331,6 +362,16 @@ function ResultAssignmentCard({ assignment }: { assignment: SurveyAssignmentResu
         >
           Ver resultados
         </Link>
+        {assignment.surveyVersionGroupId ? (
+          <Link
+            className="secondary-link-button"
+            to={contextual && workspaceBasePath
+              ? `${workspaceBasePath}/history?${historyQuery.toString()}`
+              : `/app/results/history?${historyQuery.toString()}`}
+          >
+            Ver evolución
+          </Link>
+        ) : null}
       </div>
     </article>
   );

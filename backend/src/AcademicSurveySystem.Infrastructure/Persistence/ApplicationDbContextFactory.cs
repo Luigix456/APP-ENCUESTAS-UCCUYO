@@ -6,16 +6,15 @@ namespace AcademicSurveySystem.Infrastructure.Persistence;
 public sealed class ApplicationDbContextFactory
     : IDesignTimeDbContextFactory<ApplicationDbContext>
 {
-    private const string LocalDevelopmentConnectionString =
-        "Host=localhost;Port=5432;Database=academic_survey_db;Username=postgres;Password=postgres";
-
     public ApplicationDbContext CreateDbContext(string[] args)
     {
         var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection");
 
         if (string.IsNullOrWhiteSpace(connectionString))
         {
-            connectionString = LocalDevelopmentConnectionString;
+            throw new InvalidOperationException(
+                "Connection string 'DefaultConnection' is not configured. "
+                + "Set the ConnectionStrings__DefaultConnection environment variable before running EF Core commands.");
         }
 
         var optionsBuilder = new DbContextOptionsBuilder<ApplicationDbContext>();

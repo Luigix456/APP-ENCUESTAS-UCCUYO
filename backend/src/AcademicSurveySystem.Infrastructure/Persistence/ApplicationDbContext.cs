@@ -1,4 +1,5 @@
 using AcademicSurveySystem.Domain.Academic.Entities;
+using AcademicSurveySystem.Domain.Audit.Entities;
 using AcademicSurveySystem.Domain.Identity.Entities;
 using AcademicSurveySystem.Domain.Surveys.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -37,6 +38,7 @@ public sealed class ApplicationDbContext : DbContext
     public DbSet<SurveyAnswer> SurveyAnswers => Set<SurveyAnswer>();
     public DbSet<SurveyAnswerOption> SurveyAnswerOptions => Set<SurveyAnswerOption>();
     public DbSet<SurveyMatrixAnswer> SurveyMatrixAnswers => Set<SurveyMatrixAnswer>();
+    public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

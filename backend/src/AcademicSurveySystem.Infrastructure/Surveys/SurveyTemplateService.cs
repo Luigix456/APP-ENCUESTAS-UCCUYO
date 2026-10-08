@@ -1,10 +1,12 @@
 using AcademicSurveySystem.Application.Common.Results;
+using AcademicSurveySystem.Application.Audit;
 using AcademicSurveySystem.Application.Surveys;
 using AcademicSurveySystem.Application.Surveys.Dtos;
 using AcademicSurveySystem.Application.Surveys.Requests;
 using AcademicSurveySystem.Domain.Common;
 using AcademicSurveySystem.Domain.Surveys.Entities;
 using AcademicSurveySystem.Domain.Surveys.Enums;
+using AcademicSurveySystem.Infrastructure.Audit;
 using AcademicSurveySystem.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -14,10 +16,14 @@ namespace AcademicSurveySystem.Infrastructure.Surveys;
 public sealed class SurveyTemplateService : ISurveyTemplateService
 {
     private readonly ApplicationDbContext _dbContext;
+    private readonly IAuditWriter _auditWriter;
 
-    public SurveyTemplateService(ApplicationDbContext dbContext)
+    public SurveyTemplateService(
+        ApplicationDbContext dbContext,
+        IAuditWriter? auditWriter = null)
     {
         _dbContext = dbContext;
+        _auditWriter = auditWriter ?? NoOpAuditWriter.Instance;
     }
 
     public async Task<ApplicationResult<IReadOnlyCollection<SurveySummaryDto>>> GetSurveysAsync(
@@ -170,6 +176,18 @@ public sealed class SurveyTemplateService : ISurveyTemplateService
             }
 
             _dbContext.Surveys.Add(survey);
+            await WriteSurveyAuditAsync(
+                "surveys.survey.created",
+                "Survey",
+                survey.Id,
+                $"Creó la plantilla de encuesta {survey.Title}.",
+                new
+                {
+                    survey.Target,
+                    survey.VersionNumber,
+                    survey.VersionGroupId
+                },
+                cancellationToken);
             await _dbContext.SaveChangesAsync(cancellationToken);
 
             return ApplicationResult<SurveyDetailDto>.Success(MapDetail(survey));
@@ -229,6 +247,18 @@ public sealed class SurveyTemplateService : ISurveyTemplateService
             var now = DateTimeOffset.UtcNow;
             var clone = CloneEditableVersion(source, currentUserId, nextVersionNumber, now);
             _dbContext.Surveys.Add(clone);
+            await WriteSurveyAuditAsync(
+                "surveys.survey.version_created",
+                "Survey",
+                clone.Id,
+                $"Creó una versión editable de la plantilla {source.Title}.",
+                new
+                {
+                    sourceSurveyId = source.Id,
+                    clone.VersionGroupId,
+                    clone.VersionNumber
+                },
+                cancellationToken);
             await _dbContext.SaveChangesAsync(cancellationToken);
 
             var created = await LoadSurveyForReadAsync(clone.Id, cancellationToken);
@@ -286,6 +316,10 @@ public sealed class SurveyTemplateService : ISurveyTemplateService
 
         try
         {
+            var oldTitle = survey.Title;
+            var oldDescription = survey.Description;
+            var oldTarget = survey.Target.ToString();
+            var oldIsAnonymous = survey.IsAnonymous;
             survey.Update(
                 request.Title!,
                 request.Description,
@@ -293,6 +327,17 @@ public sealed class SurveyTemplateService : ISurveyTemplateService
                 request.IsAnonymous,
                 DateTimeOffset.UtcNow);
 
+            await WriteSurveyAuditAsync(
+                "surveys.survey.updated",
+                "Survey",
+                survey.Id,
+                $"Actualizó la plantilla de encuesta {survey.Title}.",
+                new { changedFields = BuildChangedFields(
+                    (nameof(survey.Title), oldTitle, survey.Title),
+                    (nameof(survey.Description), oldDescription, survey.Description),
+                    (nameof(survey.Target), oldTarget, survey.Target.ToString()),
+                    (nameof(survey.IsAnonymous), oldIsAnonymous, survey.IsAnonymous)) },
+                cancellationToken);
             await _dbContext.SaveChangesAsync(cancellationToken);
             return ApplicationResult.Success();
         }
@@ -317,7 +362,15 @@ public sealed class SurveyTemplateService : ISurveyTemplateService
 
         try
         {
+            var oldStatus = survey.Status.ToString();
             survey.Publish(DateTimeOffset.UtcNow);
+            await WriteSurveyAuditAsync(
+                "surveys.survey.published",
+                "Survey",
+                survey.Id,
+                $"Publicó la plantilla de encuesta {survey.Title}.",
+                new { oldStatus, newStatus = survey.Status.ToString(), survey.VersionNumber },
+                cancellationToken);
             await _dbContext.SaveChangesAsync(cancellationToken);
             return ApplicationResult.Success();
         }
@@ -332,13 +385,28 @@ public sealed class SurveyTemplateService : ISurveyTemplateService
     }
 
     public Task<ApplicationResult> ArchiveSurveyAsync(Guid id, CancellationToken cancellationToken) =>
-        ChangeSurveyStateAsync(id, stateChange: (survey, now) => survey.Archive(now), cancellationToken);
+        ChangeSurveyStateAsync(
+            id,
+            stateChange: (survey, now) => survey.Archive(now),
+            auditAction: "surveys.survey.archived",
+            auditDescription: survey => $"Archivó la plantilla de encuesta {survey.Title}.",
+            cancellationToken);
 
     public Task<ApplicationResult> ActivateSurveyAsync(Guid id, CancellationToken cancellationToken) =>
-        ChangeSurveyStateAsync(id, stateChange: (survey, now) => survey.Activate(now), cancellationToken);
+        ChangeSurveyStateAsync(
+            id,
+            stateChange: (survey, now) => survey.Activate(now),
+            auditAction: "surveys.survey.activated",
+            auditDescription: survey => $"Activó la plantilla de encuesta {survey.Title}.",
+            cancellationToken);
 
     public Task<ApplicationResult> DeactivateSurveyAsync(Guid id, CancellationToken cancellationToken) =>
-        ChangeSurveyStateAsync(id, stateChange: (survey, now) => survey.Deactivate(now), cancellationToken);
+        ChangeSurveyStateAsync(
+            id,
+            stateChange: (survey, now) => survey.Deactivate(now),
+            auditAction: "surveys.survey.deactivated",
+            auditDescription: survey => $"Desactivó la plantilla de encuesta {survey.Title}.",
+            cancellationToken);
 
     public async Task<ApplicationResult<SurveyDetailDto>> AddSectionAsync(
         Guid surveyId,
@@ -988,6 +1056,8 @@ public sealed class SurveyTemplateService : ISurveyTemplateService
     private async Task<ApplicationResult> ChangeSurveyStateAsync(
         Guid id,
         Action<Survey, DateTimeOffset> stateChange,
+        string auditAction,
+        Func<Survey, string> auditDescription,
         CancellationToken cancellationToken)
     {
         var survey = await _dbContext.Surveys.SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
@@ -999,7 +1069,22 @@ public sealed class SurveyTemplateService : ISurveyTemplateService
 
         try
         {
+            var oldStatus = survey.Status.ToString();
+            var oldIsActive = survey.IsActive;
             stateChange(survey, DateTimeOffset.UtcNow);
+            await WriteSurveyAuditAsync(
+                auditAction,
+                "Survey",
+                survey.Id,
+                auditDescription(survey),
+                new
+                {
+                    oldStatus,
+                    newStatus = survey.Status.ToString(),
+                    oldIsActive,
+                    newIsActive = survey.IsActive
+                },
+                cancellationToken);
             await _dbContext.SaveChangesAsync(cancellationToken);
             return ApplicationResult.Success();
         }
@@ -1407,7 +1492,8 @@ public sealed class SurveyTemplateService : ISurveyTemplateService
                     sourceQuestion.Order,
                     now,
                     sourceQuestion.RatingMin,
-                    sourceQuestion.RatingMax);
+                    sourceQuestion.RatingMax,
+                    sourceQuestion.QuestionLineageId);
 
                 if (!sourceQuestion.IsActive)
                 {
@@ -1526,6 +1612,38 @@ public sealed class SurveyTemplateService : ISurveyTemplateService
 
         parsedValue = parsed;
         return true;
+    }
+
+    private Task WriteSurveyAuditAsync(
+        string action,
+        string entityType,
+        Guid entityId,
+        string description,
+        object? metadata,
+        CancellationToken cancellationToken)
+    {
+        return _auditWriter.WriteAsync(
+            action,
+            "survey_templates",
+            entityType,
+            entityId,
+            description,
+            metadata,
+            cancellationToken);
+    }
+
+    private static IReadOnlyCollection<object> BuildChangedFields(
+        params (string Field, object? OldValue, object? NewValue)[] fields)
+    {
+        return fields
+            .Where(field => !Equals(field.OldValue, field.NewValue))
+            .Select(field => new
+            {
+                field.Field,
+                OldValue = field.OldValue,
+                NewValue = field.NewValue
+            })
+            .ToArray();
     }
 
     private static bool IsUniqueViolation(DbUpdateException exception)

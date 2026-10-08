@@ -1,6 +1,7 @@
-import { apiRequest } from './apiClient';
+import { apiRequest, apiRequestBlob, type ApiBinaryResponse } from './apiClient';
 import type {
   AcademicCycleDto,
+  AcademicAttentionDto,
   AcademicUnitDto,
   CareerDto,
   CreateAcademicCycleRequest,
@@ -12,6 +13,8 @@ import type {
   SetSubjectEnrollmentRequest,
   SubjectDto,
   SubjectEnrollmentDto,
+  SubjectEnrollmentImportPreviewDto,
+  SubjectEnrollmentImportResultDto,
   TeacherDto,
   TeacherSubjectAssignmentDto,
   TeacherSubjectAssignmentFilters,
@@ -197,6 +200,25 @@ export function getCareerTeachers(
   );
 }
 
+export function getCareerAttention(
+  careerId: string,
+  academicCycleId: string,
+  { accessToken, onUnauthorized, signal }: CatalogRequestOptions
+): Promise<AcademicAttentionDto> {
+  const searchParams = new URLSearchParams({
+    academicCycleId
+  });
+
+  return apiRequest<AcademicAttentionDto>(
+    `/api/academic/careers/${encodeURIComponent(careerId)}/attention?${searchParams.toString()}`,
+    {
+      token: accessToken,
+      onUnauthorized,
+      signal
+    }
+  );
+}
+
 export function getSubjects(
   careerId: string,
   { accessToken, onUnauthorized, signal, includeInactive = false }: ListCatalogRequestOptions
@@ -313,6 +335,69 @@ export function setSubjectEnrollment(
     {
       method: 'PUT',
       body: request,
+      token: accessToken,
+      onUnauthorized
+    }
+  );
+}
+
+export function downloadSubjectEnrollmentImportTemplate(
+  careerId: string,
+  academicCycleId: string,
+  format: 'xlsx' | 'csv',
+  { accessToken, onUnauthorized }: CatalogRequestOptions
+): Promise<ApiBinaryResponse> {
+  const searchParams = new URLSearchParams({
+    careerId,
+    academicCycleId,
+    format
+  });
+
+  return apiRequestBlob(`/api/academic/subject-enrollments/import-template?${searchParams.toString()}`, {
+    token: accessToken,
+    onUnauthorized,
+    accept: format === 'xlsx'
+      ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      : 'text/csv'
+  });
+}
+
+export function previewSubjectEnrollmentImport(
+  careerId: string,
+  academicCycleId: string,
+  file: File,
+  { accessToken, onUnauthorized }: CatalogRequestOptions
+): Promise<SubjectEnrollmentImportPreviewDto> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const searchParams = new URLSearchParams({ careerId, academicCycleId });
+
+  return apiRequest<SubjectEnrollmentImportPreviewDto>(
+    `/api/academic/subject-enrollments/import/preview?${searchParams.toString()}`,
+    {
+      method: 'POST',
+      body: formData,
+      token: accessToken,
+      onUnauthorized
+    }
+  );
+}
+
+export function importSubjectEnrollments(
+  careerId: string,
+  academicCycleId: string,
+  file: File,
+  { accessToken, onUnauthorized }: CatalogRequestOptions
+): Promise<SubjectEnrollmentImportResultDto> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const searchParams = new URLSearchParams({ careerId, academicCycleId });
+
+  return apiRequest<SubjectEnrollmentImportResultDto>(
+    `/api/academic/subject-enrollments/import?${searchParams.toString()}`,
+    {
+      method: 'POST',
+      body: formData,
       token: accessToken,
       onUnauthorized
     }

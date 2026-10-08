@@ -8,26 +8,32 @@ import {
   createSubject,
   deactivateSubject,
   deactivateTeacherSubjectAssignment,
+  downloadSubjectEnrollmentImportTemplate,
+  getCareerAttention,
   getCareerTeachers,
   getSubjectEnrollments,
   getSubjects,
   getTeachers,
   getTeacherSubjectAssignments,
+  importSubjectEnrollments,
+  previewSubjectEnrollmentImport,
   setSubjectEnrollment,
   updateSubject,
   updateTeacher
 } from '../../api/academicCatalogApi';
-import { getResultAssignments } from '../../api/resultsApi';
-import { getSurveyAssignments } from '../../api/surveyAssignmentsApi';
-import { getSurveySessions } from '../../api/surveySessionsApi';
+import { getCareerParticipationDashboard } from '../../api/dashboardApi';
 import { useAuth } from '../../auth/AuthProvider';
+import { formatParticipation } from '../../components/ResponseProgress';
 import type {
   AcademicCycleDto,
+  AcademicAttentionDto,
+  AcademicAttentionItemDto,
   CreateTeacherRequest,
   CreateTeacherSubjectAssignmentRequest,
   CreateSubjectRequest,
   SubjectDto,
   SubjectEnrollmentDto,
+  SubjectEnrollmentImportPreviewDto,
   SubjectPeriod,
   TeacherDto,
   TeacherSubjectAssignmentDto,
@@ -35,6 +41,10 @@ import type {
   UpdateTeacherRequest
 } from '../../types/academicCatalog';
 import { SUBJECT_PERIODS } from '../../types/academicCatalog';
+import type {
+  CareerParticipationDashboardDto,
+  CareerParticipationDashboardItemDto
+} from '../../types/dashboard';
 import { formatAcademicCycle, formatPeriod, getFriendlyCatalogError } from '../academic-catalog/academicCatalogUi';
 import { useAcademicContext } from './AcademicContextProvider';
 
@@ -42,22 +52,28 @@ type LoadState = 'idle' | 'loading' | 'ready' | 'error';
 
 const READ_CATALOG = 'academic.catalog.read';
 const MANAGE_CATALOG = 'academic.catalog.manage';
+const SUBJECT_ENROLLMENT_IMPORT_MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
 
 export function CareerOverviewPage() {
   const auth = useAuth();
   const context = useAcademicContext();
-  const [metrics, setMetrics] = useState<Array<{ label: string; value: number; to: string }>>([]);
+  const [dashboard, setDashboard] = useState<CareerParticipationDashboardDto | null>(null);
+  const [attentionItems, setAttentionItems] = useState<AcademicAttentionItemDto[]>([]);
+  const [attentionError, setAttentionError] = useState<string | null>(null);
+  const [dashboardError, setDashboardError] = useState<string | null>(null);
+  const [dashboardSort, setDashboardSort] = useState<DashboardSort>('lowest');
   const [state, setState] = useState<LoadState>('idle');
   const [error, setError] = useState<string | null>(null);
   const accessToken = auth.accessToken;
   const canReadCatalog = auth.hasPermission(READ_CATALOG) || auth.hasPermission(MANAGE_CATALOG);
-  const canManageSessions = auth.hasPermission('surveys.sessions.manage');
-  const canManageAssignments = auth.hasPermission('surveys.templates.manage');
   const canReadResults = auth.hasPermission('results.read_all') || auth.hasPermission('results.read_career');
 
   useEffect(() => {
     if (!accessToken || !context.careerId) {
-      setMetrics([]);
+      setDashboard(null);
+      setAttentionItems([]);
+      setAttentionError(null);
+      setDashboardError(null);
       setState('ready');
       return;
     }
@@ -71,69 +87,54 @@ export function CareerOverviewPage() {
 
       setState('loading');
       setError(null);
+      setAttentionError(null);
+      setDashboardError(null);
 
       try {
-        const nextMetrics: Array<{ label: string; value: number; to: string }> = [];
-        const baseFilters = {
-          careerId: context.careerId,
-          academicCycleId: context.academicCycleId
-        };
+        let nextAttentionItems: AcademicAttentionItemDto[] = [];
+        let nextDashboard: CareerParticipationDashboardDto | null = null;
+        let nextAttentionError: string | null = null;
+        let nextDashboardError: string | null = null;
 
-        if (canReadCatalog) {
-          const [subjects, teachers] = await Promise.all([
-            getSubjects(context.careerId, {
-              accessToken,
-              includeInactive: false,
-              onUnauthorized: auth.logout,
-              signal: abortController.signal
-            }),
-            getCareerTeachers(context.careerId, {
-              accessToken,
-              academicCycleId: context.academicCycleId,
-              includeInactive: false,
-              onUnauthorized: auth.logout,
-              signal: abortController.signal
-            })
-          ]);
-          nextMetrics.push({ label: 'Materias', value: subjects.length, to: '/app/context/subjects' });
-          nextMetrics.push({ label: 'Docentes', value: teachers.length, to: '/app/context/teachers' });
+        if (context.academicCycleId) {
+          const attentionPromise: Promise<AcademicAttentionDto> = canReadCatalog
+            ? getCareerAttention(context.careerId, context.academicCycleId, {
+                accessToken,
+                onUnauthorized: auth.logout,
+                signal: abortController.signal
+              })
+            : Promise.resolve({ items: [] });
+          const dashboardPromise: Promise<CareerParticipationDashboardDto | null> = canReadResults
+            ? getCareerParticipationDashboard(
+                context.careerId,
+                context.academicCycleId,
+                accessToken,
+                auth.logout,
+                abortController.signal
+              )
+            : Promise.resolve(null);
+          const [attentionResult, dashboardResult] = await Promise.allSettled([
+            attentionPromise,
+            dashboardPromise
+          ] as const);
+
+          if (attentionResult.status === 'fulfilled') {
+            nextAttentionItems = attentionResult.value.items;
+          } else {
+            nextAttentionError = 'No pudimos cargar las alertas de configuración.';
+          }
+
+          if (dashboardResult.status === 'fulfilled') {
+            nextDashboard = dashboardResult.value;
+          } else {
+            nextDashboardError = 'No pudimos cargar el seguimiento del ciclo.';
+          }
         }
 
-        if (canManageAssignments && context.academicCycleId) {
-          const assignments = await getSurveyAssignments(
-            accessToken,
-            auth.logout,
-            { includeInactive: true, ...baseFilters },
-            abortController.signal
-          );
-          nextMetrics.push({ label: 'Encuestas asignadas', value: assignments.length, to: '/app/context/surveys' });
-        }
-
-        if (canManageSessions && context.academicCycleId) {
-          const sessions = await getSurveySessions(
-            accessToken,
-            auth.logout,
-            { ...baseFilters },
-            abortController.signal
-          );
-          nextMetrics.push({ label: 'Sesiones', value: sessions.length, to: '/app/context/sessions' });
-        }
-
-        if (canReadResults && context.academicCycleId) {
-          const results = await getResultAssignments(
-            accessToken,
-            auth.logout,
-            baseFilters,
-            abortController.signal
-          );
-          nextMetrics.push({
-            label: 'Respuestas',
-            value: results.reduce((sum, item) => sum + item.totalResponses, 0),
-            to: '/app/context/results'
-          });
-        }
-
-        setMetrics(nextMetrics);
+        setDashboard(nextDashboard);
+        setAttentionItems(nextAttentionItems);
+        setAttentionError(nextAttentionError);
+        setDashboardError(nextDashboardError);
         setState('ready');
       } catch (loadError) {
         if (abortController.signal.aborted) {
@@ -150,13 +151,16 @@ export function CareerOverviewPage() {
   }, [
     accessToken,
     auth.logout,
-    canManageAssignments,
-    canManageSessions,
     canReadCatalog,
     canReadResults,
     context.academicCycleId,
     context.careerId
   ]);
+
+  const sortedDashboardItems = useMemo(
+    () => sortDashboardItems(dashboard?.items ?? [], dashboardSort),
+    [dashboard?.items, dashboardSort]
+  );
 
   const guard = useContextGuard();
 
@@ -169,25 +173,324 @@ export function CareerOverviewPage() {
       <ContextHeader eyebrow="Contexto de carrera" title="Resumen" />
       {state === 'loading' ? <p aria-live="polite">Cargando resumen...</p> : null}
       {state === 'error' ? <p className="submit-error">{error}</p> : null}
-      {state === 'ready' && metrics.length > 0 ? (
-        <div className="dashboard-metrics">
-          {metrics.map((metric) => (
-            <Link className="dashboard-metric-card" key={metric.label} to={metric.to}>
-              <span>{metric.label}</span>
-              <strong>{metric.value}</strong>
-              <small>{context.selectedAcademicCycle ? formatAcademicCycle(context.selectedAcademicCycle) : 'Todos los ciclos'}</small>
-            </Link>
-          ))}
+
+      {state === 'ready' && !context.academicCycleId ? (
+        <div className="empty-detail">
+          <h3>Elegí un ciclo lectivo para ver el seguimiento.</h3>
+          <p>El panel de participación necesita un ciclo para mostrar métricas comparables.</p>
         </div>
       ) : null}
-      {state === 'ready' && metrics.length === 0 ? (
+
+      {state === 'ready' && context.academicCycleId && !canReadResults ? (
         <div className="empty-detail">
-          <h3>No hay métricas disponibles</h3>
-          <p>El resumen sólo muestra información de módulos habilitados para tu perfil.</p>
+          <h3>Seguimiento de resultados no disponible para tu perfil.</h3>
+          <p>Las métricas de participación requieren permisos de consulta de resultados.</p>
         </div>
+      ) : null}
+
+      {state === 'ready' && context.academicCycleId && canReadResults && dashboardError ? (
+        <div className="empty-detail" role="alert">
+          <h3>{dashboardError}</h3>
+          <p>Intentá nuevamente o consultá al equipo técnico si el problema continúa.</p>
+        </div>
+      ) : null}
+
+      {state === 'ready' && dashboard ? (
+        <section className="participation-dashboard" aria-labelledby="participation-dashboard-title">
+          <div className="participation-dashboard__header">
+            <div>
+              <p className="eyebrow">Seguimiento del ciclo</p>
+              <h3 id="participation-dashboard-title">Participación académica</h3>
+              <p>{dashboard.careerName} · {dashboard.academicCycleLabel}</p>
+            </div>
+          </div>
+
+          <div className="dashboard-metrics dashboard-metrics--participation">
+            <DashboardMetricCard
+              label="Materias con respuestas"
+              value={`${dashboard.subjectsWithResponses} de ${dashboard.totalSubjects}`}
+              hint="Materias distintas con al menos una respuesta"
+            />
+            <DashboardMetricCard
+              label="Participación promedio"
+              value={dashboard.averageParticipationPercentage === null ? 'Sin datos' : formatParticipation(dashboard.averageParticipationPercentage)}
+              hint="Promedio de encuestas a estudiantes con cantidad esperada"
+            />
+            <DashboardMetricCard
+              label="Sesiones abiertas"
+              value={dashboard.openSessionsCount}
+              hint="Sesiones activas en este ciclo"
+            />
+            <DashboardMetricCard
+              label="Baja participación"
+              value={dashboard.lowParticipationAssignmentsCount}
+              hint={`Menos de ${formatParticipation(dashboard.lowParticipationThresholdPercentage)}`}
+            />
+          </div>
+
+          <div className="participation-list-header">
+            <div>
+              <p className="eyebrow">Participación por encuesta</p>
+              <h3>{dashboard.studentSurveyAssignmentsCount} encuestas a estudiantes</h3>
+            </div>
+            <label>
+              <span>Ordenar por</span>
+              <select
+                className="text-input"
+                value={dashboardSort}
+                onChange={(event) => setDashboardSort(event.target.value as DashboardSort)}
+              >
+                <option value="lowest">Menor participación</option>
+                <option value="highest">Mayor participación</option>
+                <option value="subject">Materia A-Z</option>
+              </select>
+            </label>
+          </div>
+
+          {sortedDashboardItems.length > 0 ? (
+            <div className="participation-assignment-list">
+              {sortedDashboardItems.map((item) => (
+                <ParticipationAssignmentCard item={item} key={item.surveyAssignmentId} />
+              ))}
+            </div>
+          ) : (
+            <div className="attention-empty">
+              <h4>No hay encuestas a estudiantes para este ciclo.</h4>
+              <p>Cuando se creen asignaciones Student, aparecerán en este seguimiento.</p>
+            </div>
+          )}
+        </section>
+      ) : null}
+
+      {state === 'ready' && context.academicCycleId && attentionError ? (
+        <section className="attention-panel" aria-labelledby="attention-title">
+          <div className="attention-panel__header">
+            <div>
+              <p className="eyebrow">Seguimiento académico</p>
+              <h3 id="attention-title">Requiere atención</h3>
+            </div>
+          </div>
+          <div className="attention-empty" role="alert">
+            <h4>{attentionError}</h4>
+            <p>Intentá nuevamente o revisá la conexión con la API.</p>
+          </div>
+        </section>
+      ) : null}
+
+      {state === 'ready' && context.academicCycleId && !attentionError ? (
+        <section className="attention-panel" aria-labelledby="attention-title">
+          <div className="attention-panel__header">
+            <div>
+              <p className="eyebrow">Seguimiento académico</p>
+              <h3 id="attention-title">Requiere atención</h3>
+            </div>
+            <strong>{attentionItems.length}</strong>
+          </div>
+          {attentionItems.length > 0 ? (
+            <div className="attention-list">
+              {attentionItems.map((item) => (
+                <article className={`attention-card attention-card--${item.severity}`} key={item.code}>
+                  <div className="attention-card__icon" aria-hidden="true">
+                    {item.severity === 'warning' ? '!' : 'i'}
+                  </div>
+                  <div>
+                    <h4>{item.title}</h4>
+                    <p>{item.description}</p>
+                  </div>
+                  <Link className="secondary-button" to={getAttentionActionRoute(item.actionCode)}>
+                    {getAttentionActionLabel(item.actionCode)}
+                  </Link>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="attention-empty">
+              <h4>Todo está listo para trabajar en este ciclo lectivo.</h4>
+              <p>No detectamos asuntos de configuración pendientes para este contexto.</p>
+            </div>
+          )}
+        </section>
       ) : null}
     </section>
   );
+}
+
+type DashboardSort = 'lowest' | 'highest' | 'subject';
+
+function DashboardMetricCard({
+  label,
+  value,
+  hint
+}: {
+  label: string;
+  value: number | string;
+  hint: string;
+}) {
+  return (
+    <article className="dashboard-metric-card dashboard-metric-card--static">
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <small>{hint}</small>
+    </article>
+  );
+}
+
+function ParticipationAssignmentCard({ item }: { item: CareerParticipationDashboardItemDto }) {
+  const progressWidth = item.participationPercentage === null
+    ? 0
+    : Math.min(100, Math.max(0, item.participationPercentage));
+
+  return (
+    <article className="participation-assignment-card">
+      <header>
+        <div>
+          <p className="eyebrow">{item.subjectName}</p>
+          <h4>{item.teacherName}</h4>
+          <p>{item.surveyTitle} · v{item.surveyVersionNumber}</p>
+        </div>
+        {item.isLowParticipation ? (
+          <span className="status-badge status-badge--warning">Participación baja</span>
+        ) : null}
+      </header>
+      <div className="participation-assignment-card__progress">
+        <div className="participation-assignment-card__main">
+          <strong>{formatResponseCount(item)}</strong>
+          <span>{formatParticipationText(item)}</span>
+        </div>
+        {item.participationPercentage === null ? (
+          <p className="form-helper">Participación no disponible.</p>
+        ) : (
+          <div
+            aria-label={`Participación: ${formatParticipation(item.participationPercentage)}`}
+            aria-valuemax={100}
+            aria-valuemin={0}
+            aria-valuenow={Math.round(progressWidth)}
+            className="participation-assignment-card__bar"
+            role="progressbar"
+          >
+            <span style={{ width: `${progressWidth}%` }} />
+          </div>
+        )}
+      </div>
+      <Link className="secondary-button" to={`/app/results/assignments/${item.surveyAssignmentId}`}>
+        {item.detailedResultsAvailable ? 'Ver resultados' : 'Ver seguimiento'}
+      </Link>
+    </article>
+  );
+}
+
+function sortDashboardItems(
+  items: CareerParticipationDashboardItemDto[],
+  sort: DashboardSort
+): CareerParticipationDashboardItemDto[] {
+  return [...items].sort((left, right) => {
+    if (sort === 'subject') {
+      return compareDashboardItems(left, right);
+    }
+
+    const leftValue = left.participationPercentage;
+    const rightValue = right.participationPercentage;
+
+    if (leftValue === null && rightValue === null) {
+      return compareDashboardItems(left, right);
+    }
+
+    if (leftValue === null) {
+      return 1;
+    }
+
+    if (rightValue === null) {
+      return -1;
+    }
+
+    const difference = sort === 'lowest'
+      ? leftValue - rightValue
+      : rightValue - leftValue;
+
+    return difference === 0 ? compareDashboardItems(left, right) : difference;
+  });
+}
+
+function compareDashboardItems(
+  left: CareerParticipationDashboardItemDto,
+  right: CareerParticipationDashboardItemDto
+): number {
+  return left.subjectName.localeCompare(right.subjectName)
+    || left.teacherName.localeCompare(right.teacherName)
+    || left.surveyTitle.localeCompare(right.surveyTitle)
+    || left.surveyVersionNumber - right.surveyVersionNumber;
+}
+
+function formatResponseCount(item: CareerParticipationDashboardItemDto): string {
+  return item.expectedRespondentCount === null
+    ? `${item.responseCount} respuestas recibidas`
+    : `${item.responseCount} de ${item.expectedRespondentCount} respuestas`;
+}
+
+function formatParticipationText(item: CareerParticipationDashboardItemDto): string {
+  return item.participationPercentage === null
+    ? 'Participación no disponible'
+    : `${formatParticipation(item.participationPercentage)} de participación`;
+}
+
+function isSubjectEnrollmentImportFileAllowed(file: File): boolean {
+  const fileName = file.name.toLowerCase();
+  return fileName.endsWith('.csv') || fileName.endsWith('.xlsx');
+}
+
+function formatBytes(value: number): string {
+  if (value < 1024) {
+    return `${value} bytes`;
+  }
+
+  const kiloBytes = value / 1024;
+
+  if (kiloBytes < 1024) {
+    return `${kiloBytes.toFixed(1)} KB`;
+  }
+
+  return `${(kiloBytes / 1024).toFixed(1)} MB`;
+}
+
+function downloadBlob(blob: Blob, fileName: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function getDownloadFileName(contentDisposition: string | null, fallback: string): string {
+  if (!contentDisposition) {
+    return fallback;
+  }
+
+  const utf8Match = /filename\*=UTF-8''([^;]+)/i.exec(contentDisposition);
+
+  if (utf8Match?.[1]) {
+    return decodeURIComponent(utf8Match[1]);
+  }
+
+  const simpleMatch = /filename="?([^";]+)"?/i.exec(contentDisposition);
+  return simpleMatch?.[1] ?? fallback;
+}
+
+function getImportStatusLabel(status: string): string {
+  switch (status) {
+    case 'Create':
+      return 'Crear';
+    case 'Update':
+      return 'Actualizar';
+    case 'Unchanged':
+      return 'Sin cambios';
+    case 'Error':
+      return 'Error';
+    default:
+      return status;
+  }
 }
 
 export function ContextSubjectsPage() {
@@ -227,6 +530,18 @@ export function ContextSubjectsPage() {
   const [enrollmentSubject, setEnrollmentSubject] = useState<SubjectDto | null>(null);
   const [enrollmentValue, setEnrollmentValue] = useState('');
   const [removingAssignment, setRemovingAssignment] = useState<TeacherSubjectAssignmentDto | null>(null);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importStep, setImportStep] = useState<'prepare' | 'preview' | 'done'>('prepare');
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importPreview, setImportPreview] = useState<SubjectEnrollmentImportPreviewDto | null>(null);
+  const [importResult, setImportResult] = useState<{
+    createdCount: number;
+    updatedCount: number;
+    unchangedCount: number;
+    totalProcessed: number;
+  } | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [confirmingImport, setConfirmingImport] = useState(false);
   const [busy, setBusy] = useState(false);
   const accessToken = auth.accessToken;
   const canReadCatalog = auth.hasPermission(READ_CATALOG) || auth.hasPermission(MANAGE_CATALOG);
@@ -348,6 +663,7 @@ export function ContextSubjectsPage() {
     setEnrollmentSubject(null);
     setEnrollmentValue('');
     setRemovingAssignment(null);
+    resetImportState();
   }, [context.academicCycleId, context.careerId]);
 
   const years = useMemo(
@@ -604,6 +920,123 @@ export function ContextSubjectsPage() {
     }
   }
 
+  function resetImportState() {
+    setShowImportModal(false);
+    setImportStep('prepare');
+    setImportFile(null);
+    setImportPreview(null);
+    setImportResult(null);
+    setImportError(null);
+    setConfirmingImport(false);
+  }
+
+  function handleImportFile(file: File | null) {
+    setImportPreview(null);
+    setImportResult(null);
+    setImportError(null);
+
+    if (!file) {
+      setImportFile(null);
+      return;
+    }
+
+    if (!isSubjectEnrollmentImportFileAllowed(file)) {
+      setImportFile(null);
+      setImportError('Seleccioná un archivo CSV o Excel .xlsx.');
+      return;
+    }
+
+    if (file.size > SUBJECT_ENROLLMENT_IMPORT_MAX_FILE_SIZE_BYTES) {
+      setImportFile(null);
+      setImportError('El archivo supera el tamaño máximo permitido de 5 MB.');
+      return;
+    }
+
+    setImportFile(file);
+  }
+
+  async function handleDownloadEnrollmentTemplate(format: 'xlsx' | 'csv') {
+    if (!accessToken || !context.careerId || !context.academicCycleId || busy) {
+      return;
+    }
+
+    setBusy(true);
+    setImportError(null);
+
+    try {
+      const response = await downloadSubjectEnrollmentImportTemplate(
+        context.careerId,
+        context.academicCycleId,
+        format,
+        { accessToken, onUnauthorized: auth.logout }
+      );
+      downloadBlob(response.blob, getDownloadFileName(response.contentDisposition, `matriculas.${format}`));
+    } catch (downloadError) {
+      const message = getFriendlyCatalogError(downloadError, 'No fue posible descargar la plantilla.');
+      setImportError(message);
+      toast.error('No se pudo descargar la plantilla', message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handlePreviewImport() {
+    if (!accessToken || !context.careerId || !context.academicCycleId || !importFile || busy) {
+      return;
+    }
+
+    setBusy(true);
+    setImportError(null);
+
+    try {
+      const preview = await previewSubjectEnrollmentImport(
+        context.careerId,
+        context.academicCycleId,
+        importFile,
+        { accessToken, onUnauthorized: auth.logout }
+      );
+      setImportPreview(preview);
+      setImportStep('preview');
+    } catch (previewError) {
+      const message = getFriendlyCatalogError(previewError, 'No fue posible revisar el archivo.');
+      setImportError(message);
+      toast.error('No se pudo revisar el archivo', message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleCommitImport() {
+    if (!accessToken || !context.careerId || !context.academicCycleId || !importFile || busy) {
+      return;
+    }
+
+    setBusy(true);
+    setImportError(null);
+
+    try {
+      const result = await importSubjectEnrollments(
+        context.careerId,
+        context.academicCycleId,
+        importFile,
+        { accessToken, onUnauthorized: auth.logout }
+      );
+      setImportResult(result);
+      setImportStep('done');
+      setConfirmingImport(false);
+      await reloadSubjects();
+      toast.success('Matrículas importadas correctamente.');
+    } catch (commitError) {
+      const message = getFriendlyCatalogError(commitError, 'No fue posible importar las matrículas.');
+      setImportError(message);
+      setImportStep('preview');
+      setConfirmingImport(false);
+      toast.error('No se pudieron importar las matrículas', message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <section className="app-content academic-page">
       <ContextHeader eyebrow="Carrera seleccionada" title="Materias" />
@@ -627,17 +1060,31 @@ export function ContextSubjectsPage() {
             <strong>Materias de {context.selectedCareer?.name}</strong>
             <small>Creá, editá, eliminá o asigná docentes sin salir de la carrera.</small>
           </div>
-          <button
-            className="primary-button"
-            onClick={() => {
-              setFormError(null);
-              setCreateForm({ careerId: context.careerId, code: '', name: '', year: 1, period: 'Annual' });
-              setShowCreateModal(true);
-            }}
-            type="button"
-          >
-            Nueva materia
-          </button>
+          <div className="toolbar-actions">
+            <button
+              className="secondary-button"
+              disabled={!context.academicCycleId}
+              onClick={() => {
+                setShowImportModal(true);
+                setImportStep('prepare');
+                setImportError(null);
+              }}
+              type="button"
+            >
+              Importar matrículas
+            </button>
+            <button
+              className="primary-button"
+              onClick={() => {
+                setFormError(null);
+                setCreateForm({ careerId: context.careerId, code: '', name: '', year: 1, period: 'Annual' });
+                setShowCreateModal(true);
+              }}
+              type="button"
+            >
+              Nueva materia
+            </button>
+          </div>
         </div>
       ) : null}
 
@@ -727,6 +1174,47 @@ export function ContextSubjectsPage() {
           </form>
         ) : null}
       </Modal>
+
+      <SubjectEnrollmentImportModal
+        busy={busy}
+        file={importFile}
+        importError={importError}
+        open={showImportModal}
+        preview={importPreview}
+        result={importResult}
+        selectedAcademicCycle={context.selectedAcademicCycle}
+        selectedCareerName={context.selectedCareer?.name ?? 'Carrera seleccionada'}
+        step={importStep}
+        onClose={() => {
+          if (!busy) {
+            resetImportState();
+          }
+        }}
+        onDownloadTemplate={(format) => void handleDownloadEnrollmentTemplate(format)}
+        onFileChange={handleImportFile}
+        onPreview={() => void handlePreviewImport()}
+        onRemoveFile={() => handleImportFile(null)}
+        onReturnToPrepare={() => {
+          setImportStep('prepare');
+          setImportPreview(null);
+          setImportError(null);
+        }}
+        onConfirm={() => setConfirmingImport(true)}
+      />
+
+      <ConfirmDialog
+        busy={busy}
+        confirmLabel="Importar matrículas"
+        message={
+          importPreview
+            ? `Se crearán ${importPreview.createRows} matrículas y se actualizarán ${importPreview.updateRows}. Las filas sin cambios se conservarán igual.`
+            : ''
+        }
+        onCancel={() => setConfirmingImport(false)}
+        onConfirm={() => void handleCommitImport()}
+        open={confirmingImport}
+        title="¿Importar estas matrículas?"
+      />
 
       <Modal
         description={editingSubject ? `Código ${editingSubject.code}. El código no cambia para preservar referencias históricas.` : undefined}
@@ -916,6 +1404,220 @@ export function ContextSubjectsPage() {
         ))}
       </div>
     </section>
+  );
+}
+
+interface SubjectEnrollmentImportModalProps {
+  busy: boolean;
+  file: File | null;
+  importError: string | null;
+  open: boolean;
+  preview: SubjectEnrollmentImportPreviewDto | null;
+  result: {
+    createdCount: number;
+    updatedCount: number;
+    unchangedCount: number;
+    totalProcessed: number;
+  } | null;
+  selectedAcademicCycle: AcademicCycleDto | null;
+  selectedCareerName: string;
+  step: 'prepare' | 'preview' | 'done';
+  onClose: () => void;
+  onConfirm: () => void;
+  onDownloadTemplate: (format: 'xlsx' | 'csv') => void;
+  onFileChange: (file: File | null) => void;
+  onPreview: () => void;
+  onRemoveFile: () => void;
+  onReturnToPrepare: () => void;
+}
+
+function SubjectEnrollmentImportModal({
+  busy,
+  file,
+  importError,
+  open,
+  preview,
+  result,
+  selectedAcademicCycle,
+  selectedCareerName,
+  step,
+  onClose,
+  onConfirm,
+  onDownloadTemplate,
+  onFileChange,
+  onPreview,
+  onRemoveFile,
+  onReturnToPrepare
+}: SubjectEnrollmentImportModalProps) {
+  const hasPreviewErrors = (preview?.errorRows ?? 0) > 0;
+
+  return (
+    <Modal
+      closeDisabled={busy}
+      description="Importá matrículas desde una plantilla CSV o Excel para la carrera y el ciclo seleccionados."
+      onClose={onClose}
+      open={open}
+      title="Importar matrículas"
+    >
+      <div className="import-wizard">
+        <ol className="import-steps" aria-label="Pasos de importación">
+          <li className={step === 'prepare' ? 'active' : undefined}>Preparar archivo</li>
+          <li className={step === 'preview' ? 'active' : undefined}>Revisar datos</li>
+          <li className={step === 'done' ? 'active' : undefined}>Confirmar</li>
+        </ol>
+
+        {step === 'prepare' ? (
+          <div className="import-step-panel">
+            <div className="enrollment-context">
+              <div><span>Carrera</span><strong>{selectedCareerName}</strong></div>
+              <div><span>Ciclo lectivo</span><strong>{selectedAcademicCycle ? formatAcademicCycle(selectedAcademicCycle) : 'Sin ciclo seleccionado'}</strong></div>
+            </div>
+            <div className="import-template-actions">
+              <button className="secondary-button" disabled={busy || !selectedAcademicCycle} onClick={() => onDownloadTemplate('xlsx')} type="button">
+                Descargar plantilla Excel
+              </button>
+              <button className="secondary-button" disabled={busy || !selectedAcademicCycle} onClick={() => onDownloadTemplate('csv')} type="button">
+                Descargar CSV
+              </button>
+            </div>
+            <p className="form-helper">Completá únicamente la columna AlumnosInscriptos. El archivo puede tener hasta 5 MB y 2000 filas.</p>
+
+            <label
+              className="import-dropzone"
+              htmlFor="subject-enrollment-import-file"
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  document.getElementById('subject-enrollment-import-file')?.click();
+                }
+              }}
+              tabIndex={0}
+            >
+              <strong>Seleccionar archivo</strong>
+              <span>CSV o Excel .xlsx</span>
+              <input
+                accept=".csv,.xlsx"
+                disabled={busy}
+                id="subject-enrollment-import-file"
+                onChange={(event) => onFileChange(event.target.files?.[0] ?? null)}
+                type="file"
+              />
+            </label>
+
+            {file ? (
+              <div className="import-file-summary">
+                <div>
+                  <strong>{file.name}</strong>
+                  <small>{formatBytes(file.size)}</small>
+                </div>
+                <button className="text-danger-button" disabled={busy} onClick={onRemoveFile} type="button">Quitar</button>
+              </div>
+            ) : null}
+
+            {importError ? <p className="submit-error" role="alert">{importError}</p> : null}
+
+            <div className="modal-footer-actions">
+              <button className="secondary-button" disabled={busy} onClick={onClose} type="button">Cancelar</button>
+              <button className="primary-button" disabled={busy || !file || !selectedAcademicCycle} onClick={onPreview} type="button">
+                {busy ? 'Revisando...' : 'Revisar archivo'}
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {step === 'preview' && preview ? (
+          <div className="import-step-panel">
+            <div className="import-summary-grid">
+              <MetricPill label="Filas" value={preview.totalRows} />
+              <MetricPill label="Crear" value={preview.createRows} />
+              <MetricPill label="Actualizar" value={preview.updateRows} />
+              <MetricPill label="Sin cambios" value={preview.unchangedRows} />
+              <MetricPill label="Errores" tone={preview.errorRows > 0 ? 'danger' : 'neutral'} value={preview.errorRows} />
+            </div>
+
+            {hasPreviewErrors ? (
+              <p className="submit-error" role="alert">Corregí los errores en el archivo y volvé a cargarlo.</p>
+            ) : null}
+            {importError ? <p className="submit-error" role="alert">{importError}</p> : null}
+
+            <div className="import-preview-table" role="region" aria-label="Vista previa de matrículas" tabIndex={0}>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Fila</th>
+                    <th>Código</th>
+                    <th>Materia</th>
+                    <th>Actual</th>
+                    <th>Nuevo</th>
+                    <th>Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {preview.rows.map((row) => (
+                    <tr key={`${row.rowNumber}-${row.subjectCode}`}>
+                      <td>{row.rowNumber}</td>
+                      <td>{row.subjectCode || '-'}</td>
+                      <td>
+                        <strong>{row.subjectName ?? row.providedSubjectName ?? '-'}</strong>
+                        {row.errorMessage ? <small>{row.errorMessage}</small> : null}
+                      </td>
+                      <td>{row.currentEnrolledStudentCount ?? '-'}</td>
+                      <td>{row.newEnrolledStudentCount ?? '-'}</td>
+                      <td><span className={`import-status import-status--${row.status.toLowerCase()}`}>{getImportStatusLabel(row.status)}</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="import-preview-cards">
+              {preview.rows.map((row) => (
+                <article className={`import-preview-card import-preview-card--${row.status.toLowerCase()}`} key={`${row.rowNumber}-${row.subjectCode}`}>
+                  <div>
+                    <strong>{row.subjectName ?? row.providedSubjectName ?? 'Materia no encontrada'}</strong>
+                    <span>{row.subjectCode || 'Sin código'} · Fila {row.rowNumber}</span>
+                  </div>
+                  <span className={`import-status import-status--${row.status.toLowerCase()}`}>{getImportStatusLabel(row.status)}</span>
+                  <dl>
+                    <div><dt>Actual</dt><dd>{row.currentEnrolledStudentCount ?? '-'}</dd></div>
+                    <div><dt>Nuevo</dt><dd>{row.newEnrolledStudentCount ?? '-'}</dd></div>
+                  </dl>
+                  {row.errorMessage ? <p>{row.errorMessage}</p> : null}
+                </article>
+              ))}
+            </div>
+
+            <div className="modal-footer-actions">
+              <button className="secondary-button" disabled={busy} onClick={onReturnToPrepare} type="button">Volver</button>
+              <button className="primary-button" disabled={busy || hasPreviewErrors || preview.validRows === 0} onClick={onConfirm} type="button">
+                Importar matrículas
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {step === 'done' && result ? (
+          <div className="import-step-panel">
+            <div className="success-panel">
+              <h3>Matrículas importadas correctamente.</h3>
+              <p>Se procesaron {result.totalProcessed} filas: {result.createdCount} creadas, {result.updatedCount} actualizadas y {result.unchangedCount} sin cambios.</p>
+            </div>
+            <div className="modal-footer-actions">
+              <button className="primary-button" onClick={onClose} type="button">Cerrar</button>
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </Modal>
+  );
+}
+
+function MetricPill({ label, value, tone = 'neutral' }: { label: string; value: number; tone?: 'neutral' | 'danger' }) {
+  return (
+    <div className={`metric-pill metric-pill--${tone}`}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
   );
 }
 
@@ -1705,4 +2407,40 @@ function groupSubjectsByYear(subjects: SubjectDto[]): Array<[number, SubjectDto[
       year,
       [...yearSubjects].sort((left, right) => left.name.localeCompare(right.name))
     ]);
+}
+
+function getAttentionActionRoute(actionCode: string): string {
+  switch (actionCode) {
+    case 'ReviewSubjectEnrollments':
+    case 'AssignSubjectTeacher':
+      return '/app/context/subjects';
+    case 'ReviewSurveyAssignments':
+    case 'ViewSurveyTemplates':
+      return '/app/context/surveys';
+    case 'ViewSurveyResults':
+      return '/app/context/results';
+    case 'ReviewAcademicCycle':
+      return '/app/academic/cycles';
+    default:
+      return '/app/context';
+  }
+}
+
+function getAttentionActionLabel(actionCode: string): string {
+  switch (actionCode) {
+    case 'ReviewSubjectEnrollments':
+      return 'Revisar matrícula';
+    case 'AssignSubjectTeacher':
+      return 'Asignar docente';
+    case 'ReviewSurveyAssignments':
+      return 'Revisar asignaciones';
+    case 'ViewSurveyTemplates':
+      return 'Ver plantillas';
+    case 'ViewSurveyResults':
+      return 'Ver resultados';
+    case 'ReviewAcademicCycle':
+      return 'Revisar ciclo';
+    default:
+      return 'Revisar';
+  }
 }

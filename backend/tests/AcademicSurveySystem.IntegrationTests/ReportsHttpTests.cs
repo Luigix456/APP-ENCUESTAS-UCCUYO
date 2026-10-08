@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using AcademicSurveySystem.Application.Audit;
 using AcademicSurveySystem.Application.Common.Authentication;
 using AcademicSurveySystem.Application.Common.Results;
 using AcademicSurveySystem.Application.Surveys.Reports;
@@ -180,6 +181,8 @@ public sealed class ReportsHttpTests
                     services.AddScoped<IPdfReportGenerator, FakePdfReportGenerator>();
                     services.RemoveAll<IResultsAccessService>();
                     services.AddScoped<IResultsAccessService, FakeResultsAccessService>();
+                    services.RemoveAll<IAuditWriter>();
+                    services.AddScoped<IAuditWriter, FakeAuditWriter>();
                 });
             });
     }
@@ -307,5 +310,21 @@ public sealed class ReportsHttpTests
                 "application/pdf",
                 "%PDF-1.7 fake"u8.ToArray())));
         }
+    }
+
+    private sealed class FakeAuditWriter : IAuditWriter
+    {
+        public Task WriteAsync(
+            string action,
+            string module,
+            string entityType,
+            Guid? entityId,
+            string description,
+            object? metadata = null,
+            CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task FlushAsync(CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
     }
 }

@@ -278,6 +278,19 @@ public sealed class ResultsDiscoveryHttpTests
             Guid surveySessionId,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
+
+        public Task<ApplicationResult<SurveyHistoryDto>> GetSurveyHistoryAsync(
+            ResultsAccessScope accessScope,
+            SurveyHistoryQuery query,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<ApplicationResult<QuestionHistoryDto>> GetQuestionHistoryAsync(
+            ResultsAccessScope accessScope,
+            Guid questionLineageId,
+            SurveyHistoryQuery query,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 
     private sealed class FakeResultsAccessService : IResultsAccessService

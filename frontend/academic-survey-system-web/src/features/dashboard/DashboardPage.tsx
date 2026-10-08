@@ -35,11 +35,13 @@ export function DashboardPage() {
 
   const permissions = useMemo(
     () => ({
-      surveys: auth.hasPermission('surveys.templates.read') || auth.hasPermission('surveys.templates.manage'),
-      surveyAssignments: auth.hasPermission('surveys.templates.manage'),
+      surveysRead: auth.hasPermission('surveys.templates.read') || auth.hasPermission('surveys.templates.manage'),
+      surveysManage: auth.hasPermission('surveys.templates.manage'),
+      surveyAssignmentsRead: auth.hasPermission('surveys.templates.read') || auth.hasPermission('surveys.templates.manage'),
       sessions: auth.hasPermission('surveys.sessions.manage'),
       results: auth.hasPermission('results.read_all') || auth.hasPermission('results.read_career'),
-      catalog: auth.hasPermission('academic.catalog.read') || auth.hasPermission('academic.catalog.manage'),
+      catalogRead: auth.hasPermission('academic.catalog.read') || auth.hasPermission('academic.catalog.manage'),
+      catalogManage: auth.hasPermission('academic.catalog.manage'),
       users: auth.hasPermission('identity.users.read')
     }),
     [auth]
@@ -60,7 +62,7 @@ export function DashboardPage() {
       const nextMetrics: DashboardMetric[] = [];
 
       try {
-        if (permissions.surveys) {
+        if (permissions.surveysRead) {
           const surveys = await getSurveys({ includeInactive: true, status: '', target: '' }, accessToken, auth.logout);
           nextMetrics.push({
             key: 'surveys',
@@ -71,7 +73,7 @@ export function DashboardPage() {
           });
         }
 
-        if (permissions.surveyAssignments && hasContext) {
+        if (permissions.surveyAssignmentsRead && hasContext) {
           const assignments = await getSurveyAssignments(accessToken, auth.logout, {
             includeInactive: true,
             careerId: academicContext.careerId,
@@ -86,17 +88,24 @@ export function DashboardPage() {
           });
         }
 
-        if (permissions.sessions && hasContext) {
-          const sessions = await getSurveySessions(accessToken, auth.logout, {
-            careerId: academicContext.careerId,
-            academicCycleId: academicContext.academicCycleId
-          });
+        if (permissions.sessions) {
+          const sessions = await getSurveySessions(
+            accessToken,
+            auth.logout,
+            hasContext
+              ? {
+                  careerId: academicContext.careerId,
+                  academicCycleId: academicContext.academicCycleId
+                }
+              : {},
+            abortController.signal
+          );
           nextMetrics.push({
             key: 'sessions',
             label: 'Sesiones',
             value: sessions.length,
             helper: `${sessions.filter((session) => session.status === 'Open').length} abiertas`,
-            to: '/app/context/sessions'
+            to: hasContext ? '/app/context/sessions' : '/app/sessions'
           });
         }
 
@@ -117,7 +126,7 @@ export function DashboardPage() {
           });
         }
 
-        if (permissions.catalog) {
+        if (permissions.catalogRead) {
           const [units, careers, teachers] = await Promise.all([
             getAcademicUnits({ accessToken, onUnauthorized: auth.logout, includeInactive: false, signal: abortController.signal }),
             getCareers({ accessToken, onUnauthorized: auth.logout, includeInactive: false, signal: abortController.signal }),
@@ -125,13 +134,15 @@ export function DashboardPage() {
           ]);
           setAcademicUnits(units);
           setAllCareers(careers);
-          nextMetrics.push({
-            key: 'catalog',
-            label: 'Estructura académica',
-            value: careers.length,
-            helper: `${units.length} unidades · ${teachers.length} docentes`,
-            to: '/app/academic'
-          });
+          if (permissions.catalogManage) {
+            nextMetrics.push({
+              key: 'catalog',
+              label: 'Estructura académica',
+              value: careers.length,
+              helper: `${units.length} unidades · ${teachers.length} docentes`,
+              to: '/app/academic'
+            });
+          }
         } else {
           setAcademicUnits([]);
           setAllCareers([]);
@@ -182,12 +193,40 @@ export function DashboardPage() {
   }, [academicUnits, allCareers]);
 
   const quickLinks = [
-    permissions.surveys ? { to: '/app/surveys', label: 'Plantillas de encuestas' } : null,
-    permissions.surveyAssignments && hasContext ? { to: '/app/context/surveys/new', label: 'Nueva asignación' } : null,
-    permissions.sessions && hasContext ? { to: '/app/context/sessions', label: 'Gestionar sesiones' } : null,
+    permissions.surveysRead
+      ? { to: '/app/surveys', label: permissions.surveysManage ? 'Administrar plantillas' : 'Consultar plantillas' }
+      : null,
+    permissions.surveysManage && hasContext ? { to: '/app/context/surveys/new', label: 'Nueva asignación' } : null,
+    permissions.sessions
+      ? { to: hasContext ? '/app/context/sessions' : '/app/sessions', label: 'Gestionar sesiones' }
+      : null,
     permissions.results && hasContext ? { to: '/app/context/results', label: 'Consultar resultados' } : null,
     permissions.users ? { to: '/app/users', label: 'Administrar usuarios' } : null
   ].filter((link): link is { to: string; label: string } => link !== null);
+
+  const gettingStartedSteps = useMemo(() => {
+    const steps: string[] = [];
+
+    if (permissions.sessions) {
+      steps.push('Abrí Sesiones desde Operación para ver o crear sesiones sin necesidad de configurar primero un contexto.');
+    }
+
+    if (permissions.catalogRead) {
+      steps.push('Para trabajar sobre una carrera concreta, elegí unidad académica, carrera y ciclo lectivo.');
+    }
+
+    if (permissions.results) {
+      steps.push('Ingresá a Resultados para consultar las evaluaciones disponibles para tu perfil.');
+    } else if (permissions.surveysRead) {
+      steps.push('Podés consultar las encuestas asignadas y las plantillas habilitadas para tu perfil.');
+    }
+
+    return steps;
+  }, [permissions]);
+
+  const dashboardIntro = permissions.sessions
+    ? 'Podés comenzar directamente desde Sesiones o elegir una unidad académica, carrera y ciclo lectivo para trabajar con un contexto específico.'
+    : 'Elegí una unidad académica y una carrera para comenzar. El sistema organizará las opciones según tu perfil y ese contexto.';
 
   function chooseCareer(unitId: string, careerId: string) {
     academicContext.selectCareerContext(unitId, careerId);
@@ -199,12 +238,16 @@ export function DashboardPage() {
       <header className="dashboard-hero">
         <div>
           <p className="eyebrow">Inicio</p>
-          <h2>Sistema Web de Gestión de Encuestas Académicas</h2>
-          <p>Elegí una unidad académica y una carrera para comenzar. El sistema organizará las opciones según ese contexto.</p>
+          <h2>{auth.user?.firstName ? `Hola, ${auth.user.firstName}` : 'Sistema de Encuestas Académicas'}</h2>
+          <p>{dashboardIntro}</p>
+        </div>
+        <div className="dashboard-hero__institution">
+          <span>UCCuyo</span>
+          <small>Gestión académica</small>
         </div>
       </header>
 
-      {permissions.catalog ? (
+      {permissions.catalogRead ? (
         <section className="academic-directory" aria-labelledby="academic-directory-title">
           <div className="section-heading-row">
             <div>
@@ -261,10 +304,7 @@ export function DashboardPage() {
           <p className="eyebrow">Guía rápida</p>
           <h3>Cómo empezar</h3>
           <ol>
-            <li>Elegí la carrera desde las tarjetas de arriba o desde el menú lateral.</li>
-            <li>Seleccioná el ciclo lectivo en el menú lateral.</li>
-            <li>Revisá materias y docentes antes de asignar una encuesta.</li>
-            <li>Creá una sesión QR y, al finalizar, consultá sus resultados.</li>
+            {gettingStartedSteps.map((step) => <li key={step}>{step}</li>)}
           </ol>
         </div>
         <div className="current-context-card">

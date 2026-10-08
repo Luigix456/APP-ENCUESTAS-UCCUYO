@@ -1,4 +1,5 @@
 using AcademicSurveySystem.Application.Academic.AcademicUnits;
+using AcademicSurveySystem.Application.Academic.Attention;
 using AcademicSurveySystem.Application.Academic.AcademicCycles;
 using AcademicSurveySystem.Application.Academic.Careers;
 using AcademicSurveySystem.Application.Academic.Common;
@@ -69,6 +70,12 @@ public interface IAcademicCatalogService
         bool includeInactive,
         CancellationToken cancellationToken);
 
+    Task<ApplicationResult<AcademicAttentionDto>> GetCareerAttentionAsync(
+        Guid careerId,
+        Guid academicCycleId,
+        AcademicAttentionPermissions permissions,
+        CancellationToken cancellationToken);
+
     Task<ApplicationResult<IReadOnlyCollection<AcademicCycleDto>>> GetAcademicCyclesAsync(
         bool includeInactive,
         CancellationToken cancellationToken);
@@ -135,6 +142,24 @@ public interface IAcademicCatalogService
         Guid subjectId,
         Guid academicCycleId,
         SetSubjectEnrollmentRequest request,
+        CancellationToken cancellationToken);
+
+    Task<ApplicationResult<SubjectEnrollmentImportTemplateFileDto>> GenerateSubjectEnrollmentImportTemplateAsync(
+        Guid careerId,
+        Guid academicCycleId,
+        string? format,
+        CancellationToken cancellationToken);
+
+    Task<ApplicationResult<SubjectEnrollmentImportPreviewDto>> PreviewSubjectEnrollmentImportAsync(
+        Guid careerId,
+        Guid academicCycleId,
+        SubjectEnrollmentImportFile file,
+        CancellationToken cancellationToken);
+
+    Task<ApplicationResult<SubjectEnrollmentImportResultDto>> ImportSubjectEnrollmentsAsync(
+        Guid careerId,
+        Guid academicCycleId,
+        SubjectEnrollmentImportFile file,
         CancellationToken cancellationToken);
 
     Task<ApplicationResult<IReadOnlyCollection<TeacherDto>>> GetTeachersAsync(

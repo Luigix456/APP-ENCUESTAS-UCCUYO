@@ -31,4 +31,7 @@ export interface SurveyReportDto {
   expectedRespondentCount: number | null;
   remainingCount: number | null;
   participationPercentage: number | null;
+  detailedResultsAvailable: boolean;
+  minimumResponsesRequired: number;
+  responsesNeededToUnlock: number;
 }

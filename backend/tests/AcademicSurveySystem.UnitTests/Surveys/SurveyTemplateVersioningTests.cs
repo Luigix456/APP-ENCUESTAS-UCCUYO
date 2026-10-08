@@ -1,15 +1,18 @@
 using AcademicSurveySystem.Application.Common.Results;
 using AcademicSurveySystem.Application.Surveys.Assignments;
 using AcademicSurveySystem.Application.Surveys.Requests;
+using AcademicSurveySystem.Application.Surveys.Results;
 using AcademicSurveySystem.Application.Surveys.Sessions;
 using AcademicSurveySystem.Domain.Academic.Entities;
 using AcademicSurveySystem.Domain.Academic.Enums;
+using AcademicSurveySystem.Domain.Common;
 using AcademicSurveySystem.Domain.Surveys.Entities;
 using AcademicSurveySystem.Domain.Surveys.Enums;
 using AcademicSurveySystem.Infrastructure.Persistence;
 using AcademicSurveySystem.Infrastructure.Surveys;
 using AcademicSurveySystem.Infrastructure.Surveys.Results;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace AcademicSurveySystem.UnitTests.Surveys;
 
@@ -133,7 +136,9 @@ public sealed class SurveyTemplateVersioningTests
         var fixture = SeedSurvey(context, SurveyStatus.Published);
         var academic = SeedAcademicContext(context);
         var assignment = SeedAssignmentSessionAndResponse(context, fixture, academic);
-        var resultsService = new SurveyResultsService(context);
+        var resultsService = new SurveyResultsService(
+            context,
+            Options.Create(new ResultsPrivacyOptions { MinimumResponsesForDetailedResults = 1 }));
         var templateService = new SurveyTemplateService(context);
 
         var before = await resultsService.GetSurveyAssignmentQuestionResultsAsync(
@@ -231,6 +236,137 @@ public sealed class SurveyTemplateVersioningTests
         Assert.True(v1.IsActive);
         Assert.Equal(fixture.Survey.Id, assignment.SurveyId);
         Assert.Equal(editable.Value.Survey.Id, v2Assignment.Value!.SurveyId);
+    }
+
+    [Fact]
+    public void SurveyQuestion_WithNewQuestion_UsesItsOwnIdAsLineage()
+    {
+        var questionId = Guid.NewGuid();
+
+        var question = new SurveyQuestion(
+            questionId,
+            Guid.NewGuid(),
+            "Pregunta nueva",
+            SurveyQuestionType.ShortText,
+            isRequired: true,
+            allowsComment: false,
+            allowsOtherOption: false,
+            order: 1,
+            CreatedAtUtc);
+
+        Assert.Equal(questionId, question.QuestionLineageId);
+    }
+
+    [Fact]
+    public void SurveyQuestion_WithEmptyLineage_ThrowsDomainException()
+    {
+        var exception = Assert.Throws<DomainException>(() => new SurveyQuestion(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            "Pregunta nueva",
+            SurveyQuestionType.ShortText,
+            isRequired: true,
+            allowsComment: false,
+            allowsOtherOption: false,
+            order: 1,
+            CreatedAtUtc,
+            questionLineageId: Guid.Empty));
+
+        Assert.Contains("QuestionLineageId", exception.Message);
+    }
+
+    [Fact]
+    public async Task GetOrCreateEditableVersionAsync_DeepClonePreservesQuestionLineage()
+    {
+        using var context = CreateContext();
+        var fixture = SeedSurvey(context, SurveyStatus.Published);
+        var service = new SurveyTemplateService(context);
+
+        var result = await service.GetOrCreateEditableVersionAsync(
+            fixture.Survey.Id,
+            Guid.NewGuid(),
+            CancellationToken.None);
+
+        Assert.True(result.Succeeded);
+        var sourceQuestion = await context.SurveyQuestions
+            .AsNoTracking()
+            .SingleAsync(question => question.Id == fixture.ChoiceQuestion.Id);
+        var clonedQuestion = await context.SurveyQuestions
+            .AsNoTracking()
+            .SingleAsync(question =>
+                question.SurveySection.SurveyId == result.Value!.Survey.Id
+                && question.Order == sourceQuestion.Order);
+
+        Assert.NotEqual(sourceQuestion.Id, clonedQuestion.Id);
+        Assert.Equal(sourceQuestion.QuestionLineageId, clonedQuestion.QuestionLineageId);
+    }
+
+    [Fact]
+    public async Task UpdateQuestionAsync_PreservesQuestionLineage()
+    {
+        using var context = CreateContext();
+        var fixture = SeedSurvey(context, SurveyStatus.Draft);
+        var service = new SurveyTemplateService(context);
+        var lineageBeforeUpdate = fixture.ChoiceQuestion.QuestionLineageId;
+
+        var result = await service.UpdateQuestionAsync(
+            fixture.Survey.Id,
+            fixture.Section.Id,
+            fixture.ChoiceQuestion.Id,
+            new UpdateSurveyQuestionRequest(
+                "Pregunta editada",
+                "SingleChoice",
+                IsRequired: true,
+                AllowsComment: true,
+                AllowsOtherOption: true,
+                Order: 1),
+            CancellationToken.None);
+
+        Assert.True(result.Succeeded);
+        var updatedQuestion = await context.SurveyQuestions
+            .AsNoTracking()
+            .SingleAsync(question => question.Id == fixture.ChoiceQuestion.Id);
+        Assert.Equal(lineageBeforeUpdate, updatedQuestion.QuestionLineageId);
+    }
+
+    [Fact]
+    public async Task AddQuestionAsync_AfterVersionClone_CreatesIndependentLineage()
+    {
+        using var context = CreateContext();
+        var fixture = SeedSurvey(context, SurveyStatus.Published);
+        var service = new SurveyTemplateService(context);
+
+        var editable = await service.GetOrCreateEditableVersionAsync(
+            fixture.Survey.Id,
+            Guid.NewGuid(),
+            CancellationToken.None);
+        var sectionId = editable.Value!.Survey.Sections.Single(section => section.Order == fixture.Section.Order).Id;
+        var result = await service.AddQuestionAsync(
+            editable.Value.Survey.Id,
+            sectionId,
+            new CreateSurveyQuestionRequest(
+                "Pregunta agregada en version posterior",
+                "ShortText",
+                IsRequired: false,
+                AllowsComment: false,
+                AllowsOtherOption: false,
+                Order: 4),
+            CancellationToken.None);
+
+        Assert.True(result.Succeeded);
+        var newQuestion = await context.SurveyQuestions
+            .AsNoTracking()
+            .SingleAsync(question =>
+                question.SurveySection.SurveyId == editable.Value.Survey.Id
+                && question.Text == "Pregunta agregada en version posterior");
+        Assert.Equal(newQuestion.Id, newQuestion.QuestionLineageId);
+        Assert.DoesNotContain(
+            await context.SurveyQuestions
+                .AsNoTracking()
+                .Where(question => question.SurveySection.SurveyId == fixture.Survey.Id)
+                .Select(question => question.QuestionLineageId)
+                .ToArrayAsync(),
+            lineageId => lineageId == newQuestion.QuestionLineageId);
     }
 
     private static void AssertDeepClone(SurveyFixture source, Application.Surveys.Dtos.SurveyDetailDto clone)

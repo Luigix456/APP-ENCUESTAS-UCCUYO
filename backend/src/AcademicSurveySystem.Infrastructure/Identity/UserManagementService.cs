@@ -1,11 +1,13 @@
 using AcademicSurveySystem.Application.Common.Results;
 using AcademicSurveySystem.Application.Common.Security;
+using AcademicSurveySystem.Application.Audit;
 using AcademicSurveySystem.Application.Identity.InitialAdministrator;
 using AcademicSurveySystem.Application.Identity.UserManagement;
 using AcademicSurveySystem.Domain.Common;
 using AcademicSurveySystem.Domain.Identity;
 using AcademicSurveySystem.Domain.Identity.Entities;
 using AcademicSurveySystem.Domain.Identity.Enums;
+using AcademicSurveySystem.Infrastructure.Audit;
 using AcademicSurveySystem.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -15,13 +17,16 @@ public sealed class UserManagementService : IUserManagementService
 {
     private readonly ApplicationDbContext _dbContext;
     private readonly IPasswordHasher _passwordHasher;
+    private readonly IAuditWriter _auditWriter;
 
     public UserManagementService(
         ApplicationDbContext dbContext,
-        IPasswordHasher passwordHasher)
+        IPasswordHasher passwordHasher,
+        IAuditWriter? auditWriter = null)
     {
         _dbContext = dbContext;
         _passwordHasher = passwordHasher;
+        _auditWriter = auditWriter ?? NoOpAuditWriter.Instance;
     }
 
     public async Task<ApplicationResult<IReadOnlyCollection<UserDto>>> GetUsersAsync(
@@ -99,6 +104,15 @@ public sealed class UserManagementService : IUserManagementService
             }
 
             _dbContext.Users.Add(user);
+            var roleCodes = await LoadRoleCodesAsync(requestedRoleIds, cancellationToken);
+            await _auditWriter.WriteAsync(
+                "identity.user.created",
+                "identity",
+                "User",
+                user.Id,
+                $"Creó el usuario {BuildDisplayName(user)}.",
+                roleCodes.Length == 0 ? null : new { roleCodes },
+                cancellationToken);
             await _dbContext.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
 
@@ -149,9 +163,34 @@ public sealed class UserManagementService : IUserManagementService
 
         try
         {
+            var changedFields = new List<string>();
+
+            if (!string.Equals(user.FirstName, request.FirstName, StringComparison.Ordinal))
+            {
+                changedFields.Add("firstName");
+            }
+
+            if (!string.Equals(user.LastName, request.LastName, StringComparison.Ordinal))
+            {
+                changedFields.Add("lastName");
+            }
+
+            if (!string.Equals(user.Email, request.Email, StringComparison.OrdinalIgnoreCase))
+            {
+                changedFields.Add("email");
+            }
+
             var now = DateTimeOffset.UtcNow;
             user.UpdateName(request.FirstName!, request.LastName!, now);
             user.ChangeEmail(request.Email!, now);
+            await _auditWriter.WriteAsync(
+                "identity.user.updated",
+                "identity",
+                "User",
+                user.Id,
+                $"Actualizó el usuario {BuildDisplayName(user)}.",
+                new { changedFields },
+                cancellationToken);
             await _dbContext.SaveChangesAsync(cancellationToken);
 
             return ApplicationResult.Success();
@@ -242,6 +281,8 @@ public sealed class UserManagementService : IUserManagementService
                 .Select(userRole => userRole.RoleId)
                 .ToHashSet();
             var requestedRoleIdSet = requestedRoleIds.ToHashSet();
+            var oldRoleCodes = await LoadRoleCodesAsync(currentRoleIds, cancellationToken);
+            var newRoleCodes = await LoadRoleCodesAsync(requestedRoleIds, cancellationToken);
 
             foreach (var roleId in currentRoleIds.Except(requestedRoleIdSet).ToArray())
             {
@@ -255,6 +296,14 @@ public sealed class UserManagementService : IUserManagementService
                 user.AssignRole(roleId, now);
             }
 
+            await _auditWriter.WriteAsync(
+                "identity.user.roles_updated",
+                "identity",
+                "User",
+                user.Id,
+                $"Actualizó los roles del usuario {BuildDisplayName(user)}.",
+                new { oldRoleCodes, newRoleCodes },
+                cancellationToken);
             await _dbContext.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
 
@@ -290,6 +339,14 @@ public sealed class UserManagementService : IUserManagementService
         if (activate)
         {
             user.Activate(now);
+            await _auditWriter.WriteAsync(
+                "identity.user.activated",
+                "identity",
+                "User",
+                user.Id,
+                $"Activó el usuario {BuildDisplayName(user)}.",
+                null,
+                cancellationToken);
         }
         else
         {
@@ -304,6 +361,14 @@ public sealed class UserManagementService : IUserManagementService
             }
 
             user.Deactivate(now);
+            await _auditWriter.WriteAsync(
+                "identity.user.deactivated",
+                "identity",
+                "User",
+                user.Id,
+                $"Desactivó el usuario {BuildDisplayName(user)}.",
+                null,
+                cancellationToken);
         }
 
         await _dbContext.SaveChangesAsync(cancellationToken);
@@ -389,6 +454,25 @@ public sealed class UserManagementService : IUserManagementService
             : ApplicationResult.NotFound("Role was not found.");
     }
 
+    private Task<string[]> LoadRoleCodesAsync(
+        IEnumerable<Guid> roleIds,
+        CancellationToken cancellationToken)
+    {
+        var ids = roleIds.Distinct().ToArray();
+
+        if (ids.Length == 0)
+        {
+            return Task.FromResult(Array.Empty<string>());
+        }
+
+        return _dbContext.Roles
+            .AsNoTracking()
+            .Where(role => ids.Contains(role.Id))
+            .OrderBy(role => role.Code)
+            .Select(role => role.Code)
+            .ToArrayAsync(cancellationToken);
+    }
+
     private async Task<bool> IsLastActiveAdministratorAsync(
         Guid userId,
         CancellationToken cancellationToken)
@@ -424,6 +508,12 @@ public sealed class UserManagementService : IUserManagementService
     private static string NormalizeEmail(string email)
     {
         return email.Trim().ToUpperInvariant();
+    }
+
+    private static string BuildDisplayName(User user)
+    {
+        var displayName = $"{user.FirstName} {user.LastName}".Trim();
+        return string.IsNullOrWhiteSpace(displayName) ? user.Email : displayName;
     }
 
     private static ApplicationResult EmailConflict()

@@ -1,8 +1,10 @@
+using AcademicSurveySystem.Application.Audit;
 using AcademicSurveySystem.Application.Common.Security;
 using AcademicSurveySystem.Application.Identity.InitialAdministrator;
 using AcademicSurveySystem.Application.Identity.UserPasswordReset;
 using AcademicSurveySystem.Domain.Common;
 using AcademicSurveySystem.Domain.Identity.Entities;
+using AcademicSurveySystem.Infrastructure.Audit;
 using AcademicSurveySystem.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -14,15 +16,18 @@ public sealed class UserPasswordResetService : IUserPasswordResetService
     private readonly ApplicationDbContext _dbContext;
     private readonly IPasswordHasher _passwordHasher;
     private readonly ILogger<UserPasswordResetService> _logger;
+    private readonly IAuditWriter _auditWriter;
 
     public UserPasswordResetService(
         ApplicationDbContext dbContext,
         IPasswordHasher passwordHasher,
-        ILogger<UserPasswordResetService> logger)
+        ILogger<UserPasswordResetService> logger,
+        IAuditWriter? auditWriter = null)
     {
         _dbContext = dbContext;
         _passwordHasher = passwordHasher;
         _logger = logger;
+        _auditWriter = auditWriter ?? NoOpAuditWriter.Instance;
     }
 
     public async Task<UserPasswordResetResult> ResetAsync(
@@ -94,6 +99,14 @@ public sealed class UserPasswordResetService : IUserPasswordResetService
         {
             var passwordHash = _passwordHasher.Hash(newPassword);
             user.ChangePasswordHash(passwordHash, DateTimeOffset.UtcNow);
+            await _auditWriter.WriteAsync(
+                "identity.user.password_reset",
+                "identity",
+                "User",
+                user.Id,
+                $"Restableció la contraseña del usuario {BuildDisplayName(user)}.",
+                null,
+                cancellationToken);
 
             await _dbContext.SaveChangesAsync(cancellationToken);
 
@@ -130,5 +143,11 @@ public sealed class UserPasswordResetService : IUserPasswordResetService
             : UserPasswordResetResult.Failed(
                 UserPasswordResetStatus.InvalidPassword,
                 "Password is invalid. " + string.Join(' ', passwordValidation.Errors));
+    }
+
+    private static string BuildDisplayName(User user)
+    {
+        var displayName = $"{user.FirstName} {user.LastName}".Trim();
+        return string.IsNullOrWhiteSpace(displayName) ? user.Email : displayName;
     }
 }

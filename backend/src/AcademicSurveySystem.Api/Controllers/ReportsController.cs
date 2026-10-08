@@ -1,4 +1,5 @@
 using System.IdentityModel.Tokens.Jwt;
+using AcademicSurveySystem.Application.Audit;
 using AcademicSurveySystem.Application.Common.Results;
 using AcademicSurveySystem.Application.Surveys.Reports;
 using AcademicSurveySystem.Application.Surveys.Results;
@@ -23,15 +24,18 @@ public sealed class ReportsController : ControllerBase
     private readonly IReportService _reportService;
     private readonly IPdfReportGenerator _pdfReportGenerator;
     private readonly IResultsAccessService _resultsAccessService;
+    private readonly IAuditWriter _auditWriter;
 
     public ReportsController(
         IReportService reportService,
         IPdfReportGenerator pdfReportGenerator,
-        IResultsAccessService resultsAccessService)
+        IResultsAccessService resultsAccessService,
+        IAuditWriter auditWriter)
     {
         _reportService = reportService;
         _pdfReportGenerator = pdfReportGenerator;
         _resultsAccessService = resultsAccessService;
+        _auditWriter = auditWriter;
     }
 
     /// <summary>
@@ -115,6 +119,21 @@ public sealed class ReportsController : ControllerBase
         {
             return ToActionResult(fileResult);
         }
+
+        await _auditWriter.WriteAsync(
+            "reports.pdf_exported",
+            "reports",
+            "SurveyAssignment",
+            surveyAssignmentId,
+            "Exportó un informe de resultados en PDF.",
+            new
+            {
+                surveyAssignmentId,
+                reportResult.Value.TotalResponses,
+                reportResult.Value.SurveyVersionNumber
+            },
+            cancellationToken);
+        await _auditWriter.FlushAsync(cancellationToken);
 
         return File(
             fileResult.Value.Content,

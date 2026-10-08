@@ -20,4 +20,6 @@ public sealed record SurveyAssignmentResultListItemDto(
     DateTimeOffset? FirstSubmittedAtUtc,
     DateTimeOffset? LastSubmittedAtUtc,
     int? ExpectedRespondentCount = null,
-    decimal? ParticipationPercentage = null);
+    decimal? ParticipationPercentage = null,
+    Guid SurveyVersionGroupId = default,
+    int SurveyVersionNumber = 1);

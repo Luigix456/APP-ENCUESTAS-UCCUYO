@@ -1,53 +1,23 @@
 # .NET
-bin/
-obj/
+**/bin/
+**/obj/
+**/.tmp-build/
 TestResults/
-*.user
-*.rsuser
-*.suo
-*.userosscache
-*.sln.docstates
-
-# Build outputs
-dist/
 coverage/
-*.nupkg
-*.snupkg
+*.user
+*.suo
 
-# Node.js
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-.npm-cache/
-.nuget-packages/
+# Frontend
+**/node_modules/
+**/dist/
 
-# Vite
-frontend/**/dist/
-frontend/**/.vite/
+# Local environment/secrets
+**/.env
+**/.env.*
+!**/.env.example
 
-# Visual Studio
+# IDE / OS
 .vs/
-*.vsp
-*.vspx
-*.pidb
-*.svclog
-
-# Visual Studio Code
-.vscode/*
-!.vscode/extensions.json
-
-# Environment variables
-.env
-.env.*
-!.env.example
-appsettings.Local.json
-appsettings.*.Local.json
-secrets.json
-*.secrets.json
-
-# OS files
-Thumbs.db
-Desktop.ini
+.vscode/
 .DS_Store
+Thumbs.db

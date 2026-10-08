@@ -4,14 +4,17 @@ import { AuthProvider, useAuth } from './auth/AuthProvider';
 import { AuthLoadingScreen, ProtectedRoute } from './auth/ProtectedRoute';
 import { AcademicContextProvider } from './features/academic-context/AcademicContextProvider';
 import {
+  AcademicUnitsPage,
+  AcademicUnitPage,
+  CareerWorkspacePage,
+  CareerWorkspaceRedirect
+} from './features/academic-context/AcademicWorkspacePages';
+import {
   CareerOverviewPage,
   ContextSubjectsPage,
-  ContextTeacherAssignmentsPage,
   ContextTeachersPage
 } from './features/academic-context/CareerContextPages';
-import { AcademicCatalogHomePage } from './features/academic-catalog/AcademicCatalogHomePage';
 import {
-  AcademicUnitsCatalogPage,
   AcademicCyclesCatalogPage,
   CareersCatalogPage,
   SubjectsCatalogPage,
@@ -19,10 +22,12 @@ import {
   TeachersCatalogPage
 } from './features/academic-catalog/AcademicCatalogPages';
 import { AppShell } from './features/app-shell/AppShell';
+import { AuditPage } from './features/audit/AuditPage';
 import { LoginPage } from './features/auth/LoginPage';
 import { DashboardPage } from './features/dashboard/DashboardPage';
 import { PublicSurveyPage } from './features/public-survey/PublicSurveyPage';
 import { ResultsPage } from './features/results/ResultsPage';
+import { SurveyHistoryPage } from './features/results/SurveyHistoryPage';
 import { SurveyAssignmentReportPage } from './features/results/SurveyAssignmentReportPage';
 import { SurveyAssignmentResultsPage } from './features/results/SurveyAssignmentResultsPage';
 import { SurveyAssignmentCreatePage } from './features/survey-assignments/SurveyAssignmentCreatePage';
@@ -52,6 +57,16 @@ export function App() {
               </ProtectedRoute>
             }
             path="/app"
+          />
+          <Route
+            element={
+              <ProtectedRoute requiredPermission="audit.read">
+                <AppShell>
+                  <AuditPage />
+                </AppShell>
+              </ProtectedRoute>
+            }
+            path="/app/audit"
           />
           <Route
             element={
@@ -97,7 +112,7 @@ export function App() {
             element={
               <ProtectedRoute>
                 <AppShell>
-                  <CareerOverviewPage />
+                  <Navigate replace to="/app/academic/units" />
                 </AppShell>
               </ProtectedRoute>
             }
@@ -107,7 +122,7 @@ export function App() {
             element={
               <ProtectedRoute>
                 <AppShell>
-                  <ContextSubjectsPage />
+                  <Navigate replace to="/app/academic/units" />
                 </AppShell>
               </ProtectedRoute>
             }
@@ -117,7 +132,7 @@ export function App() {
             element={
               <ProtectedRoute>
                 <AppShell>
-                  <ContextTeachersPage />
+                  <Navigate replace to="/app/academic/units" />
                 </AppShell>
               </ProtectedRoute>
             }
@@ -127,7 +142,7 @@ export function App() {
             element={
               <ProtectedRoute>
                 <AppShell>
-                  <ContextTeacherAssignmentsPage />
+                  <Navigate replace to="/app/academic/units" />
                 </AppShell>
               </ProtectedRoute>
             }
@@ -137,7 +152,7 @@ export function App() {
             element={
               <ProtectedRoute>
                 <AppShell>
-                  <AcademicCatalogHomePage />
+                  <Navigate replace to="/app/academic/units" />
                 </AppShell>
               </ProtectedRoute>
             }
@@ -157,12 +172,42 @@ export function App() {
             element={
               <ProtectedRoute>
                 <AppShell>
-                  <AcademicUnitsCatalogPage />
+                  <AcademicUnitsPage />
                 </AppShell>
               </ProtectedRoute>
             }
             path="/app/academic/units"
           />
+          <Route
+            element={
+              <ProtectedRoute>
+                <AppShell>
+                  <AcademicUnitPage />
+                </AppShell>
+              </ProtectedRoute>
+            }
+            path="/app/academic/units/:unitId"
+          />
+          <Route
+            element={
+              <ProtectedRoute>
+                <AppShell>
+                  <CareerWorkspacePage />
+                </AppShell>
+              </ProtectedRoute>
+            }
+            path="/app/academic/units/:unitId/careers/:careerId"
+          >
+            <Route index element={<CareerWorkspaceRedirect />} />
+            <Route element={<CareerOverviewPage />} path="overview" />
+            <Route element={<ContextSubjectsPage />} path="subjects" />
+            <Route element={<ContextTeachersPage />} path="teachers" />
+            <Route element={<SurveyAssignmentsPage contextual />} path="surveys" />
+            <Route element={<SurveyAssignmentCreatePage contextual />} path="surveys/new" />
+            <Route element={<SurveySessionsPage contextual />} path="sessions" />
+            <Route element={<ResultsPage contextual />} path="results" />
+            <Route element={<SurveyHistoryPage />} path="history" />
+          </Route>
           <Route
             element={
               <ProtectedRoute>
@@ -237,7 +282,7 @@ export function App() {
             element={
               <ProtectedRoute>
                 <AppShell>
-                  <SurveyAssignmentsPage contextual />
+                  <Navigate replace to="/app/academic/units" />
                 </AppShell>
               </ProtectedRoute>
             }
@@ -257,7 +302,7 @@ export function App() {
             element={
               <ProtectedRoute>
                 <AppShell>
-                  <SurveyAssignmentCreatePage contextual />
+                  <Navigate replace to="/app/academic/units" />
                 </AppShell>
               </ProtectedRoute>
             }
@@ -277,7 +322,17 @@ export function App() {
             element={
               <ProtectedRoute>
                 <AppShell>
-                  <ResultsPage contextual />
+                  <SurveyHistoryPage />
+                </AppShell>
+              </ProtectedRoute>
+            }
+            path="/app/results/history"
+          />
+          <Route
+            element={
+              <ProtectedRoute>
+                <AppShell>
+                  <Navigate replace to="/app/academic/units" />
                 </AppShell>
               </ProtectedRoute>
             }
@@ -287,7 +342,7 @@ export function App() {
             element={
               <ProtectedRoute>
                 <AppShell>
-                  <SurveySessionsPage contextual />
+                  <Navigate replace to="/app/academic/units" />
                 </AppShell>
               </ProtectedRoute>
             }

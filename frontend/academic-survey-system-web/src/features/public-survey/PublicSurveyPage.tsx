@@ -9,6 +9,8 @@ import type {
   SubmitSurveyResponseRequest
 } from '../../types/publicSurvey';
 import { QuestionRenderer } from './components/QuestionRenderer';
+import { InstitutionBrand } from '../../components/InstitutionBrand';
+import { ConfirmDialog } from '../../components/ui/Modal';
 import {
   type AnswerState,
   type QuestionAnswerDraft,
@@ -39,6 +41,7 @@ export function PublicSurveyPage({ accessCode }: PublicSurveyPageProps) {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [confirmSubmitOpen, setConfirmSubmitOpen] = useState(false);
 
   useEffect(() => {
     let isCurrent = true;
@@ -133,7 +136,7 @@ export function PublicSurveyPage({ accessCode }: PublicSurveyPageProps) {
     }
   }
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (isSubmitting) {
@@ -150,13 +153,24 @@ export function PublicSurveyPage({ accessCode }: PublicSurveyPageProps) {
       return;
     }
 
+    setConfirmSubmitOpen(true);
+  }
+
+  async function confirmSubmit() {
+    if (isSubmitting) {
+      return;
+    }
+
     const request = buildSubmitRequest(questions, answers);
     setIsSubmitting(true);
+    setSubmitError(null);
 
     try {
       await submitSurveyResponse(accessCode, request);
+      setConfirmSubmitOpen(false);
       setIsSubmitted(true);
     } catch (error) {
+      setConfirmSubmitOpen(false);
       setSubmitError(getSubmitError(error));
     } finally {
       setIsSubmitting(false);
@@ -167,8 +181,11 @@ export function PublicSurveyPage({ accessCode }: PublicSurveyPageProps) {
     <main className="survey-shell">
       <article className="survey-layout">
         <header className="survey-header">
-          <p className="eyebrow">Encuesta académica</p>
-          <h1>{survey.surveyTitle}</h1>
+          <InstitutionBrand compact subtitle="Sistema de Encuestas Académicas" />
+          <div className="survey-header__title">
+            <p className="eyebrow">Encuesta académica</p>
+            <h1>{survey.surveyTitle}</h1>
+          </div>
           {survey.surveyDescription ? <p>{survey.surveyDescription}</p> : null}
           <dl className="survey-meta">
             <div>
@@ -225,6 +242,15 @@ export function PublicSurveyPage({ accessCode }: PublicSurveyPageProps) {
           </div>
         </form>
       </article>
+      <ConfirmDialog
+        busy={isSubmitting}
+        confirmLabel="Sí, enviar encuesta"
+        message="Revisá tus respuestas antes de continuar. Una vez enviada la encuesta, no podrás modificarlas."
+        onCancel={() => setConfirmSubmitOpen(false)}
+        onConfirm={() => void confirmSubmit()}
+        open={confirmSubmitOpen}
+        title="¿Enviar la encuesta?"
+      />
     </main>
   );
 }

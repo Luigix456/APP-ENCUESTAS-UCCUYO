@@ -6,14 +6,17 @@ using AcademicSurveySystem.Api.Authorization;
 using AcademicSurveySystem.Api.Hubs;
 using AcademicSurveySystem.Api.Maintenance;
 using AcademicSurveySystem.Api.OpenApi;
+using AcademicSurveySystem.Application.Audit;
 using AcademicSurveySystem.Application.Identity.AdminPasswordReset;
 using AcademicSurveySystem.Application.Identity.InitialAdministrator;
 using AcademicSurveySystem.Application.Surveys.Responses;
 using AcademicSurveySystem.Infrastructure;
+using AcademicSurveySystem.Infrastructure.Academic.Seeding;
 using AcademicSurveySystem.Infrastructure.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 
@@ -21,6 +24,7 @@ var maintenanceCommandLine = MaintenanceCommandLine.Parse(args);
 var bootstrapAdmin = maintenanceCommandLine.BootstrapAdmin;
 var resetAdminPassword = maintenanceCommandLine.ResetAdminPassword;
 var resetUserPassword = maintenanceCommandLine.ResetUserPassword;
+var seedUccuyoAcademicCatalog = maintenanceCommandLine.SeedUccuyoAcademicCatalog;
 var maintenanceCommand = maintenanceCommandLine.IsMaintenanceCommand;
 
 if (maintenanceCommandLine.HasConflictingCommands)
@@ -96,6 +100,11 @@ builder.Services.AddSwaggerGen(options =>
         if (path.StartsWith("api/results", StringComparison.OrdinalIgnoreCase))
         {
             return ["Results"];
+        }
+
+        if (path.StartsWith("api/audit", StringComparison.OrdinalIgnoreCase))
+        {
+            return ["Audit"];
         }
 
         if (path.StartsWith("api/surveys", StringComparison.OrdinalIgnoreCase))
@@ -180,6 +189,40 @@ app.UseHttpsRedirection();
 if (!maintenanceCommand)
 {
     app.UseAuthentication();
+    app.Use(async (context, next) =>
+    {
+        var actorAccessor = context.RequestServices.GetRequiredService<IAuditActorAccessor>();
+
+        if (context.User.Identity?.IsAuthenticated == true)
+        {
+            var userIdValue = context.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value
+                ?? context.User.FindFirst(JwtTokenGenerator.NameIdentifierClaimType)?.Value;
+            var firstName = context.User.FindFirst(JwtRegisteredClaimNames.GivenName)?.Value;
+            var lastName = context.User.FindFirst(JwtRegisteredClaimNames.FamilyName)?.Value;
+            var email = context.User.FindFirst(JwtRegisteredClaimNames.Email)?.Value;
+            var displayName = string.Join(
+                " ",
+                new[] { firstName, lastName }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+            if (string.IsNullOrWhiteSpace(displayName))
+            {
+                displayName = email ?? userIdValue ?? "Usuario autenticado";
+            }
+
+            actorAccessor.SetCurrent(new AuditActor(
+                Guid.TryParse(userIdValue, out var userId) ? userId : null,
+                displayName));
+        }
+
+        try
+        {
+            await next();
+        }
+        finally
+        {
+            actorAccessor.Clear();
+        }
+    });
     app.UseAuthorization();
 }
 
@@ -245,6 +288,41 @@ if (resetUserPassword)
     var command = ActivatorUtilities.CreateInstance<UserPasswordResetCommand>(scope.ServiceProvider);
 
     return await command.RunAsync();
+}
+
+if (seedUccuyoAcademicCatalog)
+{
+    using var scope = app.Services.CreateScope();
+    var seeder = scope.ServiceProvider.GetRequiredService<UccuyoAcademicCatalogSeeder>();
+
+    try
+    {
+        var result = await seeder.SeedAsync();
+
+        Console.WriteLine("UCCuyo academic catalog seed completed.");
+        Console.WriteLine($"Academic units created: {result.AcademicUnitsCreated}");
+        Console.WriteLine($"Academic units existing: {result.AcademicUnitsExisting}");
+        Console.WriteLine($"Careers created: {result.CareersCreated}");
+        Console.WriteLine($"Careers existing: {result.CareersExisting}");
+        Console.WriteLine($"Warnings: {result.Warnings.Count}");
+
+        foreach (var warning in result.Warnings)
+        {
+            Console.WriteLine($"- {warning}");
+        }
+
+        return 0;
+    }
+    catch (InvalidOperationException exception)
+    {
+        Console.WriteLine($"UCCuyo academic catalog seed failed: {exception.Message}");
+        return 1;
+    }
+    catch (DbUpdateException)
+    {
+        Console.WriteLine("UCCuyo academic catalog seed failed: database update conflict. No catalog changes were committed.");
+        return 1;
+    }
 }
 
 app.Run();

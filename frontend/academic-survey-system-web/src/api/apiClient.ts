@@ -38,8 +38,9 @@ export async function apiRequest<T>(
   const headers: HeadersInit = {
     Accept: accept
   };
+  const isFormData = body instanceof FormData;
 
-  if (body !== undefined) {
+  if (body !== undefined && !isFormData) {
     headers['Content-Type'] = 'application/json';
   }
 
@@ -51,7 +52,7 @@ export async function apiRequest<T>(
     method,
     headers,
     signal,
-    body: body === undefined ? undefined : JSON.stringify(body)
+    body: body === undefined ? undefined : isFormData ? body : JSON.stringify(body)
   });
 
   if (!response.ok) {
@@ -77,8 +78,9 @@ export async function apiRequestBlob(
   const headers: HeadersInit = {
     Accept: accept
   };
+  const isFormData = body instanceof FormData;
 
-  if (body !== undefined) {
+  if (body !== undefined && !isFormData) {
     headers['Content-Type'] = 'application/json';
   }
 
@@ -90,7 +92,7 @@ export async function apiRequestBlob(
     method,
     headers,
     signal,
-    body: body === undefined ? undefined : JSON.stringify(body)
+    body: body === undefined ? undefined : isFormData ? body : JSON.stringify(body)
   });
 
   if (!response.ok) {

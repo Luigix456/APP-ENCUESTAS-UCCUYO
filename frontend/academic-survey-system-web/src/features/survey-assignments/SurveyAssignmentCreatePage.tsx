@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   getAcademicCycles,
   getCareers,
@@ -9,10 +9,10 @@ import {
   setSubjectEnrollment
 } from '../../api/academicCatalogApi';
 import { ApiClientError } from '../../api/apiClient';
-import { createSurveyAssignment } from '../../api/surveyAssignmentsApi';
+import { createSurveyAssignmentsBatch } from '../../api/surveyAssignmentsApi';
 import { getSurveys } from '../../api/surveysApi';
 import { useAuth } from '../../auth/AuthProvider';
-import { Modal } from '../../components/ui/Modal';
+import { ConfirmDialog, Modal } from '../../components/ui/Modal';
 import { useToast } from '../../components/ui/ToastProvider';
 import type {
   AcademicCycleDto,
@@ -21,7 +21,7 @@ import type {
   SubjectEnrollmentDto,
   TeacherSubjectAssignmentDto
 } from '../../types/academicCatalog';
-import type { CreateSurveyAssignmentRequest } from '../../types/surveyAssignments';
+import type { CreateSurveyAssignmentBatchRequest } from '../../types/surveyAssignments';
 import type { SurveySummaryDto } from '../../types/surveys';
 import {
   formatAcademicCycle,
@@ -43,7 +43,7 @@ interface AssignmentFormState {
   careerId: string;
   subjectId: string;
   academicCycleId: string;
-  teacherSubjectAssignmentId: string;
+  teacherSubjectAssignmentIds: string[];
 }
 
 const initialForm: AssignmentFormState = {
@@ -51,7 +51,7 @@ const initialForm: AssignmentFormState = {
   careerId: '',
   subjectId: '',
   academicCycleId: '',
-  teacherSubjectAssignmentId: ''
+  teacherSubjectAssignmentIds: []
 };
 
 export function SurveyAssignmentCreatePage({ contextual = false }: { contextual?: boolean }) {
@@ -81,11 +81,15 @@ export function SurveyAssignmentCreatePage({ contextual = false }: { contextual?
   const [enrollmentState, setEnrollmentState] = useState<DependentLoadState>('idle');
   const [enrollmentValue, setEnrollmentValue] = useState('');
   const [showEnrollmentModal, setShowEnrollmentModal] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const accessToken = auth.accessToken;
   const canManageAssignments = auth.hasPermission(MANAGE_SURVEY_ASSIGNMENTS_PERMISSION);
   const canReadCatalog = auth.hasPermission(READ_ACADEMIC_CATALOG_PERMISSION);
   const canManageCatalog = auth.hasPermission('academic.catalog.manage');
+  const teacherSetupPath = contextual && academicContext.academicUnitId && academicContext.careerId
+    ? `/app/academic/units/${academicContext.academicUnitId}/careers/${academicContext.careerId}/teachers${academicContext.academicCycleId ? `?cycle=${encodeURIComponent(academicContext.academicCycleId)}` : ''}`
+    : '/app/academic/teacher-assignments';
 
   useEffect(() => {
     if (!canManageAssignments || !canReadCatalog || !accessToken) {
@@ -172,11 +176,11 @@ export function SurveyAssignmentCreatePage({ contextual = false }: { contextual?
       careerId: academicContext.careerId,
       academicCycleId: academicContext.academicCycleId,
       subjectId: current.careerId === academicContext.careerId ? current.subjectId : '',
-      teacherSubjectAssignmentId:
+      teacherSubjectAssignmentIds:
         current.careerId === academicContext.careerId &&
         current.academicCycleId === academicContext.academicCycleId
-          ? current.teacherSubjectAssignmentId
-          : ''
+          ? current.teacherSubjectAssignmentIds
+          : []
     }));
   }, [academicContext.academicCycleId, academicContext.careerId, contextual]);
 
@@ -272,6 +276,7 @@ export function SurveyAssignmentCreatePage({ contextual = false }: { contextual?
     canManageAssignments,
     canReadCatalog,
     form.academicCycleId,
+    form.careerId,
     form.subjectId
   ]);
 
@@ -316,18 +321,39 @@ export function SurveyAssignmentCreatePage({ contextual = false }: { contextual?
       return;
     }
 
+    setFormError(null);
+    setConfirmOpen(true);
+  }
+
+  async function handleConfirmCreate() {
+    if (!accessToken) {
+      return;
+    }
+
     setIsSubmitting(true);
     setFormError(null);
 
     try {
-      const createdAssignment = await createSurveyAssignment(buildRequest(form), accessToken, auth.logout);
-      navigate(contextual ? '/app/context/surveys' : '/app/survey-assignments', {
+      const createdAssignments = await createSurveyAssignmentsBatch(buildRequest(form), accessToken, auth.logout);
+      const contextualBasePath = academicContext.academicUnitId && academicContext.careerId
+        ? `/app/academic/units/${academicContext.academicUnitId}/careers/${academicContext.careerId}/surveys`
+        : '/app/context/surveys';
+      const contextualQuery = academicContext.academicCycleId
+        ? `?cycle=${encodeURIComponent(academicContext.academicCycleId)}`
+        : '';
+      toast.success(
+        createdAssignments.length === 1
+          ? 'Encuesta asignada correctamente.'
+          : `Se crearon ${createdAssignments.length} asignaciones correctamente.`
+      );
+      navigate(contextual ? `${contextualBasePath}${contextualQuery}` : '/app/survey-assignments', {
         replace: true,
-        state: { createdAssignmentId: createdAssignment.id }
+        state: { createdAssignmentId: createdAssignments[0]?.id }
       });
     } catch (error) {
       setFormError(getFriendlyAssignmentError(error, 'No fue posible crear la asignación.'));
     } finally {
+      setConfirmOpen(false);
       setIsSubmitting(false);
     }
   }
@@ -371,7 +397,7 @@ export function SurveyAssignmentCreatePage({ contextual = false }: { contextual?
       ...current,
       careerId,
       subjectId: '',
-      teacherSubjectAssignmentId: ''
+      teacherSubjectAssignmentIds: []
     }));
     setTeacherAssignments([]);
     setTeacherAssignmentsState('idle');
@@ -382,7 +408,7 @@ export function SurveyAssignmentCreatePage({ contextual = false }: { contextual?
     setForm((current) => ({
       ...current,
       subjectId,
-      teacherSubjectAssignmentId: ''
+      teacherSubjectAssignmentIds: []
     }));
     setFormError(null);
   }
@@ -391,7 +417,7 @@ export function SurveyAssignmentCreatePage({ contextual = false }: { contextual?
     setForm((current) => ({
       ...current,
       academicCycleId,
-      teacherSubjectAssignmentId: ''
+      teacherSubjectAssignmentIds: []
     }));
     setFormError(null);
   }
@@ -408,7 +434,7 @@ export function SurveyAssignmentCreatePage({ contextual = false }: { contextual?
     return (
       <section className="app-content empty-detail">
         <h3>Seleccioná una carrera.</h3>
-        <p>Elegí una carrera en el panel lateral para crear una asignación contextual.</p>
+        <p>Ingresá desde una carrera para crear una asignación contextual.</p>
       </section>
     );
   }
@@ -417,7 +443,7 @@ export function SurveyAssignmentCreatePage({ contextual = false }: { contextual?
     return (
       <section className="app-content empty-detail">
         <h3>Seleccioná un ciclo lectivo.</h3>
-        <p>Elegí un ciclo lectivo para crear la asignación de encuesta.</p>
+        <p>Elegí un ciclo lectivo en el encabezado de la carrera para crear la asignación de encuesta.</p>
       </section>
     );
   }
@@ -563,26 +589,27 @@ export function SurveyAssignmentCreatePage({ contextual = false }: { contextual?
           </small>
         </label>
 
-        <label className="assignment-form__wide">
-          <span>Docente / asignación docente-materia</span>
-          <select
-            aria-describedby="teacher-assignment-help"
-            className="text-input"
-            disabled={!form.subjectId || !form.academicCycleId || teacherAssignmentsState === 'loading'}
-            onChange={(event) => {
-              setForm((current) => ({ ...current, teacherSubjectAssignmentId: event.target.value }));
-              setFormError(null);
-            }}
-            required
-            value={form.teacherSubjectAssignmentId}
-          >
-            <option value="">Seleccionar...</option>
-            {teacherAssignments.map((assignment) => (
-              <option key={assignment.id} value={assignment.id}>
-                {formatTeacherSubjectAssignment(assignment)}
-              </option>
-            ))}
-          </select>
+        <fieldset className="assignment-form__wide teacher-checkbox-list">
+          <legend>Docentes</legend>
+          {teacherAssignments.map((assignment) => (
+            <label key={assignment.id}>
+              <input
+                checked={form.teacherSubjectAssignmentIds.includes(assignment.id)}
+                disabled={!form.subjectId || !form.academicCycleId || teacherAssignmentsState === 'loading'}
+                onChange={(event) => {
+                  setForm((current) => ({
+                    ...current,
+                    teacherSubjectAssignmentIds: event.target.checked
+                      ? [...current.teacherSubjectAssignmentIds, assignment.id]
+                      : current.teacherSubjectAssignmentIds.filter((id) => id !== assignment.id)
+                  }));
+                  setFormError(null);
+                }}
+                type="checkbox"
+              />
+              <span>{formatTeacherSubjectAssignment(assignment)}</span>
+            </label>
+          ))}
           <small id="teacher-assignment-help">
             {getTeacherAssignmentHelpText(
               selectedCareer?.name ?? null,
@@ -593,7 +620,12 @@ export function SurveyAssignmentCreatePage({ contextual = false }: { contextual?
               teacherAssignmentsError
             )}
           </small>
-        </label>
+          {teacherAssignmentsState === 'ready' && teacherAssignments.length === 0 && canManageCatalog ? (
+            <Link className="secondary-button teacher-checkbox-list__action" to={teacherSetupPath}>
+              Gestionar docentes
+            </Link>
+          ) : null}
+        </fieldset>
 
         {formError ? (
           <p className="submit-error assignment-form__wide" role="alert">
@@ -607,7 +639,15 @@ export function SurveyAssignmentCreatePage({ contextual = false }: { contextual?
           </button>
           <button
             className="secondary-button"
-            onClick={() => navigate(contextual ? '/app/context/surveys' : '/app/survey-assignments')}
+            onClick={() => {
+              const contextualBasePath = academicContext.academicUnitId && academicContext.careerId
+                ? `/app/academic/units/${academicContext.academicUnitId}/careers/${academicContext.careerId}/surveys`
+                : '/app/context/surveys';
+              const contextualQuery = academicContext.academicCycleId
+                ? `?cycle=${encodeURIComponent(academicContext.academicCycleId)}`
+                : '';
+              navigate(contextual ? `${contextualBasePath}${contextualQuery}` : '/app/survey-assignments');
+            }}
             type="button"
           >
             Cancelar
@@ -640,17 +680,33 @@ export function SurveyAssignmentCreatePage({ contextual = false }: { contextual?
           </div>
         </form>
       </Modal>
+      <ConfirmDialog
+        cancelLabel="Cancelar"
+        confirmLabel={isSubmitting ? 'Asignando...' : 'Asignar encuesta'}
+        message={buildConfirmationDescription(
+          selectedSurvey?.title ?? 'Plantilla seleccionada',
+          selectedCareer?.name ?? 'Carrera seleccionada',
+          selectedSubject?.name ?? 'Materia seleccionada',
+          cycles.find((cycle) => cycle.id === form.academicCycleId),
+          teacherAssignments.filter((assignment) => form.teacherSubjectAssignmentIds.includes(assignment.id))
+        )}
+        busy={isSubmitting}
+        onCancel={() => setConfirmOpen(false)}
+        onConfirm={() => void handleConfirmCreate()}
+        open={confirmOpen}
+        title="¿Asignar esta encuesta?"
+      />
     </section>
   );
 }
 
-function buildRequest(form: AssignmentFormState): CreateSurveyAssignmentRequest {
+function buildRequest(form: AssignmentFormState): CreateSurveyAssignmentBatchRequest {
   return {
     surveyId: form.surveyId,
     careerId: form.careerId,
     subjectId: form.subjectId,
     academicCycleId: form.academicCycleId,
-    teacherSubjectAssignmentId: form.teacherSubjectAssignmentId
+    teacherSubjectAssignmentIds: form.teacherSubjectAssignmentIds
   };
 }
 
@@ -671,11 +727,35 @@ function validateForm(form: AssignmentFormState): string | null {
     return 'Seleccioná un ciclo lectivo.';
   }
 
-  if (!form.teacherSubjectAssignmentId) {
-    return 'Seleccioná una asignación docente-materia.';
+  if (form.teacherSubjectAssignmentIds.length === 0) {
+    return 'Seleccioná al menos un docente.';
   }
 
   return null;
+}
+
+function buildConfirmationDescription(
+  surveyTitle: string,
+  careerName: string,
+  subjectName: string,
+  cycle: AcademicCycleDto | undefined,
+  selectedTeacherAssignments: TeacherSubjectAssignmentDto[]
+): string {
+  const teachers = selectedTeacherAssignments
+    .map((assignment) => `- ${formatTeacherSubjectAssignment(assignment)}`)
+    .join('\n');
+
+  return [
+    surveyTitle,
+    careerName,
+    subjectName,
+    cycle ? formatAcademicCycle(cycle) : 'Ciclo seleccionado',
+    '',
+    'Docentes:',
+    teachers,
+    '',
+    `Se crearán ${selectedTeacherAssignments.length} asignaciones.`
+  ].join('\n');
 }
 
 function getSubjectHelpText(

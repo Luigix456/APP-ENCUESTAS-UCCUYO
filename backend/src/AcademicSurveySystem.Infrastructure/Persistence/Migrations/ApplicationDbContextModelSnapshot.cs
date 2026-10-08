@@ -355,6 +355,71 @@ namespace AcademicSurveySystem.Infrastructure.Persistence.Migrations
                     b.ToTable("teacher_subject_assignments", (string)null);
                 });
 
+            modelBuilder.Entity("AcademicSurveySystem.Domain.Audit.Entities.AuditEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("action");
+
+                    b.Property<string>("ActorDisplayName")
+                        .HasMaxLength(240)
+                        .HasColumnType("character varying(240)")
+                        .HasColumnName("actor_display_name");
+
+                    b.Property<Guid?>("ActorUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_user_id");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("description");
+
+                    b.Property<Guid?>("EntityId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("entity_id");
+
+                    b.Property<string>("EntityType")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("entity_type");
+
+                    b.Property<string>("MetadataJson")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("metadata_json");
+
+                    b.Property<string>("Module")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("module");
+
+                    b.Property<DateTimeOffset>("OccurredAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("occurred_at_utc");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OccurredAtUtc");
+
+                    b.HasIndex("ActorUserId", "OccurredAtUtc");
+
+                    b.HasIndex("Module", "OccurredAtUtc");
+
+                    b.HasIndex("EntityType", "EntityId", "OccurredAtUtc");
+
+                    b.ToTable("audit_entries", (string)null);
+                });
+
             modelBuilder.Entity("AcademicSurveySystem.Domain.Identity.Entities.Permission", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1205,6 +1270,10 @@ namespace AcademicSurveySystem.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("order");
 
+                    b.Property<Guid>("QuestionLineageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("question_lineage_id");
+
                     b.Property<int?>("RatingMax")
                         .HasColumnType("integer")
                         .HasColumnName("rating_max");
@@ -1235,10 +1304,14 @@ namespace AcademicSurveySystem.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("QuestionLineageId");
+
                     b.HasIndex("SurveySectionId");
 
                     b.HasIndex("SurveySectionId", "Order")
                         .IsUnique();
+
+                    b.HasIndex("SurveySectionId", "QuestionLineageId");
 
                     b.ToTable("survey_questions", (string)null);
                 });

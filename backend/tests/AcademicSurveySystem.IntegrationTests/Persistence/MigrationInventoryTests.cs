@@ -27,7 +27,9 @@ public sealed class MigrationInventoryTests
                 "20260924052902_AddSurveyAnswerOtherText",
                 "20261001041359_AddSurveyTemplateVersioning",
                 "20261001090000_AddAcademicUnits",
-                "20261001202811_AddSubjectEnrollmentAndResponseTargets"
+                "20261001202811_AddSubjectEnrollmentAndResponseTargets",
+                "20261005220410_AddAuditTrail",
+                "20261006021741_AddQuestionLineage"
             ],
             migrations);
     }

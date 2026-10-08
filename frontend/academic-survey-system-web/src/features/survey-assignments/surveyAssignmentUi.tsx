@@ -3,25 +3,35 @@ import type { AcademicCycleDto, SubjectDto, TeacherDto, TeacherSubjectAssignment
 import type { SurveySummaryDto } from '../../types/surveys';
 import { SURVEY_TARGET_LABELS } from '../../types/surveys';
 
+export const READ_SURVEY_ASSIGNMENTS_PERMISSION = 'surveys.templates.read';
 export const MANAGE_SURVEY_ASSIGNMENTS_PERMISSION = 'surveys.templates.manage';
 export const READ_ACADEMIC_CATALOG_PERMISSION = 'academic.catalog.read';
 
-export function SurveyAssignmentPermissionPanel({ missingCatalog }: { missingCatalog?: boolean }) {
+export function SurveyAssignmentPermissionPanel({
+  missingCatalog,
+  mode = 'manage'
+}: {
+  missingCatalog?: boolean;
+  mode?: 'read' | 'manage';
+}) {
   if (missingCatalog) {
     return (
       <section className="app-content access-denied-panel">
         <p className="eyebrow">Sin acceso</p>
-        <h2>No tenés permisos para consultar el catálogo académico necesario para crear una asignación.</h2>
+        <h2>No tenés permisos para consultar el catálogo académico necesario para ver estas asignaciones.</h2>
         <p>Solicitá el permiso {READ_ACADEMIC_CATALOG_PERMISSION} a la administración del sistema.</p>
       </section>
     );
   }
 
+  const permission = mode === 'read' ? READ_SURVEY_ASSIGNMENTS_PERMISSION : MANAGE_SURVEY_ASSIGNMENTS_PERMISSION;
+  const action = mode === 'read' ? 'consultar' : 'administrar';
+
   return (
     <section className="app-content access-denied-panel">
       <p className="eyebrow">Sin acceso</p>
-      <h2>No tenés permisos para administrar asignaciones de encuesta.</h2>
-      <p>Solicitá el permiso {MANAGE_SURVEY_ASSIGNMENTS_PERMISSION} a la administración del sistema.</p>
+      <h2>No tenés permisos para {action} asignaciones de encuesta.</h2>
+      <p>Solicitá el permiso {permission} a la administración del sistema.</p>
     </section>
   );
 }
@@ -70,7 +80,7 @@ export function getFriendlyAssignmentError(error: unknown, fallback: string): st
     }
 
     if (error.status === 403) {
-      return 'No tenés permisos para administrar asignaciones de encuesta.';
+      return 'No tenés permisos suficientes para realizar esta acción sobre asignaciones de encuesta.';
     }
 
     if (error.status === 404) {

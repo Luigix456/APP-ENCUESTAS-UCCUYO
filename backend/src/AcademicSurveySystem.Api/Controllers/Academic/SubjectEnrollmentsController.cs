@@ -107,6 +107,108 @@ public sealed class SubjectEnrollmentsController : ControllerBase
         return ToActionResult(result);
     }
 
+    /// <summary>
+    /// Descarga una plantilla para importar matrículas de materias.
+    /// </summary>
+    /// <remarks>Requiere permiso de lectura: academic.catalog.read.</remarks>
+    [HttpGet("subject-enrollments/import-template")]
+    [RequirePermission(ReadPermission)]
+    [ProducesResponseType(typeof(FileContentResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> DownloadImportTemplate(
+        [FromQuery] Guid careerId,
+        [FromQuery] Guid academicCycleId,
+        [FromQuery] string? format = "xlsx",
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _academicCatalogService.GenerateSubjectEnrollmentImportTemplateAsync(
+            careerId,
+            academicCycleId,
+            format,
+            cancellationToken);
+
+        return result.Status == ApplicationResultStatus.Success
+            ? File(result.Value!.Content, result.Value.ContentType, result.Value.FileName)
+            : ToActionResult(result);
+    }
+
+    /// <summary>
+    /// Valida un archivo de importación de matrículas sin modificar datos.
+    /// </summary>
+    /// <remarks>Requiere permiso de escritura: academic.catalog.manage.</remarks>
+    [HttpPost("subject-enrollments/import/preview")]
+    [RequirePermission(ManagePermission)]
+    [Consumes("multipart/form-data")]
+    [ProducesResponseType(typeof(SubjectEnrollmentImportPreviewDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> PreviewImport(
+        [FromQuery] Guid careerId,
+        [FromQuery] Guid academicCycleId,
+        IFormFile? file,
+        CancellationToken cancellationToken = default)
+    {
+        if (file is null)
+        {
+            return BadRequest(CreateErrorResponse([
+                new ApplicationError("SubjectEnrollmentImport.FileRequired", "File is required.")
+            ]));
+        }
+
+        await using var stream = file.OpenReadStream();
+        var result = await _academicCatalogService.PreviewSubjectEnrollmentImportAsync(
+            careerId,
+            academicCycleId,
+            new SubjectEnrollmentImportFile(file.FileName, file.ContentType, file.Length, stream),
+            cancellationToken);
+
+        return ToActionResult(result);
+    }
+
+    /// <summary>
+    /// Importa matrículas de materias de forma atómica.
+    /// </summary>
+    /// <remarks>Requiere permiso de escritura: academic.catalog.manage.</remarks>
+    [HttpPost("subject-enrollments/import")]
+    [RequirePermission(ManagePermission)]
+    [Consumes("multipart/form-data")]
+    [ProducesResponseType(typeof(SubjectEnrollmentImportResultDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> Import(
+        [FromQuery] Guid careerId,
+        [FromQuery] Guid academicCycleId,
+        IFormFile? file,
+        CancellationToken cancellationToken = default)
+    {
+        if (file is null)
+        {
+            return BadRequest(CreateErrorResponse([
+                new ApplicationError("SubjectEnrollmentImport.FileRequired", "File is required.")
+            ]));
+        }
+
+        await using var stream = file.OpenReadStream();
+        var result = await _academicCatalogService.ImportSubjectEnrollmentsAsync(
+            careerId,
+            academicCycleId,
+            new SubjectEnrollmentImportFile(file.FileName, file.ContentType, file.Length, stream),
+            cancellationToken);
+
+        return ToActionResult(result);
+    }
+
     private IActionResult ToActionResult<T>(ApplicationResult<T> result)
     {
         return result.Status switch

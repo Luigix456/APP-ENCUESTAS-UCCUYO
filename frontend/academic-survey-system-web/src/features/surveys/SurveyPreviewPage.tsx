@@ -24,6 +24,7 @@ import {
   formatSurveyTarget,
   getFriendlySurveyError,
   MANAGE_SURVEY_TEMPLATES_PERMISSION,
+  READ_SURVEY_TEMPLATES_PERMISSION,
   PermissionDeniedPanel,
   SurveyVersionBadge,
   SurveyStatusBadge
@@ -41,10 +42,11 @@ export function SurveyPreviewPage() {
 
   const accessToken = auth.accessToken;
   const canManageTemplates = auth.hasPermission(MANAGE_SURVEY_TEMPLATES_PERMISSION);
+  const canReadTemplates = canManageTemplates || auth.hasPermission(READ_SURVEY_TEMPLATES_PERMISSION);
   const previewSections = useMemo(() => (survey ? toPreviewSections(survey.sections) : []), [survey]);
 
   useEffect(() => {
-    if (!canManageTemplates || !accessToken || !surveyId) {
+    if (!canReadTemplates || !accessToken || !surveyId) {
       setLoadState('ready');
       return;
     }
@@ -63,10 +65,10 @@ export function SurveyPreviewPage() {
         setPageError(getFriendlySurveyError(error, 'No fue posible cargar la vista previa.'));
         setLoadState('error');
       });
-  }, [accessToken, auth.logout, canManageTemplates, surveyId]);
+  }, [accessToken, auth.logout, canReadTemplates, surveyId]);
 
-  if (!canManageTemplates) {
-    return <PermissionDeniedPanel />;
+  if (!canReadTemplates) {
+    return <PermissionDeniedPanel mode="read" />;
   }
 
   function updatePreviewAnswer(questionId: string, nextValue: Partial<QuestionAnswerDraft>) {
@@ -168,9 +170,11 @@ export function SurveyPreviewPage() {
         <button className="secondary-button" onClick={resetPreviewAnswers} type="button">
           Restablecer respuestas de vista previa
         </button>
-        <Link className="secondary-link-button" to={`/app/surveys/${survey.id}/edit`}>
-          Volver al editor
-        </Link>
+        {canManageTemplates ? (
+          <Link className="secondary-link-button" to={`/app/surveys/${survey.id}/edit`}>
+            Volver al editor
+          </Link>
+        ) : null}
         <Link className="secondary-link-button" to="/app/surveys">
           Volver al listado
         </Link>

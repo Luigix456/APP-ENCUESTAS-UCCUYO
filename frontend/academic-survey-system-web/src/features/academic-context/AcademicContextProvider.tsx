@@ -39,6 +39,12 @@ interface AcademicContextValue {
   setCareer: (careerId: string) => void;
   setAcademicCycle: (academicCycleId: string) => void;
   selectCareerContext: (academicUnitId: string, careerId: string) => void;
+  setRouteContext: (
+    academicUnit: AcademicUnitDto,
+    career: CareerDto,
+    academicCycles: AcademicCycleDto[],
+    academicCycleId: string
+  ) => void;
   clearContext: () => void;
   refreshContext: () => Promise<void>;
 }
@@ -161,12 +167,6 @@ export function AcademicContextProvider({ children }: { children: ReactNode }) {
     ]
   );
 
-  useEffect(() => {
-    const abortController = new AbortController();
-    void loadContext(abortController.signal);
-    return () => abortController.abort();
-  }, [loadContext]);
-
   const selectedAcademicUnit = useMemo(
     () => academicUnits.find((unit) => unit.id === storedIds.academicUnitId) ?? null,
     [academicUnits, storedIds.academicUnitId]
@@ -218,6 +218,16 @@ export function AcademicContextProvider({ children }: { children: ReactNode }) {
           academicCycleId: storedIds.academicCycleId
         });
       },
+      setRouteContext: (academicUnit, career, nextAcademicCycles, academicCycleId) => {
+        setAcademicUnits((current) => upsertById(current, academicUnit));
+        setCareers([career]);
+        setAcademicCycles(nextAcademicCycles);
+        persistContext({
+          academicUnitId: academicUnit.id,
+          careerId: career.id,
+          academicCycleId: academicCycleId || undefined
+        });
+      },
       clearContext: () => persistContext({}),
       refreshContext: () => loadContext()
     }),
@@ -237,6 +247,12 @@ export function AcademicContextProvider({ children }: { children: ReactNode }) {
   );
 
   return <AcademicContext.Provider value={value}>{children}</AcademicContext.Provider>;
+}
+
+function upsertById<T extends { id: string }>(items: T[], item: T): T[] {
+  return items.some((current) => current.id === item.id)
+    ? items.map((current) => (current.id === item.id ? item : current))
+    : [...items, item];
 }
 
 export function useAcademicContext(): AcademicContextValue {

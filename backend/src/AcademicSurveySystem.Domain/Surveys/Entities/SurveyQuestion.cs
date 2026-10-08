@@ -24,7 +24,8 @@ public sealed class SurveyQuestion
         int order,
         DateTimeOffset createdAtUtc,
         int? ratingMin = null,
-        int? ratingMax = null)
+        int? ratingMax = null,
+        Guid? questionLineageId = null)
     {
         if (id == Guid.Empty)
         {
@@ -36,6 +37,13 @@ public sealed class SurveyQuestion
             throw new DomainException("SurveySectionId is required.");
         }
 
+        var resolvedQuestionLineageId = questionLineageId ?? id;
+
+        if (resolvedQuestionLineageId == Guid.Empty)
+        {
+            throw new DomainException("QuestionLineageId is required.");
+        }
+
         EnsureDefined(type, nameof(Type));
         EnsureOrder(order);
         EnsureUtc(createdAtUtc, nameof(createdAtUtc));
@@ -43,6 +51,7 @@ public sealed class SurveyQuestion
         EnsureRatingBounds(type, ratingMin, ratingMax);
 
         Id = id;
+        QuestionLineageId = resolvedQuestionLineageId;
         SurveySectionId = surveySectionId;
         Text = NormalizeRequiredText(text, nameof(Text), 1000);
         Type = type;
@@ -58,6 +67,7 @@ public sealed class SurveyQuestion
     }
 
     public Guid Id { get; private set; }
+    public Guid QuestionLineageId { get; private set; }
     public Guid SurveySectionId { get; private set; }
     public string Text { get; private set; }
     public SurveyQuestionType Type { get; private set; }

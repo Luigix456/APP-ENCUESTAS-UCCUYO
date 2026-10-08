@@ -1,6 +1,8 @@
 export interface SurveyAssignmentResultListItemDto {
   surveyAssignmentId: string;
   surveyId: string;
+  surveyVersionGroupId: string;
+  surveyVersionNumber: number;
   surveyTitle: string;
   careerId: string;
   careerName: string;
@@ -19,6 +21,78 @@ export interface SurveyAssignmentResultListItemDto {
   lastSubmittedAtUtc: string | null;
   expectedRespondentCount: number | null;
   participationPercentage: number | null;
+}
+
+export interface SurveyHistoryDto {
+  careerId: string;
+  careerName: string;
+  subjectId: string;
+  subjectName: string;
+  teacherId: string;
+  teacherName: string;
+  surveyVersionGroupId: string;
+  surveyTitle: string;
+  points: SurveyHistoryPointDto[];
+  questions: SurveyHistoryQuestionDto[];
+}
+
+export interface SurveyHistoryPointDto {
+  surveyAssignmentId: string;
+  academicCycleId: string;
+  academicCycleName: string;
+  academicCycleYear: number;
+  surveyId: string;
+  surveyVersionNumber: number;
+  expectedRespondentCount: number | null;
+  responseCount: number;
+  remainingCount: number | null;
+  participationPercentage: number | null;
+  sessionCount: number;
+  detailedResultsAvailable: boolean;
+}
+
+export interface SurveyHistoryQuestionDto {
+  questionLineageId: string;
+  latestQuestionText: string;
+  questionTextsChanged: boolean;
+  questionType: string;
+  comparisonSupported: boolean;
+  unsupportedReason: string | null;
+}
+
+export interface QuestionHistoryDto {
+  questionLineageId: string;
+  latestQuestionText: string;
+  questionTextsChanged: boolean;
+  questionType: string;
+  comparisonSupported: boolean;
+  unsupportedReason: string | null;
+  points: QuestionHistoryPointDto[];
+}
+
+export interface QuestionHistoryPointDto {
+  surveyAssignmentId: string;
+  academicCycleId: string;
+  academicCycleName: string;
+  academicCycleYear: number;
+  surveyVersionNumber: number;
+  questionId: string;
+  questionText: string;
+  responseCount: number;
+  detailedResultsAvailable: boolean;
+  minimumResponsesRequired: number;
+  responsesNeededToUnlock: number;
+  distribution: QuestionHistoryOptionDistributionDto[] | null;
+  averageRating: number | null;
+  minRating: number | null;
+  maxRating: number | null;
+  ratingScaleChanged: boolean;
+}
+
+export interface QuestionHistoryOptionDistributionDto {
+  label: string;
+  count: number;
+  percentage: number;
 }
 
 export interface ResultsAssignmentFilters {
@@ -49,6 +123,9 @@ export interface SurveyResultsSummaryDto {
   expectedRespondentCount: number | null;
   remainingCount: number | null;
   participationPercentage: number | null;
+  detailedResultsAvailable: boolean;
+  minimumResponsesRequired: number;
+  responsesNeededToUnlock: number;
 }
 
 export type SurveyQuestionResultType =

@@ -145,6 +145,13 @@ public sealed class QuestPdfReportGenerator : IPdfReportGenerator
                         column.Item().Element(container =>
                             InfoBox(container, "Esta evaluación todavía no tiene respuestas."));
                     }
+                    else if (!_report.DetailedResultsAvailable)
+                    {
+                        column.Item().Element(container =>
+                            InfoBox(
+                                container,
+                                $"Los resultados detallados estarán disponibles cuando se alcance el mínimo de {_report.MinimumResponsesRequired} respuestas requerido para proteger el anonimato."));
+                    }
 
                     foreach (var question in _report.Questions.OrderBy(question => question.Order))
                     {

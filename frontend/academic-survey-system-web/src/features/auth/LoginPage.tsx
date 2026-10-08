@@ -3,6 +3,7 @@ import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { ApiClientError } from '../../api/apiClient';
 import { AuthLoadingScreen } from '../../auth/ProtectedRoute';
 import { useAuth } from '../../auth/AuthProvider';
+import { InstitutionBrand } from '../../components/InstitutionBrand';
 
 interface LocationState {
   from?: {
@@ -47,9 +48,12 @@ export function LoginPage() {
   return (
     <main className="auth-shell">
       <section className="login-card">
-        <p className="eyebrow">Sistema Web de Gestión de Encuestas Académicas</p>
-        <h1>Ingresar</h1>
-        <p>Accedé al área privada con tu cuenta institucional.</p>
+        <InstitutionBrand subtitle="Sistema Web de Gestión de Encuestas Académicas" />
+        <div className="login-card__intro">
+          <p className="eyebrow">Acceso institucional</p>
+          <h1>Bienvenido</h1>
+          <p>Ingresá con tu cuenta institucional para continuar.</p>
+        </div>
 
         <form className="login-form" noValidate onSubmit={handleSubmit}>
           <label>

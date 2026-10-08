@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { ApiClientError } from '../../api/apiClient';
 import { getSurveyAssignments } from '../../api/surveyAssignmentsApi';
@@ -15,6 +15,7 @@ import { ResponseProgress } from '../../components/ResponseProgress';
 import { ConfirmDialog, Modal } from '../../components/ui/Modal';
 import { useToast } from '../../components/ui/ToastProvider';
 import { useAcademicContext } from '../academic-context/AcademicContextProvider';
+import { buildPublicSurveyUrl, isLoopbackUrl } from '../../config/publicApp';
 import type {
   CreateSurveySessionRequest,
   SurveyAssignmentDto,
@@ -58,6 +59,7 @@ export function SurveySessionsPage({ contextual = false }: { contextual?: boolea
   const [activeAction, setActiveAction] = useState<'open' | 'close' | 'refresh' | null>(null);
   const [isFormVisible, setIsFormVisible] = useState(false);
   const [confirmCloseOpen, setConfirmCloseOpen] = useState(false);
+  const [classroomOpen, setClassroomOpen] = useState(false);
   const [form, setForm] = useState<SessionFormState>(() => createInitialForm());
   const [filters, setFilters] = useState<SessionFiltersState>({
     subjectId: '',
@@ -67,6 +69,12 @@ export function SurveySessionsPage({ contextual = false }: { contextual?: boolea
 
   const accessToken = auth.accessToken;
   const canManageSessions = auth.hasPermission(MANAGE_SESSIONS_PERMISSION);
+
+  useEffect(() => {
+    if (selectedSession?.status !== 'Open') {
+      setClassroomOpen(false);
+    }
+  }, [selectedSession?.status]);
 
   useEffect(() => {
     if (!contextual) {
@@ -129,7 +137,7 @@ export function SurveySessionsPage({ contextual = false }: { contextual?: boolea
 
   const selectedAssignment = assignments.find((assignment) => assignment.id === form.surveyAssignmentId);
   const publicSurveyUrl = selectedSession?.accessCode
-    ? `${window.location.origin}/survey/${encodeURIComponent(selectedSession.accessCode)}`
+    ? buildPublicSurveyUrl(selectedSession.accessCode)
     : null;
   const handleRealtimeProgress = useCallback((progress: SurveyResponseProgressDto) => {
     const applyProgress = (session: SurveySessionDto): SurveySessionDto =>
@@ -582,6 +590,26 @@ export function SurveySessionsPage({ contextual = false }: { contextual?: boolea
             </p>
           ) : (
             <>
+              <div className="session-list-items">
+                {sessionPagination.items.map((session) => (
+                  <button
+                    className={`session-list-item ${
+                      selectedSession?.id === session.id ? 'session-list-item--active' : ''
+                    }`}
+                    key={session.id}
+                    onClick={() => {
+                      setSelectedSession(session);
+                      setActionError(null);
+                      setSuccessMessage(null);
+                    }}
+                    type="button"
+                  >
+                    <span>{session.title || session.surveyTitle}</span>
+                    <small>{session.subjectName}</small>
+                    <StatusBadge status={session.status} />
+                  </button>
+                ))}
+              </div>
               <PaginationControls
                 firstItem={sessionPagination.firstItem}
                 itemLabel="sesiones"
@@ -590,28 +618,11 @@ export function SurveySessionsPage({ contextual = false }: { contextual?: boolea
                 onPageSizeChange={sessionPagination.setPageSize}
                 page={sessionPagination.page}
                 pageSize={sessionPagination.pageSize}
-                pageSizeOptions={[5, 8, 12]}
                 totalItems={sessionPagination.totalItems}
                 totalPages={sessionPagination.totalPages}
+                showPageSize={false}
+                showSummary={false}
               />
-              {sessionPagination.items.map((session) => (
-                <button
-                  className={`session-list-item ${
-                    selectedSession?.id === session.id ? 'session-list-item--active' : ''
-                  }`}
-                  key={session.id}
-                  onClick={() => {
-                    setSelectedSession(session);
-                    setActionError(null);
-                    setSuccessMessage(null);
-                  }}
-                  type="button"
-                >
-                  <span>{session.title || session.surveyTitle}</span>
-                  <small>{session.subjectName}</small>
-                  <StatusBadge status={session.status} />
-                </button>
-              ))}
             </>
           )}
         </div>
@@ -659,6 +670,17 @@ export function SurveySessionsPage({ contextual = false }: { contextual?: boolea
 
                 {selectedSession.status === 'Open' ? (
                   <button
+                    className="primary-button"
+                    disabled={activeAction !== null || !publicSurveyUrl}
+                    onClick={() => setClassroomOpen(true)}
+                    type="button"
+                  >
+                    Mostrar QR en pantalla completa
+                  </button>
+                ) : null}
+
+                {selectedSession.status === 'Open' ? (
+                  <button
                     className="danger-button"
                     disabled={activeAction !== null}
                     onClick={() => setConfirmCloseOpen(true)}
@@ -686,6 +708,19 @@ export function SurveySessionsPage({ contextual = false }: { contextual?: boolea
               {selectedSession.status === 'Closed' ? (
                 <div className="inline-message">Esta sesión ya no acepta respuestas.</div>
               ) : null}
+
+              {classroomOpen && selectedSession.status === 'Open' && publicSurveyUrl ? (
+                <SurveyClassroomMode
+                  liveStatus={liveStatus}
+                  onClose={() => setClassroomOpen(false)}
+                  onCloseSurveySession={() => setConfirmCloseOpen(true)}
+                  onCopyLink={() => void handleCopyLink()}
+                  onRefresh={() => void refreshSelectedSession()}
+                  refreshDisabled={activeAction !== null}
+                  session={selectedSession}
+                  surveyUrl={publicSurveyUrl}
+                />
+              ) : null}
             </>
           ) : (
             <div className="empty-detail">
@@ -698,7 +733,7 @@ export function SurveySessionsPage({ contextual = false }: { contextual?: boolea
       <ConfirmDialog
         busy={activeAction === 'close'}
         confirmLabel="Cerrar sesión"
-        message="El código QR dejará de aceptar nuevas respuestas. Las respuestas ya enviadas se conservarán."
+        message="Después de cerrar la sesión, el QR dejará de aceptar nuevas respuestas. Las respuestas ya enviadas se conservarán."
         onCancel={() => setConfirmCloseOpen(false)}
         onConfirm={() => { void handleCloseSession().finally(() => setConfirmCloseOpen(false)); }}
         open={confirmCloseOpen}
@@ -822,6 +857,19 @@ function QrPanel({
           <span>Enlace para estudiantes</span>
           <input className="text-input" readOnly type="text" value={surveyUrl} />
         </label>
+        {isLoopbackUrl(surveyUrl) ? (
+          <div className="qr-network-warning" role="status">
+            <strong>Este QR sólo funciona en esta computadora.</strong>
+            <span>
+              Para responder desde celulares, abrí el sistema usando la dirección "Network" que muestra Vite
+              (por ejemplo, http://192.168.x.x:5173) o configurá VITE_PUBLIC_APP_URL.
+            </span>
+          </div>
+        ) : (
+          <p className="qr-network-ready">
+            El enlace puede abrirse desde otros dispositivos que tengan acceso a esta dirección.
+          </p>
+        )}
         <div className="qr-actions">
           <button className="secondary-button" onClick={onCopy} type="button">
             Copiar enlace
@@ -833,6 +881,197 @@ function QrPanel({
       </div>
     </section>
   );
+}
+
+function SurveyClassroomMode({
+  liveStatus,
+  onClose,
+  onCloseSurveySession,
+  onCopyLink,
+  onRefresh,
+  refreshDisabled,
+  session,
+  surveyUrl
+}: {
+  liveStatus: 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'unavailable';
+  onClose: () => void;
+  onCloseSurveySession: () => void;
+  onCopyLink: () => void;
+  onRefresh: () => void;
+  refreshDisabled: boolean;
+  session: SurveySessionDto;
+  surveyUrl: string;
+}) {
+  const overlayRef = useRef<HTMLDivElement | null>(null);
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const expectedCount = session.expectedRespondentCount;
+  const responseCount = session.assignmentResponseCount;
+  const hasExpectedCount = typeof expectedCount === 'number' && expectedCount > 0;
+  const participation = hasExpectedCount
+    ? Math.min(100, Math.max(0, session.participationPercentage ?? (responseCount / expectedCount) * 100))
+    : null;
+  const remainingCount = hasExpectedCount
+    ? Math.max(0, session.remainingCount ?? expectedCount - responseCount)
+    : null;
+  const isComplete = hasExpectedCount && remainingCount === 0;
+
+  useEffect(() => {
+    closeButtonRef.current?.focus();
+
+    const element = overlayRef.current;
+    if (element?.requestFullscreen) {
+      void element.requestFullscreen().catch(() => undefined);
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      if (document.fullscreenElement === element) {
+        void document.exitFullscreen().catch(() => undefined);
+      }
+    };
+  }, [onClose]);
+
+  return (
+    <div
+      aria-labelledby="classroom-mode-title"
+      aria-modal="true"
+      className="classroom-mode"
+      ref={overlayRef}
+      role="dialog"
+    >
+      <div className="classroom-mode__topbar">
+        <div>
+          <p className="eyebrow">Sistema de Encuestas Académicas</p>
+          <h2 id="classroom-mode-title">{session.subjectName}</h2>
+        </div>
+        <button className="secondary-button" onClick={onClose} ref={closeButtonRef} type="button">
+          Salir del modo aula
+        </button>
+      </div>
+
+      <main className="classroom-mode__content">
+        <section className="classroom-mode__hero" aria-label="Código QR de la encuesta">
+          <div className="classroom-mode__survey">
+            <span className="status-badge status-badge--open">Encuesta abierta</span>
+            <h3>{session.title || session.surveyTitle}</h3>
+            <p>{session.teacherFullName}</p>
+          </div>
+
+          <div className="classroom-mode__qr">
+            <QRCodeSVG
+              bgColor="#ffffff"
+              fgColor="#122033"
+              level="M"
+              marginSize={3}
+              size={440}
+              value={surveyUrl}
+            />
+          </div>
+          <p className="classroom-mode__instruction">Escaneá el código QR para responder</p>
+          <div className="classroom-mode__url">
+            <span>{surveyUrl}</span>
+            <button className="secondary-button" onClick={onCopyLink} type="button">
+              Copiar enlace
+            </button>
+          </div>
+          {isLoopbackUrl(surveyUrl) ? (
+            <p className="classroom-mode__warning" role="status">
+              Este enlace parece local. Para celulares, usá la URL pública configurada o la dirección de red.
+            </p>
+          ) : null}
+        </section>
+
+        <aside className="classroom-mode__progress" aria-label="Progreso de respuestas">
+          {hasExpectedCount ? (
+            <>
+              <strong className="classroom-mode__counter">
+                {responseCount} / {expectedCount}
+              </strong>
+              <span className="classroom-mode__percentage">
+                {formatDecimal(participation ?? 0)} % de participación
+              </span>
+              <div
+                aria-label="Participación"
+                aria-valuemax={expectedCount}
+                aria-valuemin={0}
+                aria-valuenow={Math.min(responseCount, expectedCount)}
+                className="classroom-mode__bar"
+                role="progressbar"
+              >
+                <span style={{ width: `${participation ?? 0}%` }} />
+              </div>
+              {isComplete ? (
+                <div className="classroom-mode__complete" role="status">
+                  <strong>Participación completa</strong>
+                  <span>Se recibieron todas las respuestas previstas.</span>
+                </div>
+              ) : (
+                <p>Faltan {remainingCount} respuestas</p>
+              )}
+            </>
+          ) : (
+            <div className="classroom-mode__unbounded">
+              <strong>{responseCount}</strong>
+              <span>respuestas recibidas</span>
+            </div>
+          )}
+
+          <ClassroomLiveStatus
+            liveStatus={liveStatus}
+            onRefresh={onRefresh}
+            refreshDisabled={refreshDisabled}
+          />
+
+          <button className="danger-button" onClick={onCloseSurveySession} type="button">
+            Cerrar encuesta
+          </button>
+        </aside>
+      </main>
+    </div>
+  );
+}
+
+function ClassroomLiveStatus({
+  liveStatus,
+  onRefresh,
+  refreshDisabled
+}: {
+  liveStatus: 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'unavailable';
+  onRefresh: () => void;
+  refreshDisabled: boolean;
+}) {
+  if (liveStatus === 'connected') {
+    return <p className="classroom-mode__live classroom-mode__live--connected">Actualización en vivo</p>;
+  }
+
+  if (liveStatus === 'connecting') {
+    return <p className="classroom-mode__live">Conectando actualización en vivo...</p>;
+  }
+
+  if (liveStatus === 'reconnecting') {
+    return <p className="classroom-mode__live">Reconectando...</p>;
+  }
+
+  if (liveStatus === 'unavailable') {
+    return (
+      <div className="classroom-mode__live classroom-mode__live--unavailable">
+        <span>La actualización en vivo no está disponible.</span>
+        <button className="secondary-button" disabled={refreshDisabled} onClick={onRefresh} type="button">
+          Actualizar estado
+        </button>
+      </div>
+    );
+  }
+
+  return <p className="classroom-mode__live">Actualización en espera</p>;
 }
 
 function StatusBadge({ status }: { status: SurveySessionStatus }) {
@@ -997,6 +1236,12 @@ function formatDateTime(value: string): string {
     dateStyle: 'short',
     timeStyle: 'short'
   }).format(date);
+}
+
+function formatDecimal(value: number): string {
+  return new Intl.NumberFormat('es-AR', {
+    maximumFractionDigits: 2
+  }).format(value);
 }
 
 function formatPeriod(period: string): string {

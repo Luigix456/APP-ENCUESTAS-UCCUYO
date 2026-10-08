@@ -21,6 +21,10 @@ public interface ISurveyAssignmentService
         CreateSurveyAssignmentRequest request,
         CancellationToken cancellationToken);
 
+    Task<ApplicationResult<IReadOnlyCollection<SurveyAssignmentDto>>> CreateAssignmentsAsync(
+        CreateSurveyAssignmentBatchRequest request,
+        CancellationToken cancellationToken);
+
     Task<ApplicationResult> ActivateAssignmentAsync(
         Guid id,
         CancellationToken cancellationToken);

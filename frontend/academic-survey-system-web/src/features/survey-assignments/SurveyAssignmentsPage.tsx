@@ -30,6 +30,7 @@ import {
   getFriendlyAssignmentError,
   MANAGE_SURVEY_ASSIGNMENTS_PERMISSION,
   READ_ACADEMIC_CATALOG_PERMISSION,
+  READ_SURVEY_ASSIGNMENTS_PERMISSION,
   SurveyAssignmentPermissionPanel
 } from './surveyAssignmentUi';
 
@@ -63,8 +64,15 @@ export function SurveyAssignmentsPage({ contextual = false }: { contextual?: boo
 
   const accessToken = auth.accessToken;
   const canManageAssignments = auth.hasPermission(MANAGE_SURVEY_ASSIGNMENTS_PERMISSION);
-  const canReadCatalog = auth.hasPermission(READ_ACADEMIC_CATALOG_PERMISSION);
+  const canReadAssignments = canManageAssignments || auth.hasPermission(READ_SURVEY_ASSIGNMENTS_PERMISSION);
+  const canReadCatalog = auth.hasPermission(READ_ACADEMIC_CATALOG_PERMISSION) || auth.hasPermission('academic.catalog.manage');
   const assignmentPagination = usePagination(assignments, 8);
+  const contextualBasePath = academicContext.academicUnitId && academicContext.careerId
+    ? `/app/academic/units/${academicContext.academicUnitId}/careers/${academicContext.careerId}`
+    : '/app/academic/units';
+  const contextualQuery = academicContext.academicCycleId
+    ? `?cycle=${encodeURIComponent(academicContext.academicCycleId)}`
+    : '';
 
   useEffect(() => {
     if (isCreatedAssignmentState(location.state)) {
@@ -89,7 +97,7 @@ export function SurveyAssignmentsPage({ contextual = false }: { contextual?: boo
 
   useEffect(() => {
     if (
-      !canManageAssignments ||
+      !canReadAssignments ||
       !canReadCatalog ||
       !accessToken ||
       (contextual && (!academicContext.careerId || !academicContext.academicCycleId))
@@ -106,7 +114,7 @@ export function SurveyAssignmentsPage({ contextual = false }: { contextual?: boo
     accessToken,
     academicContext.academicCycleId,
     academicContext.careerId,
-    canManageAssignments,
+    canReadAssignments,
     canReadCatalog,
     contextual,
     filters
@@ -128,8 +136,8 @@ export function SurveyAssignmentsPage({ contextual = false }: { contextual?: boo
       .sort((left, right) => left.name.localeCompare(right.name));
   }, [assignments, filters.careerId]);
 
-  if (!canManageAssignments) {
-    return <SurveyAssignmentPermissionPanel />;
+  if (!canReadAssignments) {
+    return <SurveyAssignmentPermissionPanel mode="read" />;
   }
 
   if (!canReadCatalog) {
@@ -232,8 +240,12 @@ export function SurveyAssignmentsPage({ contextual = false }: { contextual?: boo
           <h2>{contextual ? 'Encuestas asignadas' : 'Asignaciones de encuesta'}</h2>
           <p>
             {contextual
-              ? 'Consultá y gestioná encuestas asignadas para la carrera y ciclo lectivo seleccionados.'
-              : 'Asociá plantillas publicadas a carreras, materias, ciclos lectivos y docentes.'}
+              ? canManageAssignments
+                ? 'Consultá y gestioná encuestas asignadas para la carrera y ciclo lectivo seleccionados.'
+                : 'Consultá las encuestas asignadas para la carrera y ciclo lectivo seleccionados.'
+              : canManageAssignments
+                ? 'Asociá plantillas publicadas a carreras, materias, ciclos lectivos y docentes.'
+                : 'Consultá las encuestas ya asignadas. Las acciones de alta y modificación están reservadas a administración.'}
           </p>
         </div>
         <div className="surveys-actions">
@@ -245,9 +257,14 @@ export function SurveyAssignmentsPage({ contextual = false }: { contextual?: boo
           >
             Actualizar
           </button>
-          <Link className="primary-link-button" to={contextual ? '/app/context/surveys/new' : '/app/survey-assignments/new'}>
-            Nueva asignación
-          </Link>
+          {canManageAssignments ? (
+            <Link
+              className="primary-link-button"
+              to={contextual ? `${contextualBasePath}/surveys/new${contextualQuery}` : '/app/survey-assignments/new'}
+            >
+              Nueva asignación
+            </Link>
+          ) : null}
         </div>
       </header>
 
@@ -431,35 +448,39 @@ export function SurveyAssignmentsPage({ contextual = false }: { contextual?: boo
                   </div>
                 </dl>
 
-                <div className="survey-card-actions">
-                  <button
-                    className={assignment.isActive ? 'danger-button' : 'secondary-button'}
-                    disabled={activeActionId === assignment.id}
-                    onClick={() => setToggleTarget(assignment)}
-                    type="button"
-                  >
-                    {activeActionId === assignment.id
-                      ? 'Procesando...'
-                      : assignment.isActive
-                        ? 'Desactivar'
-                        : 'Reactivar'}
-                  </button>
-                </div>
+                {canManageAssignments ? (
+                  <div className="survey-card-actions">
+                    <button
+                      className={assignment.isActive ? 'danger-button' : 'secondary-button'}
+                      disabled={activeActionId === assignment.id}
+                      onClick={() => setToggleTarget(assignment)}
+                      type="button"
+                    >
+                      {activeActionId === assignment.id
+                        ? 'Procesando...'
+                        : assignment.isActive
+                          ? 'Desactivar'
+                          : 'Reactivar'}
+                    </button>
+                  </div>
+                ) : null}
               </article>
             ))}
           </div>
         </>
       ) : null}
-      <ConfirmDialog
-        busy={Boolean(toggleTarget && activeActionId === toggleTarget.id)}
-        confirmLabel={toggleTarget?.isActive ? 'Desactivar' : 'Reactivar'}
-        message={toggleTarget?.isActive ? 'La asignación dejará de utilizarse para nuevas sesiones, pero su historial se conservará.' : 'La asignación volverá a estar disponible para nuevas sesiones.'}
-        onCancel={() => setToggleTarget(null)}
-        onConfirm={() => { if (toggleTarget) void handleToggleAssignment(toggleTarget).finally(() => setToggleTarget(null)); }}
-        open={toggleTarget !== null}
-        title={toggleTarget?.isActive ? '¿Desactivar esta asignación?' : '¿Reactivar esta asignación?'}
-        tone={toggleTarget?.isActive ? 'danger' : 'primary'}
-      />
+      {canManageAssignments ? (
+        <ConfirmDialog
+          busy={Boolean(toggleTarget && activeActionId === toggleTarget.id)}
+          confirmLabel={toggleTarget?.isActive ? 'Desactivar' : 'Reactivar'}
+          message={toggleTarget?.isActive ? 'La asignación dejará de utilizarse para nuevas sesiones, pero su historial se conservará.' : 'La asignación volverá a estar disponible para nuevas sesiones.'}
+          onCancel={() => setToggleTarget(null)}
+          onConfirm={() => { if (toggleTarget) void handleToggleAssignment(toggleTarget).finally(() => setToggleTarget(null)); }}
+          open={toggleTarget !== null}
+          title={toggleTarget?.isActive ? '¿Desactivar esta asignación?' : '¿Reactivar esta asignación?'}
+          tone={toggleTarget?.isActive ? 'danger' : 'primary'}
+        />
+      ) : null}
     </section>
   );
 }

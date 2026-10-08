@@ -4,9 +4,10 @@ import { useAuth } from './AuthProvider';
 
 interface ProtectedRouteProps {
   children: ReactNode;
+  requiredPermission?: string;
 }
 
-export function ProtectedRoute({ children }: ProtectedRouteProps) {
+export function ProtectedRoute({ children, requiredPermission }: ProtectedRouteProps) {
   const auth = useAuth();
   const location = useLocation();
 
@@ -16,6 +17,10 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
 
   if (!auth.isAuthenticated) {
     return <Navigate replace state={{ from: location }} to="/login" />;
+  }
+
+  if (requiredPermission && !auth.hasPermission(requiredPermission)) {
+    return <Navigate replace to="/app" />;
   }
 
   return children;

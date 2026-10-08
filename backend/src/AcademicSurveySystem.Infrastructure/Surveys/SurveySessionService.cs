@@ -1,9 +1,11 @@
+using AcademicSurveySystem.Application.Audit;
 using AcademicSurveySystem.Application.Common.Results;
 using AcademicSurveySystem.Application.Surveys.Responses;
 using AcademicSurveySystem.Application.Surveys.Sessions;
 using AcademicSurveySystem.Domain.Common;
 using AcademicSurveySystem.Domain.Surveys.Entities;
 using AcademicSurveySystem.Domain.Surveys.Enums;
+using AcademicSurveySystem.Infrastructure.Audit;
 using AcademicSurveySystem.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -17,13 +19,16 @@ public sealed class SurveySessionService : ISurveySessionService
 
     private readonly ApplicationDbContext _dbContext;
     private readonly ISurveySessionAccessCodeGenerator _accessCodeGenerator;
+    private readonly IAuditWriter _auditWriter;
 
     public SurveySessionService(
         ApplicationDbContext dbContext,
-        ISurveySessionAccessCodeGenerator accessCodeGenerator)
+        ISurveySessionAccessCodeGenerator accessCodeGenerator,
+        IAuditWriter? auditWriter = null)
     {
         _dbContext = dbContext;
         _accessCodeGenerator = accessCodeGenerator;
+        _auditWriter = auditWriter ?? NoOpAuditWriter.Instance;
     }
 
     public async Task<ApplicationResult<IReadOnlyCollection<SurveySessionDto>>> GetSessionsAsync(
@@ -157,6 +162,16 @@ public sealed class SurveySessionService : ISurveySessionService
             now);
 
         _dbContext.SurveySessions.Add(session);
+        await WriteSessionAuditAsync(
+            "survey_sessions.session.created",
+            session,
+            "Creó una sesión de encuesta.",
+            new
+            {
+                session.SurveyAssignmentId,
+                session.ExpiresAtUtc
+            },
+            cancellationToken);
 
         var saveResult = await SaveChangesAsync(
             "The survey session could not be saved.",
@@ -214,10 +229,30 @@ public sealed class SurveySessionService : ISurveySessionService
             return relationshipValidation;
         }
 
-        return await ApplySessionChangeAsync(
-            () => session.Open(DateTimeOffset.UtcNow),
-            "The survey session could not be opened.",
-            cancellationToken);
+        try
+        {
+            var oldStatus = session.Status.ToString();
+            session.Open(DateTimeOffset.UtcNow);
+            await WriteSessionAuditAsync(
+                "survey_sessions.session.opened",
+                session,
+                "Abrió una sesión de encuesta.",
+                new { oldStatus, newStatus = session.Status.ToString(), session.SurveyAssignmentId },
+                cancellationToken);
+            await _dbContext.SaveChangesAsync(cancellationToken);
+
+            return ApplicationResult.Success();
+        }
+        catch (DomainException exception)
+        {
+            return ApplicationResult.Validation([
+                new ApplicationError("SurveySession.Validation", exception.Message)
+            ]);
+        }
+        catch (DbUpdateException)
+        {
+            return ApplicationResult.Failure("The survey session could not be opened.");
+        }
     }
 
     public Task<ApplicationResult> CloseSessionAsync(
@@ -227,7 +262,9 @@ public sealed class SurveySessionService : ISurveySessionService
             id,
             session => session.Close(DateTimeOffset.UtcNow),
             "The survey session could not be closed.",
-            cancellationToken);
+            cancellationToken,
+            "survey_sessions.session.closed",
+            session => "Cerró una sesión de encuesta.");
 
     public Task<ApplicationResult> CancelSessionAsync(
         Guid id,
@@ -236,7 +273,9 @@ public sealed class SurveySessionService : ISurveySessionService
             id,
             session => session.Cancel(DateTimeOffset.UtcNow),
             "The survey session could not be cancelled.",
-            cancellationToken);
+            cancellationToken,
+            "survey_sessions.session.cancelled",
+            session => "Canceló una sesión de encuesta.");
 
     public Task<ApplicationResult> ActivateSessionAsync(
         Guid id,
@@ -245,7 +284,9 @@ public sealed class SurveySessionService : ISurveySessionService
             id,
             session => session.Activate(DateTimeOffset.UtcNow),
             "The survey session could not be activated.",
-            cancellationToken);
+            cancellationToken,
+            "survey_sessions.session.activated",
+            session => "Activó una sesión de encuesta.");
 
     public Task<ApplicationResult> DeactivateSessionAsync(
         Guid id,
@@ -254,7 +295,9 @@ public sealed class SurveySessionService : ISurveySessionService
             id,
             session => session.Deactivate(DateTimeOffset.UtcNow),
             "The survey session could not be deactivated.",
-            cancellationToken);
+            cancellationToken,
+            "survey_sessions.session.deactivated",
+            session => "Desactivó una sesión de encuesta.");
 
     public async Task<ApplicationResult<PublicSurveySessionDto>> GetPublicSessionByAccessCodeAsync(
         string accessCode,
@@ -341,7 +384,9 @@ public sealed class SurveySessionService : ISurveySessionService
         Guid id,
         Action<SurveySession> change,
         string failureMessage,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? auditAction = null,
+        Func<SurveySession, string>? auditDescription = null)
     {
         var session = await _dbContext.SurveySessions
             .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
@@ -351,20 +396,29 @@ public sealed class SurveySessionService : ISurveySessionService
             return ApplicationResult.NotFound("Survey session was not found.");
         }
 
-        return await ApplySessionChangeAsync(
-            () => change(session),
-            failureMessage,
-            cancellationToken);
-    }
-
-    private async Task<ApplicationResult> ApplySessionChangeAsync(
-        Action change,
-        string failureMessage,
-        CancellationToken cancellationToken)
-    {
         try
         {
-            change();
+            var oldStatus = session.Status.ToString();
+            var oldIsActive = session.IsActive;
+            change(session);
+
+            if (auditAction is not null && auditDescription is not null)
+            {
+                await WriteSessionAuditAsync(
+                    auditAction,
+                    session,
+                    auditDescription(session),
+                    new
+                    {
+                        oldStatus,
+                        newStatus = session.Status.ToString(),
+                        oldIsActive,
+                        newIsActive = session.IsActive,
+                        session.SurveyAssignmentId
+                    },
+                    cancellationToken);
+            }
+
             await _dbContext.SaveChangesAsync(cancellationToken);
 
             return ApplicationResult.Success();
@@ -534,6 +588,23 @@ public sealed class SurveySessionService : ISurveySessionService
     {
         return exception.InnerException is PostgresException postgresException
             && postgresException.SqlState == UniqueViolationSqlState;
+    }
+
+    private Task WriteSessionAuditAsync(
+        string action,
+        SurveySession session,
+        string description,
+        object? metadata,
+        CancellationToken cancellationToken)
+    {
+        return _auditWriter.WriteAsync(
+            action,
+            "survey_sessions",
+            "SurveySession",
+            session.Id,
+            description,
+            metadata,
+            cancellationToken);
     }
 
     private async Task<Dictionary<Guid, SurveyResponseProgressDto>> LoadProgressByAssignmentAsync(

@@ -16,12 +16,15 @@ import {
 export const MANAGE_SURVEY_TEMPLATES_PERMISSION = 'surveys.templates.manage';
 export const READ_SURVEY_TEMPLATES_PERMISSION = 'surveys.templates.read';
 
-export function PermissionDeniedPanel() {
+export function PermissionDeniedPanel({ mode = 'manage' }: { mode?: 'read' | 'manage' }) {
+  const permission = mode === 'read' ? READ_SURVEY_TEMPLATES_PERMISSION : MANAGE_SURVEY_TEMPLATES_PERMISSION;
+  const action = mode === 'read' ? 'consultar' : 'administrar';
+
   return (
     <section className="app-content access-denied-panel">
       <p className="eyebrow">Sin acceso</p>
-      <h2>No tenés permisos para administrar plantillas de encuesta.</h2>
-      <p>Solicitá el permiso {MANAGE_SURVEY_TEMPLATES_PERMISSION} a la administración del sistema.</p>
+      <h2>No tenés permisos para {action} plantillas de encuesta.</h2>
+      <p>Solicitá el permiso {permission} a la administración del sistema.</p>
     </section>
   );
 }
@@ -78,7 +81,7 @@ export function getFriendlySurveyError(error: unknown, fallback: string): string
     }
 
     if (error.status === 403) {
-      return 'No tenés permisos para administrar plantillas de encuesta.';
+      return 'No tenés permisos suficientes para realizar esta acción sobre plantillas de encuesta.';
     }
 
     if (error.status === 404) {

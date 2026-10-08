@@ -15,6 +15,10 @@ public sealed class SurveyQuestionConfiguration : IEntityTypeConfiguration<Surve
         builder.Property(question => question.Id)
             .HasColumnName("id");
 
+        builder.Property(question => question.QuestionLineageId)
+            .HasColumnName("question_lineage_id")
+            .IsRequired();
+
         builder.Property(question => question.SurveySectionId)
             .HasColumnName("survey_section_id")
             .IsRequired();
@@ -65,6 +69,14 @@ public sealed class SurveyQuestionConfiguration : IEntityTypeConfiguration<Surve
             .IsRequired();
 
         builder.HasIndex(question => question.SurveySectionId);
+
+        builder.HasIndex(question => question.QuestionLineageId);
+
+        builder.HasIndex(question => new
+            {
+                question.SurveySectionId,
+                question.QuestionLineageId
+            });
 
         builder.HasIndex(question => new
             {

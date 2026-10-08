@@ -1,0 +1,333 @@
+0 verbose cli C:\Program Files\nodejs\node.exe C:\Users\Luis\AppData\Roaming\npm\node_modules\npm\bin\npm-cli.js
+1 info using npm@8.15.0
+2 info using node@v24.11.1
+3 timing npm:load:whichnode Completed in 0ms
+4 timing config:load:defaults Completed in 0ms
+5 timing config:load:file:C:\Users\Luis\AppData\Roaming\npm\node_modules\npm\npmrc Completed in 6ms
+6 timing config:load:builtin Completed in 6ms
+7 timing config:load:cli Completed in 1ms
+8 timing config:load:env Completed in 1ms
+9 timing config:load:file:D:\APP ENCUESTAS\frontend\academic-survey-system-web\.npmrc Completed in 0ms
+10 timing config:load:project Completed in 1ms
+11 timing config:load:file:C:\Users\Luis\.npmrc Completed in 0ms
+12 timing config:load:user Completed in 0ms
+13 timing config:load:file:C:\Users\Luis\AppData\Roaming\npm\etc\npmrc Completed in 0ms
+14 timing config:load:global Completed in 0ms
+15 timing config:load:validate Completed in 0ms
+16 timing config:load:credentials Completed in 1ms
+17 timing config:load:setEnvs Completed in 1ms
+18 timing config:load Completed in 13ms
+19 timing npm:load:configload Completed in 14ms
+20 timing npm:load:mkdirpcache Completed in 1ms
+21 timing npm:load:mkdirplogs Completed in 0ms
+22 verbose title npm install
+23 verbose argv "install"
+24 timing npm:load:setTitle Completed in 1ms
+25 timing config:load:flatten Completed in 1ms
+26 timing npm:load:display Completed in 2ms
+27 verbose logfile logs-max:10 dir:D:\APP ENCUESTAS\.npm-cache\_logs
+28 verbose logfile D:\APP ENCUESTAS\.npm-cache\_logs\2026-07-02T15_08_13_019Z-debug-0.log
+29 timing npm:load:logFile Completed in 4ms
+30 timing npm:load:timers Completed in 0ms
+31 timing npm:load:configScope Completed in 0ms
+32 timing npm:load Completed in 22ms
+33 timing arborist:ctor Completed in 0ms
+34 silly logfile done cleaning log files
+35 timing idealTree:init Completed in 32ms
+36 timing idealTree:userRequests Completed in 0ms
+37 silly idealTree buildDeps
+38 silly fetch manifest @types/react@latest
+39 verbose shrinkwrap failed to load node_modules/.package-lock.json out of date, updated: node_modules
+40 http fetch GET 200 https://registry.npmjs.org/@types%2freact 385ms (cache miss)
+41 silly fetch manifest @types/react-dom@latest
+42 http fetch GET 200 https://registry.npmjs.org/@types%2freact-dom 88ms (cache miss)
+43 silly placeDep ROOT @types/react@19.2.17 OK for: academic-survey-system-web@0.0.0 want: latest
+44 silly placeDep ROOT @types/react-dom@19.2.3 OK for: academic-survey-system-web@0.0.0 want: latest
+45 silly fetch manifest csstype@^3.2.2
+46 http fetch GET 200 https://registry.npmjs.org/csstype 68ms (cache miss)
+47 timing idealTree:#root Completed in 553ms
+48 silly placeDep ROOT csstype@3.2.3 OK for: @types/react@19.2.17 want: ^3.2.2
+49 timing idealTree:node_modules/@types/react Completed in 1ms
+50 timing idealTree:node_modules/@types/react-dom Completed in 0ms
+51 timing idealTree:node_modules/csstype Completed in 0ms
+52 timing idealTree:buildDeps Completed in 556ms
+53 timing idealTree:fixDepFlags Completed in 0ms
+54 timing idealTree Completed in 590ms
+55 timing reify:loadTrees Completed in 590ms
+56 timing reify:diffTrees Completed in 4ms
+57 silly reify moves {}
+58 timing reify:retireShallow Completed in 1ms
+59 timing reify:createSparse Completed in 7ms
+60 timing reify:loadBundles Completed in 0ms
+61 silly audit bulk request {
+61 silly audit   '@emnapi/core': [ '1.11.1' ],
+61 silly audit   '@emnapi/runtime': [ '1.11.1' ],
+61 silly audit   '@emnapi/wasi-threads': [ '1.2.2' ],
+61 silly audit   '@napi-rs/wasm-runtime': [ '1.1.6' ],
+61 silly audit   '@oxc-project/types': [ '0.138.0' ],
+61 silly audit   '@rolldown/binding-android-arm64': [ '1.1.4' ],
+61 silly audit   '@rolldown/binding-darwin-arm64': [ '1.1.4' ],
+61 silly audit   '@rolldown/binding-darwin-x64': [ '1.1.4' ],
+61 silly audit   '@rolldown/binding-freebsd-x64': [ '1.1.4' ],
+61 silly audit   '@rolldown/binding-linux-arm-gnueabihf': [ '1.1.4' ],
+61 silly audit   '@rolldown/binding-linux-arm64-gnu': [ '1.1.4' ],
+61 silly audit   '@rolldown/binding-linux-arm64-musl': [ '1.1.4' ],
+61 silly audit   '@rolldown/binding-linux-ppc64-gnu': [ '1.1.4' ],
+61 silly audit   '@rolldown/binding-linux-s390x-gnu': [ '1.1.4' ],
+61 silly audit   '@rolldown/binding-linux-x64-gnu': [ '1.1.4' ],
+61 silly audit   '@rolldown/binding-linux-x64-musl': [ '1.1.4' ],
+61 silly audit   '@rolldown/binding-openharmony-arm64': [ '1.1.4' ],
+61 silly audit   '@rolldown/binding-wasm32-wasi': [ '1.1.4' ],
+61 silly audit   '@rolldown/binding-win32-arm64-msvc': [ '1.1.4' ],
+61 silly audit   '@rolldown/binding-win32-x64-msvc': [ '1.1.4' ],
+61 silly audit   '@rolldown/pluginutils': [ '1.0.1' ],
+61 silly audit   '@tybys/wasm-util': [ '0.10.3' ],
+61 silly audit   '@vitejs/plugin-react': [ '6.0.3' ],
+61 silly audit   'detect-libc': [ '2.1.2' ],
+61 silly audit   fdir: [ '6.5.0' ],
+61 silly audit   fsevents: [ '2.3.3' ],
+61 silly audit   lightningcss: [ '1.32.0' ],
+61 silly audit   'lightningcss-android-arm64': [ '1.32.0' ],
+61 silly audit   'lightningcss-darwin-arm64': [ '1.32.0' ],
+61 silly audit   'lightningcss-darwin-x64': [ '1.32.0' ],
+61 silly audit   'lightningcss-freebsd-x64': [ '1.32.0' ],
+61 silly audit   'lightningcss-linux-arm-gnueabihf': [ '1.32.0' ],
+61 silly audit   'lightningcss-linux-arm64-gnu': [ '1.32.0' ],
+61 silly audit   'lightningcss-linux-arm64-musl': [ '1.32.0' ],
+61 silly audit   'lightningcss-linux-x64-gnu': [ '1.32.0' ],
+61 silly audit   'lightningcss-linux-x64-musl': [ '1.32.0' ],
+61 silly audit   'lightningcss-win32-arm64-msvc': [ '1.32.0' ],
+61 silly audit   'lightningcss-win32-x64-msvc': [ '1.32.0' ],
+61 silly audit   nanoid: [ '3.3.15' ],
+61 silly audit   picocolors: [ '1.1.1' ],
+61 silly audit   picomatch: [ '4.0.4' ],
+61 silly audit   postcss: [ '8.5.16' ],
+61 silly audit   react: [ '19.2.7' ],
+61 silly audit   'react-dom': [ '19.2.7' ],
+61 silly audit   rolldown: [ '1.1.4' ],
+61 silly audit   scheduler: [ '0.27.0' ],
+61 silly audit   'source-map-js': [ '1.2.1' ],
+61 silly audit   tinyglobby: [ '0.2.17' ],
+61 silly audit   tslib: [ '2.8.1' ],
+61 silly audit   typescript: [ '6.0.3' ],
+61 silly audit   vite: [ '8.1.3' ],
+61 silly audit   '@types/react': [ '19.2.17' ],
+61 silly audit   '@types/react-dom': [ '19.2.3' ],
+61 silly audit   csstype: [ '3.2.3' ]
+61 silly audit }
+62 verbose reify failed optional dependency D:\APP ENCUESTAS\frontend\academic-survey-system-web\node_modules\lightningcss-win32-arm64-msvc
+63 silly reify mark deleted [
+63 silly reify   'D:\\APP ENCUESTAS\\frontend\\academic-survey-system-web\\node_modules\\lightningcss-win32-arm64-msvc'
+63 silly reify ]
+64 verbose reify failed optional dependency D:\APP ENCUESTAS\frontend\academic-survey-system-web\node_modules\lightningcss-linux-x64-musl
+65 silly reify mark deleted [
+65 silly reify   'D:\\APP ENCUESTAS\\frontend\\academic-survey-system-web\\node_modules\\lightningcss-linux-x64-musl'
+65 silly reify ]
+66 verbose reify failed optional dependency D:\APP ENCUESTAS\frontend\academic-survey-system-web\node_modules\lightningcss-linux-x64-gnu
+67 silly reify mark deleted [
+67 silly reify   'D:\\APP ENCUESTAS\\frontend\\academic-survey-system-web\\node_modules\\lightningcss-linux-x64-gnu'
+67 silly reify ]
+68 verbose reify failed optional dependency D:\APP ENCUESTAS\frontend\academic-survey-system-web\node_modules\lightningcss-linux-arm64-musl
+69 silly reify mark deleted [
+69 silly reify   'D:\\APP ENCUESTAS\\frontend\\academic-survey-system-web\\node_modules\\lightningcss-linux-arm64-musl'
+69 silly reify ]
+70 verbose reify failed optional dependency D:\APP ENCUESTAS\frontend\academic-survey-system-web\node_modules\lightningcss-linux-arm64-gnu
+71 silly reify mark deleted [
+71 silly reify   'D:\\APP ENCUESTAS\\frontend\\academic-survey-system-web\\node_modules\\lightningcss-linux-arm64-gnu'
+71 silly reify ]
+72 verbose reify failed optional dependency D:\APP ENCUESTAS\frontend\academic-survey-system-web\node_modules\lightningcss-linux-arm-gnueabihf
+73 silly reify mark deleted [
+73 silly reify   'D:\\APP ENCUESTAS\\frontend\\academic-survey-system-web\\node_modules\\lightningcss-linux-arm-gnueabihf'
+73 silly reify ]
+74 verbose reify failed optional dependency D:\APP ENCUESTAS\frontend\academic-survey-system-web\node_modules\lightningcss-freebsd-x64
+75 silly reify mark deleted [
+75 silly reify   'D:\\APP ENCUESTAS\\frontend\\academic-survey-system-web\\node_modules\\lightningcss-freebsd-x64'
+75 silly reify ]
+76 verbose reify failed optional dependency D:\APP ENCUESTAS\frontend\academic-survey-system-web\node_modules\lightningcss-darwin-x64
+77 silly reify mark deleted [
+77 silly reify   'D:\\APP ENCUESTAS\\frontend\\academic-survey-system-web\\node_modules\\lightningcss-darwin-x64'
+77 silly reify ]
+78 verbose reify failed optional dependency D:\APP ENCUESTAS\frontend\academic-survey-system-web\node_modules\lightningcss-darwin-arm64
+79 silly reify mark deleted [
+79 silly reify   'D:\\APP ENCUESTAS\\frontend\\academic-survey-system-web\\node_modules\\lightningcss-darwin-arm64'
+79 silly reify ]
+80 verbose reify failed optional dependency D:\APP ENCUESTAS\frontend\academic-survey-system-web\node_modules\lightningcss-android-arm64
+81 silly reify mark deleted [
+81 silly reify   'D:\\APP ENCUESTAS\\frontend\\academic-survey-system-web\\node_modules\\lightningcss-android-arm64'
+81 silly reify ]
+82 verbose reify failed optional dependency D:\APP ENCUESTAS\frontend\academic-survey-system-web\node_modules\fsevents
+83 silly reify mark deleted [
+83 silly reify   'D:\\APP ENCUESTAS\\frontend\\academic-survey-system-web\\node_modules\\fsevents'
+83 silly reify ]
+84 verbose reify failed optional dependency D:\APP ENCUESTAS\frontend\academic-survey-system-web\node_modules\@rolldown\binding-win32-arm64-msvc
+85 silly reify mark deleted [
+85 silly reify   'D:\\APP ENCUESTAS\\frontend\\academic-survey-system-web\\node_modules\\@rolldown\\binding-win32-arm64-msvc'
+85 silly reify ]
+86 verbose reify failed optional dependency D:\APP ENCUESTAS\frontend\academic-survey-system-web\node_modules\@rolldown\binding-wasm32-wasi
+87 silly reify mark deleted [
+87 silly reify   'D:\\APP ENCUESTAS\\frontend\\academic-survey-system-web\\node_modules\\@rolldown\\binding-wasm32-wasi'
+87 silly reify ]
+88 verbose reify failed optional dependency D:\APP ENCUESTAS\frontend\academic-survey-system-web\node_modules\@emnapi\core
+89 silly reify mark deleted [
+89 silly reify   'D:\\APP ENCUESTAS\\frontend\\academic-survey-system-web\\node_modules\\@emnapi\\core'
+89 silly reify ]
+90 verbose reify failed optional dependency D:\APP ENCUESTAS\frontend\academic-survey-system-web\node_modules\@emnapi\runtime
+91 silly reify mark deleted [
+91 silly reify   'D:\\APP ENCUESTAS\\frontend\\academic-survey-system-web\\node_modules\\@emnapi\\runtime'
+91 silly reify ]
+92 verbose reify failed optional dependency D:\APP ENCUESTAS\frontend\academic-survey-system-web\node_modules\@napi-rs\wasm-runtime
+93 silly reify mark deleted [
+93 silly reify   'D:\\APP ENCUESTAS\\frontend\\academic-survey-system-web\\node_modules\\@napi-rs\\wasm-runtime'
+93 silly reify ]
+94 verbose reify failed optional dependency D:\APP ENCUESTAS\frontend\academic-survey-system-web\node_modules\@emnapi\wasi-threads
+95 silly reify mark deleted [
+95 silly reify   'D:\\APP ENCUESTAS\\frontend\\academic-survey-system-web\\node_modules\\@emnapi\\wasi-threads'
+95 silly reify ]
+96 verbose reify failed optional dependency D:\APP ENCUESTAS\frontend\academic-survey-system-web\node_modules\tslib
+97 silly reify mark deleted [
+97 silly reify   'D:\\APP ENCUESTAS\\frontend\\academic-survey-system-web\\node_modules\\tslib'
+97 silly reify ]
+98 verbose reify failed optional dependency D:\APP ENCUESTAS\frontend\academic-survey-system-web\node_modules\@tybys\wasm-util
+99 silly reify mark deleted [
+99 silly reify   'D:\\APP ENCUESTAS\\frontend\\academic-survey-system-web\\node_modules\\@tybys\\wasm-util'
+99 silly reify ]
+100 verbose reify failed optional dependency D:\APP ENCUESTAS\frontend\academic-survey-system-web\node_modules\@rolldown\binding-openharmony-arm64
+101 silly reify mark deleted [
+101 silly reify   'D:\\APP ENCUESTAS\\frontend\\academic-survey-system-web\\node_modules\\@rolldown\\binding-openharmony-arm64'
+101 silly reify ]
+102 verbose reify failed optional dependency D:\APP ENCUESTAS\frontend\academic-survey-system-web\node_modules\@rolldown\binding-linux-x64-musl
+103 silly reify mark deleted [
+103 silly reify   'D:\\APP ENCUESTAS\\frontend\\academic-survey-system-web\\node_modules\\@rolldown\\binding-linux-x64-musl'
+103 silly reify ]
+104 verbose reify failed optional dependency D:\APP ENCUESTAS\frontend\academic-survey-system-web\node_modules\@rolldown\binding-linux-x64-gnu
+105 silly reify mark deleted [
+105 silly reify   'D:\\APP ENCUESTAS\\frontend\\academic-survey-system-web\\node_modules\\@rolldown\\binding-linux-x64-gnu'
+105 silly reify ]
+106 verbose reify failed optional dependency D:\APP ENCUESTAS\frontend\academic-survey-system-web\node_modules\@rolldown\binding-linux-s390x-gnu
+107 silly reify mark deleted [
+107 silly reify   'D:\\APP ENCUESTAS\\frontend\\academic-survey-system-web\\node_modules\\@rolldown\\binding-linux-s390x-gnu'
+107 silly reify ]
+108 verbose reify failed optional dependency D:\APP ENCUESTAS\frontend\academic-survey-system-web\node_modules\@rolldown\binding-linux-ppc64-gnu
+109 silly reify mark deleted [
+109 silly reify   'D:\\APP ENCUESTAS\\frontend\\academic-survey-system-web\\node_modules\\@rolldown\\binding-linux-ppc64-gnu'
+109 silly reify ]
+110 verbose reify failed optional dependency D:\APP ENCUESTAS\frontend\academic-survey-system-web\node_modules\@rolldown\binding-linux-arm64-musl
+111 silly reify mark deleted [
+111 silly reify   'D:\\APP ENCUESTAS\\frontend\\academic-survey-system-web\\node_modules\\@rolldown\\binding-linux-arm64-musl'
+111 silly reify ]
+112 verbose reify failed optional dependency D:\APP ENCUESTAS\frontend\academic-survey-system-web\node_modules\@rolldown\binding-linux-arm64-gnu
+113 silly reify mark deleted [
+113 silly reify   'D:\\APP ENCUESTAS\\frontend\\academic-survey-system-web\\node_modules\\@rolldown\\binding-linux-arm64-gnu'
+113 silly reify ]
+114 verbose reify failed optional dependency D:\APP ENCUESTAS\frontend\academic-survey-system-web\node_modules\@rolldown\binding-linux-arm-gnueabihf
+115 silly reify mark deleted [
+115 silly reify   'D:\\APP ENCUESTAS\\frontend\\academic-survey-system-web\\node_modules\\@rolldown\\binding-linux-arm-gnueabihf'
+115 silly reify ]
+116 verbose reify failed optional dependency D:\APP ENCUESTAS\frontend\academic-survey-system-web\node_modules\@rolldown\binding-freebsd-x64
+117 silly reify mark deleted [
+117 silly reify   'D:\\APP ENCUESTAS\\frontend\\academic-survey-system-web\\node_modules\\@rolldown\\binding-freebsd-x64'
+117 silly reify ]
+118 verbose reify failed optional dependency D:\APP ENCUESTAS\frontend\academic-survey-system-web\node_modules\@rolldown\binding-darwin-x64
+119 silly reify mark deleted [
+119 silly reify   'D:\\APP ENCUESTAS\\frontend\\academic-survey-system-web\\node_modules\\@rolldown\\binding-darwin-x64'
+119 silly reify ]
+120 verbose reify failed optional dependency D:\APP ENCUESTAS\frontend\academic-survey-system-web\node_modules\@rolldown\binding-darwin-arm64
+121 silly reify mark deleted [
+121 silly reify   'D:\\APP ENCUESTAS\\frontend\\academic-survey-system-web\\node_modules\\@rolldown\\binding-darwin-arm64'
+121 silly reify ]
+122 verbose reify failed optional dependency D:\APP ENCUESTAS\frontend\academic-survey-system-web\node_modules\@rolldown\binding-android-arm64
+123 silly reify mark deleted [
+123 silly reify   'D:\\APP ENCUESTAS\\frontend\\academic-survey-system-web\\node_modules\\@rolldown\\binding-android-arm64'
+123 silly reify ]
+124 timing reifyNode:node_modules/lightningcss-win32-arm64-msvc Completed in 8ms
+125 timing reifyNode:node_modules/lightningcss-linux-x64-musl Completed in 8ms
+126 timing reifyNode:node_modules/lightningcss-linux-x64-gnu Completed in 8ms
+127 timing reifyNode:node_modules/lightningcss-linux-arm64-musl Completed in 8ms
+128 timing reifyNode:node_modules/lightningcss-linux-arm64-gnu Completed in 8ms
+129 timing reifyNode:node_modules/lightningcss-linux-arm-gnueabihf Completed in 8ms
+130 timing reifyNode:node_modules/lightningcss-freebsd-x64 Completed in 8ms
+131 timing reifyNode:node_modules/lightningcss-darwin-x64 Completed in 8ms
+132 timing reifyNode:node_modules/lightningcss-darwin-arm64 Completed in 8ms
+133 timing reifyNode:node_modules/lightningcss-android-arm64 Completed in 8ms
+134 timing reifyNode:node_modules/fsevents Completed in 8ms
+135 timing reifyNode:node_modules/@rolldown/binding-win32-arm64-msvc Completed in 8ms
+136 timing reifyNode:node_modules/@rolldown/binding-wasm32-wasi Completed in 8ms
+137 timing reifyNode:node_modules/@rolldown/binding-openharmony-arm64 Completed in 8ms
+138 timing reifyNode:node_modules/@rolldown/binding-linux-x64-musl Completed in 8ms
+139 timing reifyNode:node_modules/@rolldown/binding-linux-x64-gnu Completed in 8ms
+140 timing reifyNode:node_modules/@rolldown/binding-linux-s390x-gnu Completed in 8ms
+141 timing reifyNode:node_modules/@rolldown/binding-linux-ppc64-gnu Completed in 8ms
+142 timing reifyNode:node_modules/@rolldown/binding-linux-arm64-musl Completed in 8ms
+143 timing reifyNode:node_modules/@rolldown/binding-linux-arm64-gnu Completed in 8ms
+144 timing reifyNode:node_modules/@rolldown/binding-linux-arm-gnueabihf Completed in 8ms
+145 timing reifyNode:node_modules/@rolldown/binding-freebsd-x64 Completed in 8ms
+146 timing reifyNode:node_modules/@rolldown/binding-darwin-x64 Completed in 9ms
+147 timing reifyNode:node_modules/@rolldown/binding-darwin-arm64 Completed in 9ms
+148 timing reifyNode:node_modules/@rolldown/binding-android-arm64 Completed in 9ms
+149 silly tarball no local data for csstype@https://registry.npmjs.org/csstype/-/csstype-3.2.3.tgz. Extracting by manifest.
+150 silly tarball no local data for @types/react-dom@https://registry.npmjs.org/@types/react-dom/-/react-dom-19.2.3.tgz. Extracting by manifest.
+151 silly tarball no local data for @types/react@https://registry.npmjs.org/@types/react/-/react-19.2.17.tgz. Extracting by manifest.
+152 timing reifyNode:node_modules/tslib Completed in 76ms
+153 timing reifyNode:node_modules/@emnapi/wasi-threads Completed in 83ms
+154 timing reifyNode:node_modules/@emnapi/runtime Completed in 86ms
+155 timing reifyNode:node_modules/@napi-rs/wasm-runtime Completed in 97ms
+156 timing reifyNode:node_modules/@emnapi/core Completed in 103ms
+157 timing reifyNode:node_modules/@tybys/wasm-util Completed in 107ms
+158 http fetch GET 200 https://registry.npmjs.org/@types/react-dom/-/react-dom-19.2.3.tgz 178ms (cache miss)
+159 timing reifyNode:node_modules/@types/react-dom Completed in 195ms
+160 http fetch POST 200 https://registry.npmjs.org/-/npm/v1/security/advisories/bulk 225ms
+161 timing auditReport:getReport Completed in 226ms
+162 silly audit report {}
+163 timing auditReport:init Completed in 0ms
+164 timing reify:audit Completed in 227ms
+165 http fetch GET 200 https://registry.npmjs.org/@types/react/-/react-19.2.17.tgz 213ms (cache miss)
+166 timing reifyNode:node_modules/@types/react Completed in 229ms
+167 http fetch GET 200 https://registry.npmjs.org/csstype/-/csstype-3.2.3.tgz 216ms (cache miss)
+168 timing reifyNode:node_modules/csstype Completed in 232ms
+169 timing reify:unpack Completed in 232ms
+170 timing reify:unretire Completed in 0ms
+171 timing build:queue Completed in 1ms
+172 timing build:deps Completed in 1ms
+173 timing build Completed in 2ms
+174 timing reify:build Completed in 2ms
+175 timing reify:trash Completed in 16ms
+176 timing reify:save Completed in 13ms
+177 timing reify Completed in 876ms
+178 silly ADD node_modules/csstype
+179 silly ADD node_modules/@types/react-dom
+180 silly ADD node_modules/@types/react
+181 silly ADD
+182 silly ADD
+183 silly ADD
+184 silly ADD
+185 silly ADD
+186 silly ADD
+187 silly ADD
+188 silly ADD
+189 silly ADD
+190 silly ADD
+191 silly ADD
+192 silly ADD
+193 silly ADD
+194 silly ADD
+195 silly ADD
+196 silly ADD
+197 silly ADD
+198 silly ADD
+199 silly ADD
+200 silly ADD
+201 silly ADD
+202 silly ADD
+203 silly ADD
+204 silly ADD
+205 silly ADD
+206 silly ADD
+207 silly ADD
+208 silly ADD
+209 silly ADD
+210 silly ADD
+211 silly ADD
+212 timing command:install Completed in 884ms
+213 verbose exit 0
+214 timing npm Completed in 1086ms
+215 info ok

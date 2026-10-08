@@ -36,3 +36,11 @@ export interface CreateSurveyAssignmentRequest {
   academicCycleId: string;
   teacherSubjectAssignmentId: string;
 }
+
+export interface CreateSurveyAssignmentBatchRequest {
+  surveyId: string;
+  careerId: string;
+  subjectId: string;
+  academicCycleId: string;
+  teacherSubjectAssignmentIds: string[];
+}

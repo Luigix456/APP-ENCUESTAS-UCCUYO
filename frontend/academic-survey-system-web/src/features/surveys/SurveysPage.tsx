@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { getSurveyAssignments } from '../../api/surveyAssignmentsApi';
 import {
   archiveSurvey,
   createSurvey,
@@ -10,6 +11,7 @@ import { useAuth } from '../../auth/AuthProvider';
 import { PaginationControls, usePagination } from '../../components/Pagination';
 import { ConfirmDialog, Modal } from '../../components/ui/Modal';
 import { useToast } from '../../components/ui/ToastProvider';
+import type { SurveyAssignmentDto } from '../../types/surveyAssignments';
 import type { SurveyFilters, SurveyStatus, SurveySummaryDto, SurveyTarget } from '../../types/surveys';
 import { SURVEY_STATUSES, SURVEY_STATUS_LABELS, SURVEY_TARGETS } from '../../types/surveys';
 import {
@@ -18,6 +20,7 @@ import {
   formatSurveyTarget,
   getFriendlySurveyError,
   MANAGE_SURVEY_TEMPLATES_PERMISSION,
+  READ_SURVEY_TEMPLATES_PERMISSION,
   PermissionDeniedPanel,
   SurveyVersionBadge,
   SurveyStatusBadge,
@@ -33,6 +36,13 @@ interface SurveyCreateFormState {
   description: string;
   target: SurveyTarget;
   isAnonymous: boolean;
+}
+
+interface SurveyAcademicGroup {
+  key: string;
+  careerName: string;
+  subjectName: string;
+  surveys: SurveySummaryDto[];
 }
 
 const initialFilters: SurveyFilters = {
@@ -57,6 +67,8 @@ export function SurveysPage() {
   const [activityFilter, setActivityFilter] = useState<ActivityFilter>('');
   const [sortBy, setSortBy] = useState<SortOption>('updated-desc');
   const [surveys, setSurveys] = useState<SurveySummaryDto[]>([]);
+  const [assignments, setAssignments] = useState<SurveyAssignmentDto[]>([]);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const [pageError, setPageError] = useState<string | null>(null);
   const [activeActionId, setActiveActionId] = useState<string | null>(null);
@@ -68,24 +80,20 @@ export function SurveysPage() {
 
   const accessToken = auth.accessToken;
   const canManageTemplates = auth.hasPermission(MANAGE_SURVEY_TEMPLATES_PERMISSION);
+  const canReadTemplates = canManageTemplates || auth.hasPermission(READ_SURVEY_TEMPLATES_PERMISSION);
 
   useEffect(() => {
-    if (!canManageTemplates || !accessToken) {
+    if (!canReadTemplates || !accessToken) {
       setLoadState('ready');
       return;
     }
     void loadSurveys(accessToken, filters);
-  }, [accessToken, canManageTemplates, filters]);
+  }, [accessToken, canReadTemplates, filters]);
 
   const filteredSurveys = useMemo(() => {
     const normalizedSearch = search.trim().toLocaleLowerCase('es');
     return [...surveys]
-      .filter((survey) => {
-        if (!normalizedSearch) return true;
-        return `${survey.title} ${survey.description ?? ''} ${formatSurveyTarget(survey.target)}`
-          .toLocaleLowerCase('es')
-          .includes(normalizedSearch);
-      })
+      .filter((survey) => !normalizedSearch || survey.title.toLocaleLowerCase('es').includes(normalizedSearch))
       .filter((survey) => {
         if (activityFilter === 'active') return survey.isActive;
         if (activityFilter === 'inactive') return !survey.isActive;
@@ -110,14 +118,23 @@ export function SurveysPage() {
   );
 
   const surveyPagination = usePagination(filteredSurveys, 8);
+  const groupedSurveys = useMemo(
+    () => groupSurveysByAcademicContext(surveyPagination.items, assignments),
+    [assignments, surveyPagination.items]
+  );
 
-  if (!canManageTemplates) return <PermissionDeniedPanel />;
+  if (!canReadTemplates) return <PermissionDeniedPanel mode="read" />;
 
   async function loadSurveys(token: string, nextFilters = filters) {
     setLoadState('loading');
     setPageError(null);
     try {
-      setSurveys(await getSurveys(nextFilters, token, auth.logout));
+      const [nextSurveys, nextAssignments] = await Promise.all([
+        getSurveys(nextFilters, token, auth.logout),
+        getSurveyAssignments(token, auth.logout, { includeInactive: true })
+      ]);
+      setSurveys(nextSurveys);
+      setAssignments(nextAssignments);
       setLoadState('ready');
     } catch (error) {
       setPageError(getFriendlySurveyError(error, 'No fue posible cargar las plantillas de encuesta.'));
@@ -204,23 +221,36 @@ export function SurveysPage() {
     setFilters(initialFilters);
   }
 
-  const hasFilters = Boolean(search || activityFilter || filters.status || filters.target || !filters.includeInactive || sortBy !== 'updated-desc');
+  const advancedFilterCount = [
+    activityFilter,
+    filters.status,
+    filters.target,
+    !filters.includeInactive ? 'active-only' : '',
+    sortBy !== 'updated-desc' ? sortBy : ''
+  ].filter(Boolean).length;
+  const hasFilters = Boolean(search || advancedFilterCount > 0);
 
   return (
     <section className="app-content surveys-page">
       <header className="surveys-header surveys-header--templates">
         <div>
-          <p className="eyebrow">Administración</p>
+          <p className="eyebrow">{canManageTemplates ? 'Administración' : 'Consulta'}</p>
           <h2>Plantillas de encuestas</h2>
-          <p>Buscá, filtrá y administrá las plantillas que luego se asignan a carreras, materias y docentes.</p>
+          <p>
+            {canManageTemplates
+              ? 'Buscá por nombre y administrá las plantillas agrupadas según las carreras y materias donde se utilizan.'
+              : 'Consultá las plantillas disponibles y revisá su vista previa. Las acciones de edición están reservadas a administración.'}
+          </p>
         </div>
         <div className="surveys-actions">
           <button className="secondary-button" disabled={!accessToken || loadState === 'loading'} onClick={() => accessToken && void loadSurveys(accessToken)} type="button">
             Actualizar
           </button>
-          <button className="primary-button" onClick={() => setShowCreateModal(true)} type="button">
-            Nueva plantilla
-          </button>
+          {canManageTemplates ? (
+            <button className="primary-button" onClick={() => setShowCreateModal(true)} type="button">
+              Nueva plantilla
+            </button>
+          ) : null}
         </div>
       </header>
 
@@ -231,61 +261,74 @@ export function SurveysPage() {
         <div><span>Archivadas</span><strong>{summary.archived}</strong></div>
       </div>
 
-      <section className="filter-panel" aria-label="Buscar y filtrar plantillas">
-        <header className="filter-panel__header">
-          <div>
-            <h3>Buscar plantillas</h3>
-            <p>Usá uno o más filtros para encontrar rápidamente la encuesta que necesitás.</p>
-          </div>
-          {hasFilters ? <button className="link-button" onClick={clearFilters} type="button">Limpiar filtros</button> : null}
-        </header>
-        <div className="template-filter-grid">
-          <label className="filter-search-field">
-            <span>Buscar por nombre o descripción</span>
+      <section className="survey-search-panel" aria-label="Buscar y filtrar plantillas">
+        <div className="survey-search-row">
+          <label className="survey-search-input">
+            <span className="sr-only">Buscar encuesta por nombre</span>
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m21 21-4.35-4.35m2.35-5.65a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z" /></svg>
             <input
               className="text-input"
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Ej.: evaluación docente"
+              placeholder="Buscar encuesta por nombre..."
               type="search"
               value={search}
             />
           </label>
-          <label>
-            <span>Estado</span>
-            <select className="text-input" onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value as SurveyStatus | '' }))} value={filters.status}>
-              <option value="">Todos</option>
-              {SURVEY_STATUSES.map((status) => <option key={status} value={status}>{SURVEY_STATUS_LABELS[status]}</option>)}
-            </select>
-          </label>
-          <label>
-            <span>Audiencia</span>
-            <select className="text-input" onChange={(event) => setFilters((current) => ({ ...current, target: event.target.value as SurveyTarget | '' }))} value={filters.target}>
-              <option value="">Todas</option>
-              {SURVEY_TARGETS.map((target) => <option key={target} value={target}>{formatSurveyTarget(target)}</option>)}
-            </select>
-          </label>
-          <label>
-            <span>Disponibilidad</span>
-            <select className="text-input" onChange={(event) => setActivityFilter(event.target.value as ActivityFilter)} value={activityFilter}>
-              <option value="">Todas</option>
-              <option value="active">Activas</option>
-              <option value="inactive">Inactivas</option>
-            </select>
-          </label>
-          <label>
-            <span>Ordenar</span>
-            <select className="text-input" onChange={(event) => setSortBy(event.target.value as SortOption)} value={sortBy}>
-              <option value="updated-desc">Actualizadas recientemente</option>
-              <option value="updated-asc">Actualizadas hace más tiempo</option>
-              <option value="title-asc">Nombre A-Z</option>
-              <option value="title-desc">Nombre Z-A</option>
-            </select>
-          </label>
-          <label className="checkbox-field filter-checkbox">
-            <input checked={filters.includeInactive} onChange={(event) => setFilters((current) => ({ ...current, includeInactive: event.target.checked }))} type="checkbox" />
-            <span>Incluir plantillas inactivas</span>
-          </label>
+          <button
+            aria-expanded={filtersOpen}
+            aria-label={filtersOpen ? 'Ocultar filtros' : 'Mostrar filtros'}
+            className={`filter-toggle-button ${filtersOpen ? 'filter-toggle-button--active' : ''}`}
+            onClick={() => setFiltersOpen((current) => !current)}
+            title={filtersOpen ? 'Ocultar filtros' : 'Mostrar filtros'}
+            type="button"
+          >
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 5h16M7 12h10M10 19h4" /></svg>
+            <span>Filtros</span>
+            {advancedFilterCount > 0 ? <strong>{advancedFilterCount}</strong> : null}
+          </button>
+          {hasFilters ? <button className="link-button" onClick={clearFilters} type="button">Limpiar</button> : null}
         </div>
+
+        {filtersOpen ? (
+          <div className="survey-advanced-filters">
+            <label>
+              <span>Estado</span>
+              <select className="text-input" onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value as SurveyStatus | '' }))} value={filters.status}>
+                <option value="">Todos</option>
+                {SURVEY_STATUSES.map((status) => <option key={status} value={status}>{SURVEY_STATUS_LABELS[status]}</option>)}
+              </select>
+            </label>
+            <label>
+              <span>Audiencia</span>
+              <select className="text-input" onChange={(event) => setFilters((current) => ({ ...current, target: event.target.value as SurveyTarget | '' }))} value={filters.target}>
+                <option value="">Todas</option>
+                {SURVEY_TARGETS.map((target) => <option key={target} value={target}>{formatSurveyTarget(target)}</option>)}
+              </select>
+            </label>
+            <label>
+              <span>Disponibilidad</span>
+              <select className="text-input" onChange={(event) => setActivityFilter(event.target.value as ActivityFilter)} value={activityFilter}>
+                <option value="">Todas</option>
+                <option value="active">Activas</option>
+                <option value="inactive">Inactivas</option>
+              </select>
+            </label>
+            <label>
+              <span>Ordenar</span>
+              <select className="text-input" onChange={(event) => setSortBy(event.target.value as SortOption)} value={sortBy}>
+                <option value="updated-desc">Actualizadas recientemente</option>
+                <option value="updated-asc">Actualizadas hace más tiempo</option>
+                <option value="title-asc">Nombre A-Z</option>
+                <option value="title-desc">Nombre Z-A</option>
+              </select>
+            </label>
+            <label className="checkbox-field filter-checkbox">
+              <input checked={filters.includeInactive} onChange={(event) => setFilters((current) => ({ ...current, includeInactive: event.target.checked }))} type="checkbox" />
+              <span>Incluir plantillas inactivas</span>
+            </label>
+          </div>
+        ) : null}
+
         <div className="filter-results-count" aria-live="polite">
           {filteredSurveys.length} {filteredSurveys.length === 1 ? 'plantilla encontrada' : 'plantillas encontradas'}
         </div>
@@ -304,6 +347,31 @@ export function SurveysPage() {
 
       {loadState === 'ready' && filteredSurveys.length > 0 ? (
         <>
+          <div className="survey-academic-groups">
+            {groupedSurveys.map((group) => (
+              <section className="survey-academic-group" key={group.key}>
+                <header className="survey-academic-group__header">
+                  <div>
+                    <span>{group.careerName}</span>
+                    <h3>{group.subjectName}</h3>
+                  </div>
+                  <small>{group.surveys.length} {group.surveys.length === 1 ? 'encuesta' : 'encuestas'}</small>
+                </header>
+                <div className="surveys-table" role="list">
+                  {group.surveys.map((survey) => (
+                    <SurveyTemplateCard
+                      activeActionId={activeActionId}
+                      canManageTemplates={canManageTemplates}
+                      key={`${group.key}-${survey.id}`}
+                      onArchive={setArchiveTarget}
+                      onEdit={handleEdit}
+                      survey={survey}
+                    />
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
           <PaginationControls
             firstItem={surveyPagination.firstItem}
             itemLabel="plantillas"
@@ -312,43 +380,11 @@ export function SurveysPage() {
             onPageSizeChange={surveyPagination.setPageSize}
             page={surveyPagination.page}
             pageSize={surveyPagination.pageSize}
+            showPageSize={false}
+            showSummary={false}
             totalItems={surveyPagination.totalItems}
             totalPages={surveyPagination.totalPages}
           />
-          <div className="surveys-table" role="list">
-            {surveyPagination.items.map((survey) => (
-              <article className="survey-list-card template-card" key={survey.id} role="listitem">
-                <header>
-                  <div>
-                    <div className="template-card__title-row">
-                      <h3>{survey.title}</h3>
-                      <SurveyVersionBadge survey={survey} />
-                    </div>
-                    <p>{survey.description || 'Sin descripción'}</p>
-                  </div>
-                  <div className="badge-group">
-                    <SurveyStatusBadge status={survey.status} />
-                    <ActivityBadge isActive={survey.isActive} />
-                  </div>
-                </header>
-                <dl className="survey-card-meta">
-                  <div><dt>Audiencia</dt><dd>{formatSurveyTarget(survey.target)}</dd></div>
-                  <div><dt>Secciones</dt><dd>{survey.sectionCount}</dd></div>
-                  <div><dt>Preguntas</dt><dd>{survey.questionCount}</dd></div>
-                  <div><dt>Actualizada</dt><dd>{formatDateTime(survey.updatedAtUtc)}</dd></div>
-                </dl>
-                <div className="survey-card-actions">
-                  <Link className="secondary-link-button" to={`/app/surveys/${survey.id}/preview`}>Vista previa</Link>
-                  <button className="secondary-button" disabled={activeActionId === survey.id} onClick={() => void handleEdit(survey)} type="button">
-                    {activeActionId === survey.id ? 'Preparando...' : 'Editar'}
-                  </button>
-                  {survey.status === 'Published' ? (
-                    <button className="danger-button" disabled={activeActionId === survey.id} onClick={() => setArchiveTarget(survey)} type="button">Archivar</button>
-                  ) : null}
-                </div>
-              </article>
-            ))}
-          </div>
         </>
       ) : null}
 
@@ -384,4 +420,102 @@ export function SurveysPage() {
       />
     </section>
   );
+}
+
+function SurveyTemplateCard({
+  activeActionId,
+  canManageTemplates,
+  onArchive,
+  onEdit,
+  survey
+}: {
+  activeActionId: string | null;
+  canManageTemplates: boolean;
+  onArchive: (survey: SurveySummaryDto) => void;
+  onEdit: (survey: SurveySummaryDto) => Promise<void>;
+  survey: SurveySummaryDto;
+}) {
+  return (
+    <article className="survey-list-card template-card" role="listitem">
+      <header>
+        <div>
+          <div className="template-card__title-row">
+            <h3>{survey.title}</h3>
+            <SurveyVersionBadge survey={survey} />
+          </div>
+          <p>{survey.description || 'Sin descripción'}</p>
+        </div>
+        <div className="badge-group">
+          <SurveyStatusBadge status={survey.status} />
+          <ActivityBadge isActive={survey.isActive} />
+        </div>
+      </header>
+      <dl className="survey-card-meta">
+        <div><dt>Audiencia</dt><dd>{formatSurveyTarget(survey.target)}</dd></div>
+        <div><dt>Secciones</dt><dd>{survey.sectionCount}</dd></div>
+        <div><dt>Preguntas</dt><dd>{survey.questionCount}</dd></div>
+        <div><dt>Actualizada</dt><dd>{formatDateTime(survey.updatedAtUtc)}</dd></div>
+      </dl>
+      <div className="survey-card-actions">
+        <Link className="secondary-link-button" to={`/app/surveys/${survey.id}/preview`}>Vista previa</Link>
+        {canManageTemplates ? (
+          <>
+            <button className="secondary-button" disabled={activeActionId === survey.id} onClick={() => void onEdit(survey)} type="button">
+              {activeActionId === survey.id ? 'Preparando...' : 'Editar'}
+            </button>
+            {survey.status === 'Published' ? (
+              <button className="danger-button" disabled={activeActionId === survey.id} onClick={() => onArchive(survey)} type="button">Archivar</button>
+            ) : null}
+          </>
+        ) : null}
+      </div>
+    </article>
+  );
+}
+
+function groupSurveysByAcademicContext(
+  surveys: SurveySummaryDto[],
+  assignments: SurveyAssignmentDto[]
+): SurveyAcademicGroup[] {
+  const visibleSurveyIds = new Set(surveys.map((survey) => survey.id));
+  const surveyById = new Map(surveys.map((survey) => [survey.id, survey]));
+  const groupMap = new Map<string, SurveyAcademicGroup>();
+  const assignedSurveyIds = new Set<string>();
+
+  assignments.forEach((assignment) => {
+    if (!visibleSurveyIds.has(assignment.surveyId)) return;
+    const survey = surveyById.get(assignment.surveyId);
+    if (!survey) return;
+
+    assignedSurveyIds.add(survey.id);
+    const key = `${assignment.careerId}:${assignment.subjectId}`;
+    const group = groupMap.get(key) ?? {
+      key,
+      careerName: assignment.careerName,
+      subjectName: assignment.subjectName,
+      surveys: []
+    };
+
+    if (!group.surveys.some((item) => item.id === survey.id)) {
+      group.surveys.push(survey);
+    }
+    groupMap.set(key, group);
+  });
+
+  const unassigned = surveys.filter((survey) => !assignedSurveyIds.has(survey.id));
+  if (unassigned.length > 0) {
+    groupMap.set('unassigned', {
+      key: 'unassigned',
+      careerName: 'Plantillas generales',
+      subjectName: 'Sin asignar a una carrera y materia',
+      surveys: unassigned
+    });
+  }
+
+  return [...groupMap.values()].sort((left, right) => {
+    if (left.key === 'unassigned') return 1;
+    if (right.key === 'unassigned') return -1;
+    const careerComparison = left.careerName.localeCompare(right.careerName, 'es');
+    return careerComparison !== 0 ? careerComparison : left.subjectName.localeCompare(right.subjectName, 'es');
+  });
 }

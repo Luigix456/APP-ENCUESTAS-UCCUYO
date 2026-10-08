@@ -44,6 +44,7 @@ public sealed class SurveyReportServiceTests
         Assert.Equal("Ada Lovelace", report.TeacherFullName);
         Assert.Equal("Titular", report.TeachingRole);
         Assert.Equal(3, report.TotalResponses);
+        Assert.True(report.DetailedResultsAvailable);
         Assert.Equal(2, report.TotalSessions);
         Assert.Equal(resultsService.FirstSubmittedAtUtc, report.FirstSubmittedAtUtc);
         Assert.Equal(resultsService.LastSubmittedAtUtc, report.LastSubmittedAtUtc);
@@ -93,6 +94,31 @@ public sealed class SurveyReportServiceTests
         Assert.Equal(ApplicationResultStatus.Success, result.Status);
         Assert.Equal(0, result.Value!.TotalResponses);
         Assert.All(result.Value.Questions, question => Assert.Equal(0, question.ResponseCount));
+    }
+
+    [Fact]
+    public async Task BuildSurveyAssignmentReportAsync_WhenPrivacyThresholdIsNotReached_OmitsQuestionDetails()
+    {
+        using var context = CreateContext();
+        var fixture = SeedReportMetadata(context, surveyVersionNumber: 1);
+        var service = CreateService(
+            context,
+            new FakeSurveyResultsService(
+                fixture.AssignmentId,
+                totalResponses: 4,
+                detailedResultsAvailable: false,
+                minimumResponsesRequired: 5));
+
+        var result = await service.BuildSurveyAssignmentReportAsync(
+            fixture.AssignmentId,
+            CancellationToken.None);
+
+        Assert.Equal(ApplicationResultStatus.Success, result.Status);
+        Assert.Equal(4, result.Value!.TotalResponses);
+        Assert.False(result.Value.DetailedResultsAvailable);
+        Assert.Equal(5, result.Value.MinimumResponsesRequired);
+        Assert.Equal(1, result.Value.ResponsesNeededToUnlock);
+        Assert.Empty(result.Value.Questions);
     }
 
     [Fact]
@@ -194,10 +220,18 @@ public sealed class SurveyReportServiceTests
     private sealed class FakeSurveyResultsService : ISurveyResultsService
     {
         private readonly int _totalResponses;
+        private readonly bool _detailedResultsAvailable;
+        private readonly int _minimumResponsesRequired;
 
-        public FakeSurveyResultsService(Guid assignmentId, int totalResponses = 3)
+        public FakeSurveyResultsService(
+            Guid assignmentId,
+            int totalResponses = 3,
+            bool detailedResultsAvailable = true,
+            int minimumResponsesRequired = 5)
         {
             _totalResponses = totalResponses;
+            _detailedResultsAvailable = detailedResultsAvailable;
+            _minimumResponsesRequired = minimumResponsesRequired;
         }
 
         public DateTimeOffset FirstSubmittedAtUtc { get; } =
@@ -226,7 +260,10 @@ public sealed class SurveyReportServiceTests
                 _totalResponses,
                 2,
                 _totalResponses == 0 ? null : FirstSubmittedAtUtc,
-                _totalResponses == 0 ? null : LastSubmittedAtUtc)));
+                _totalResponses == 0 ? null : LastSubmittedAtUtc,
+                DetailedResultsAvailable: _detailedResultsAvailable,
+                MinimumResponsesRequired: _minimumResponsesRequired,
+                ResponsesNeededToUnlock: Math.Max(0, _minimumResponsesRequired - _totalResponses))));
         }
 
         public Task<ApplicationResult<IReadOnlyCollection<SurveyQuestionResultsDto>>> GetSurveyAssignmentQuestionResultsAsync(
@@ -252,6 +289,19 @@ public sealed class SurveyReportServiceTests
 
         public Task<ApplicationResult<SurveyResultsSummaryDto>> GetSurveySessionSummaryAsync(
             Guid surveySessionId,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<ApplicationResult<SurveyHistoryDto>> GetSurveyHistoryAsync(
+            ResultsAccessScope accessScope,
+            SurveyHistoryQuery query,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<ApplicationResult<QuestionHistoryDto>> GetQuestionHistoryAsync(
+            ResultsAccessScope accessScope,
+            Guid questionLineageId,
+            SurveyHistoryQuery query,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 

@@ -1,5 +1,6 @@
 import { apiRequest } from './apiClient';
 import type {
+  CreateSurveyAssignmentBatchRequest,
   CreateSurveyAssignmentRequest,
   SurveyAssignmentDto,
   SurveyAssignmentFilters
@@ -74,6 +75,19 @@ export function createSurveyAssignment(
   onUnauthorized: UnauthorizedHandler
 ): Promise<SurveyAssignmentDto> {
   return apiRequest<SurveyAssignmentDto>('/api/survey-assignments', {
+    method: 'POST',
+    body: request,
+    token: accessToken,
+    onUnauthorized
+  });
+}
+
+export function createSurveyAssignmentsBatch(
+  request: CreateSurveyAssignmentBatchRequest,
+  accessToken: string,
+  onUnauthorized: UnauthorizedHandler
+): Promise<SurveyAssignmentDto[]> {
+  return apiRequest<SurveyAssignmentDto[]>('/api/survey-assignments/batch', {
     method: 'POST',
     body: request,
     token: accessToken,

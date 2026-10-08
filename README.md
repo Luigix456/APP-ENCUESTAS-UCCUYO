@@ -265,6 +265,35 @@ unset InitialAdmin__Email
 
 El comando es idempotente: si ya existe un usuario con rol `administrator`, finaliza correctamente sin crear otro administrador y sin restablecer contraseñas. Si el email configurado ya pertenece a un usuario que no es administrador, el comando falla y no eleva privilegios silenciosamente.
 
+## Seed catálogo académico UCCuyo
+
+El catálogo institucional de UCCuyo se carga con un comando explícito e idempotente. Inserta únicamente unidades académicas y carreras/trayectos académicos faltantes: no crea materias, docentes, ciclos lectivos ni matrículas.
+
+El total esperado del catálogo estático es:
+
+- 9 unidades académicas.
+- 62 carreras/trayectos académicos.
+
+El seeder busca primero por `Code` normalizado y luego evita duplicados por nombre cuando corresponde. No borra registros existentes, no reemplaza IDs, no renombra carreras existentes y preserva datos ya vinculados, como la carrera `tuds` si ya existe.
+
+PowerShell:
+
+```powershell
+dotnet run `
+  --project src/AcademicSurveySystem.Api `
+  -- --seed-uccuyo-academic-catalog
+```
+
+Bash:
+
+```bash
+dotnet run \
+  --project src/AcademicSurveySystem.Api \
+  -- --seed-uccuyo-academic-catalog
+```
+
+Antes de ejecutarlo, configurar `ConnectionStrings__DefaultConnection` y aplicar las migraciones existentes. El comando no ejecuta migraciones automáticamente y no requiere credenciales JWT.
+
 ## Reset de contraseña de administrador
 
 El comando `--reset-admin-password` permite restablecer la contraseña de un usuario administrador existente. No crea usuarios nuevos, no asigna roles, no modifica permisos, no emite JWT y no ejecuta migraciones automáticamente.
@@ -1097,6 +1126,44 @@ Las respuestas HTTP de reportes usan `Cache-Control: private, no-store` porque p
 
 QuestPDF se configura explícitamente con `LicenseType.Community`. La licencia Community es gratuita sólo para los casos permitidos por QuestPDF, incluyendo individuos, organizaciones sin fines de lucro, proyectos FOSS y organizaciones bajo el umbral de ingresos indicado por la licencia vigente. Si el despliegue no califica, debe adquirirse una licencia comercial antes de usarlo en producción.
 
+## Auditoría de Cambios
+
+El sistema registra eventos administrativos relevantes en la tabla append-only `audit_entries`. No existen endpoints `PUT`, `PATCH` ni `DELETE` para modificar o borrar auditoría.
+
+Eventos auditados:
+
+- Identidad: creación/actualización de usuarios, activación/desactivación, restablecimiento de contraseña, cambios de roles y carreras asociadas.
+- Catálogo académico: creación/actualización/activación/desactivación de unidades, carreras, ciclos, materias, docentes, asignaciones docente-materia y matrícula.
+- Encuestas: creación, actualización, publicación, archivo, activación/desactivación y creación de nuevas versiones de plantillas.
+- Asignaciones y sesiones: creación/activación/desactivación de asignaciones, creación/apertura/cierre/cancelación/activación/desactivación de sesiones.
+- Reportes: exportación PDF de informes.
+
+No se auditan respuestas públicas de estudiantes ni contenido sensible como respuestas, comentarios, `OtherText`, contraseñas, hashes, JWT, headers `Authorization`, `accessCode`, payloads QR, IP/fingerprint de estudiantes, cadenas de conexión, secretos, tokens de reset ni claves internas.
+
+Endpoint:
+
+```text
+GET /api/audit
+```
+
+Permiso requerido:
+
+- `audit.read`
+
+Filtros soportados:
+
+- `fromUtc`
+- `toUtc`
+- `actorUserId`
+- `module`
+- `action`
+- `entityType`
+- `search`
+- `page`
+- `pageSize`
+
+La consulta devuelve eventos ordenados por `occurredAtUtc` descendente e `id` descendente, con paginación server-side. `audit.read` permite auditoría institucional completa; no aplica alcance por `UserCareer`.
+
 ## Ejecutar Frontend
 
 ```bash
@@ -1107,4 +1174,4 @@ npm run dev
 
 ## Estado Actual
 
-Infraestructura inicial de persistencia configurada. El núcleo persistente de identidad ya existe con `User`, `Role`, `Permission`, `UserRole` y `RolePermission`, más un catálogo inicial de cuatro roles y catorce permisos. Existe un comando explícito e idempotente para crear el primer administrador con contraseña hasheada. La API ya cuenta con login básico, emisión de JWT, endpoint protegido `/api/auth/me`, autorización por permisos, administración protegida de usuarios, activación/desactivación, reemplazo de roles y consulta de roles disponibles. El dominio académico ya incluye carreras, materias, docentes, ciclos lectivos y asignaciones docente-materia-ciclo con persistencia EF Core. Ya existen endpoints académicos protegidos para `Career`, `AcademicCycle`, `Subject`, `Teacher` y `TeacherSubjectAssignment`. También existen asociaciones protegidas entre usuarios y carreras, endpoints protegidos para administrar plantillas de encuestas dinámicas, asignarlas a contextos académicos, gestionar sesiones temporales de encuesta con `accessCode`, consultar resultados con alcance por permisos y generar reportes JSON/PDF on-demand. Existe un endpoint público para consultar una sesión abierta, activa y vigente sin JWT. Todavía no existe frontend académico completo para reportes, vista previa de informe, impresión ni exportación PDF desde React. El backend todavía no genera imágenes QR binarias.
+Infraestructura inicial de persistencia configurada. El núcleo persistente de identidad ya existe con `User`, `Role`, `Permission`, `UserRole` y `RolePermission`, más un catálogo inicial de cuatro roles y catorce permisos. Existe un comando explícito e idempotente para crear el primer administrador con contraseña hasheada. La API ya cuenta con login básico, emisión de JWT, endpoint protegido `/api/auth/me`, autorización por permisos, administración protegida de usuarios, activación/desactivación, reemplazo de roles y consulta de roles disponibles. El dominio académico ya incluye carreras, materias, docentes, ciclos lectivos y asignaciones docente-materia-ciclo con persistencia EF Core. Ya existen endpoints académicos protegidos para `Career`, `AcademicCycle`, `Subject`, `Teacher` y `TeacherSubjectAssignment`. También existen asociaciones protegidas entre usuarios y carreras, endpoints protegidos para administrar plantillas de encuestas dinámicas, asignarlas a contextos académicos, gestionar sesiones temporales de encuesta con `accessCode`, consultar resultados con alcance por permisos, generar reportes JSON/PDF on-demand y consultar auditoría con `audit.read`. Existe un endpoint público para consultar una sesión abierta, activa y vigente sin JWT. Todavía no existe importación CSV/XLSX, comparación histórica, ayuda contextual ni tokens anónimos. El backend todavía no genera imágenes QR binarias.

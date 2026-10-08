@@ -251,11 +251,26 @@ export function SurveyAssignmentReportPage() {
           </section>
         ) : null}
 
-        <section className="report-question-list" aria-label="Resultados por pregunta">
-          {sortedQuestions.map((question) => (
-            <ReportQuestion key={question.questionId} question={question} />
-          ))}
-        </section>
+        {report.totalResponses > 0 && !report.detailedResultsAvailable ? (
+          <section className="report-empty-state">
+            <h3>Resultados protegidos</h3>
+            <p>
+              Los resultados detallados estarán disponibles cuando se alcance el mínimo de{' '}
+              {report.minimumResponsesRequired} respuestas requerido para proteger el anonimato.
+            </p>
+            <p>
+              Hay {report.totalResponses} respuestas. Faltan {report.responsesNeededToUnlock}.
+            </p>
+          </section>
+        ) : null}
+
+        {report.detailedResultsAvailable ? (
+          <section className="report-question-list" aria-label="Resultados por pregunta">
+            {sortedQuestions.map((question) => (
+              <ReportQuestion key={question.questionId} question={question} />
+            ))}
+          </section>
+        ) : null}
       </article>
     </section>
   );

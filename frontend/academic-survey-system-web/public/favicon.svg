@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="UCC">
+  <rect width="64" height="64" rx="12" fill="#1f5f46"/>
+  <path d="M12 47h40" stroke="#d7b56d" stroke-width="5" stroke-linecap="round"/>
+  <text x="32" y="39" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="25" font-weight="800" fill="#ffffff">UC</text>
+</svg>

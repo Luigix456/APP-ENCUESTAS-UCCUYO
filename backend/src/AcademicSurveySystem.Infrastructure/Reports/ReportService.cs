@@ -63,18 +63,23 @@ public sealed class ReportService : IReportService
             return ToReportResult(summaryResult);
         }
 
-        var questionsResult = await _surveyResultsService.GetSurveyAssignmentQuestionResultsAsync(
-            surveyAssignmentId,
-            cancellationToken);
+        var questions = Array.Empty<SurveyQuestionResultsDto>();
 
-        if (!questionsResult.Succeeded || questionsResult.Value is null)
+        if (summaryResult.Value.DetailedResultsAvailable)
         {
-            return ToReportResult(questionsResult);
-        }
+            var questionsResult = await _surveyResultsService.GetSurveyAssignmentQuestionResultsAsync(
+                surveyAssignmentId,
+                cancellationToken);
 
-        var questions = questionsResult.Value
-            .OrderBy(question => question.Order)
-            .ToArray();
+            if (!questionsResult.Succeeded || questionsResult.Value is null)
+            {
+                return ToReportResult(questionsResult);
+            }
+
+            questions = questionsResult.Value
+                .OrderBy(question => question.Order)
+                .ToArray();
+        }
 
         var report = new SurveyReportDto(
             new ReportInstitutionDto(
@@ -103,7 +108,10 @@ public sealed class ReportService : IReportService
             questions,
             summaryResult.Value.ExpectedRespondentCount,
             summaryResult.Value.RemainingCount,
-            summaryResult.Value.ParticipationPercentage);
+            summaryResult.Value.ParticipationPercentage,
+            summaryResult.Value.DetailedResultsAvailable,
+            summaryResult.Value.MinimumResponsesRequired,
+            summaryResult.Value.ResponsesNeededToUnlock);
 
         return ApplicationResult<SurveyReportDto>.Success(report);
     }

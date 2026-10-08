@@ -1,6 +1,9 @@
 using AcademicSurveySystem.Application.Academic;
+using AcademicSurveySystem.Application.Academic.SubjectEnrollments;
+using AcademicSurveySystem.Application.Audit;
 using AcademicSurveySystem.Application.Common.Security;
 using AcademicSurveySystem.Application.Common.Authentication;
+using AcademicSurveySystem.Application.Dashboard;
 using AcademicSurveySystem.Application.Identity.AdminPasswordReset;
 using AcademicSurveySystem.Application.Identity.Authentication;
 using AcademicSurveySystem.Application.Identity.InitialAdministrator;
@@ -14,7 +17,10 @@ using AcademicSurveySystem.Application.Surveys.Reports;
 using AcademicSurveySystem.Application.Surveys.Results;
 using AcademicSurveySystem.Application.Surveys.Sessions;
 using AcademicSurveySystem.Infrastructure.Academic;
+using AcademicSurveySystem.Infrastructure.Academic.Seeding;
+using AcademicSurveySystem.Infrastructure.Audit;
 using AcademicSurveySystem.Infrastructure.Authentication;
+using AcademicSurveySystem.Infrastructure.Dashboard;
 using AcademicSurveySystem.Infrastructure.Identity;
 using AcademicSurveySystem.Infrastructure.Identity.Authentication;
 using AcademicSurveySystem.Infrastructure.Persistence;
@@ -88,6 +94,60 @@ public static class DependencyInjection
                 options.FacultyName = configuration["Reports:FacultyName"] ?? options.FacultyName;
             });
 
+        services
+            .AddOptions<ResultsPrivacyOptions>()
+            .Configure(options =>
+            {
+                var configuredMinimum = configuration["ResultsPrivacy:MinimumResponsesForDetailedResults"];
+
+                if (int.TryParse(configuredMinimum, out var minimum))
+                {
+                    options.MinimumResponsesForDetailedResults = minimum;
+                }
+            })
+            .Validate(
+                options => options.IsValid(),
+                $"ResultsPrivacy MinimumResponsesForDetailedResults must be greater than or equal to {ResultsPrivacyOptions.MinimumAllowedResponses}.")
+            .ValidateOnStart();
+
+        services
+            .AddOptions<DashboardOptions>()
+            .Configure(options =>
+            {
+                var configuredThreshold = configuration["Dashboard:LowParticipationThresholdPercentage"];
+
+                if (decimal.TryParse(configuredThreshold, out var threshold))
+                {
+                    options.LowParticipationThresholdPercentage = threshold;
+                }
+            })
+            .Validate(
+                options => options.IsValid(),
+                "Dashboard LowParticipationThresholdPercentage must be greater than 0 and less than or equal to 100.")
+            .ValidateOnStart();
+
+        services
+            .AddOptions<SubjectEnrollmentImportOptions>()
+            .Configure(options =>
+            {
+                var configuredMaxFileSize = configuration["Imports:SubjectEnrollmentMaxFileSizeBytes"];
+                var configuredMaxRows = configuration["Imports:SubjectEnrollmentMaxRows"];
+
+                if (long.TryParse(configuredMaxFileSize, out var maxFileSizeBytes))
+                {
+                    options.MaxFileSizeBytes = maxFileSizeBytes;
+                }
+
+                if (int.TryParse(configuredMaxRows, out var maxRows))
+                {
+                    options.MaxRows = maxRows;
+                }
+            })
+            .Validate(
+                options => options.IsValid(),
+                "Subject enrollment import options must define positive MaxFileSizeBytes and MaxRows values.")
+            .ValidateOnStart();
+
         QuestPDF.Settings.License = LicenseType.Community;
 
         var jwtOptionsBuilder = services
@@ -131,6 +191,12 @@ public static class DependencyInjection
         services.AddScoped<IAdminPasswordResetStore, EfAdminPasswordResetStore>();
         services.AddScoped<IAdminPasswordResetService, AdminPasswordResetService>();
         services.AddScoped<IAcademicCatalogService, AcademicCatalogService>();
+        services.AddScoped<UccuyoAcademicCatalogSeeder>();
+        services.AddScoped<IAuditActorAccessor, CurrentAuditActorAccessor>();
+        services.AddScoped<IAuditActorProvider>(provider =>
+            provider.GetRequiredService<IAuditActorAccessor>());
+        services.AddScoped<IAuditWriter, AuditWriter>();
+        services.AddScoped<IAuditQueryService, AuditQueryService>();
         services.AddScoped<ISurveyTemplateService, SurveyTemplateService>();
         services.AddScoped<ISurveyAssignmentService, SurveyAssignmentService>();
         services.AddSingleton<ISurveySessionAccessCodeGenerator, SurveySessionAccessCodeGenerator>();
@@ -139,6 +205,7 @@ public static class DependencyInjection
         services.AddScoped<ISurveyResponseService, SurveyResponseService>();
         services.AddScoped<ISurveyResultsService, SurveyResultsService>();
         services.AddScoped<IResultsAccessService, ResultsAccessService>();
+        services.AddScoped<ICareerParticipationDashboardService, CareerParticipationDashboardService>();
         services.AddScoped<IReportService, ReportService>();
         services.AddScoped<IPdfReportGenerator, QuestPdfReportGenerator>();
         services.AddScoped<IUserCareerService, UserCareerService>();

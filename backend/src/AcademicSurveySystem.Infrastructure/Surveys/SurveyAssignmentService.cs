@@ -1,9 +1,11 @@
 using System.Linq.Expressions;
+using AcademicSurveySystem.Application.Audit;
 using AcademicSurveySystem.Application.Common.Results;
 using AcademicSurveySystem.Application.Surveys.Assignments;
 using AcademicSurveySystem.Domain.Common;
 using AcademicSurveySystem.Domain.Surveys.Entities;
 using AcademicSurveySystem.Domain.Surveys.Enums;
+using AcademicSurveySystem.Infrastructure.Audit;
 using AcademicSurveySystem.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -15,10 +17,14 @@ public sealed class SurveyAssignmentService : ISurveyAssignmentService
     private const string UniqueViolationSqlState = "23505";
 
     private readonly ApplicationDbContext _dbContext;
+    private readonly IAuditWriter _auditWriter;
 
-    public SurveyAssignmentService(ApplicationDbContext dbContext)
+    public SurveyAssignmentService(
+        ApplicationDbContext dbContext,
+        IAuditWriter? auditWriter = null)
     {
         _dbContext = dbContext;
+        _auditWriter = auditWriter ?? NoOpAuditWriter.Instance;
     }
 
     public async Task<ApplicationResult<IReadOnlyCollection<SurveyAssignmentDto>>> GetAssignmentsAsync(
@@ -120,6 +126,20 @@ public sealed class SurveyAssignmentService : ISurveyAssignmentService
             now);
 
         _dbContext.SurveyAssignments.Add(assignment);
+        await WriteAssignmentAuditAsync(
+            "survey_assignments.assignment.created",
+            assignment.Id,
+            "Creó una asignación de encuesta.",
+            new
+            {
+                assignment.SurveyId,
+                assignment.CareerId,
+                assignment.SubjectId,
+                assignment.AcademicCycleId,
+                assignment.TeacherSubjectAssignmentId,
+                assignment.ExpectedRespondentCount
+            },
+            cancellationToken);
 
         var saveResult = await SaveChangesAsync(
             "The survey assignment could not be saved.",
@@ -140,6 +160,72 @@ public sealed class SurveyAssignmentService : ISurveyAssignmentService
         return await GetAssignmentByIdAsync(assignment.Id, cancellationToken);
     }
 
+    public async Task<ApplicationResult<IReadOnlyCollection<SurveyAssignmentDto>>> CreateAssignmentsAsync(
+        CreateSurveyAssignmentBatchRequest request,
+        CancellationToken cancellationToken)
+    {
+        var validationErrors = request.Validate();
+
+        if (validationErrors.Count > 0)
+        {
+            return ApplicationResult<IReadOnlyCollection<SurveyAssignmentDto>>.Validation(validationErrors);
+        }
+
+        var validatedAssignments = new List<(CreateSurveyAssignmentRequest Request, int? ExpectedRespondentCount)>();
+
+        foreach (var teacherSubjectAssignmentId in request.TeacherSubjectAssignmentIds)
+        {
+            var singleRequest = request.ToSingleRequest(teacherSubjectAssignmentId);
+            var relationshipValidation = await ValidateRelatedEntitiesAsync(singleRequest, cancellationToken);
+
+            if (relationshipValidation.Status != ApplicationResultStatus.Success)
+            {
+                return relationshipValidation.Status switch
+                {
+                    ApplicationResultStatus.NotFound => ApplicationResult<IReadOnlyCollection<SurveyAssignmentDto>>.NotFound(
+                        relationshipValidation.Errors.First().Message),
+                    _ => ApplicationResult<IReadOnlyCollection<SurveyAssignmentDto>>.Validation(
+                        relationshipValidation.Errors)
+                };
+            }
+
+            validatedAssignments.Add((singleRequest, relationshipValidation.Value));
+        }
+
+        var teacherSubjectAssignmentIds = request.TeacherSubjectAssignmentIds.ToArray();
+        var duplicateExists = await _dbContext.SurveyAssignments
+            .AsNoTracking()
+            .AnyAsync(
+                assignment =>
+                    assignment.SurveyId == request.SurveyId
+                    && assignment.CareerId == request.CareerId
+                    && assignment.SubjectId == request.SubjectId
+                    && assignment.AcademicCycleId == request.AcademicCycleId
+                    && teacherSubjectAssignmentIds.Contains(assignment.TeacherSubjectAssignmentId),
+                cancellationToken);
+
+        if (duplicateExists)
+        {
+            return ApplicationResult<IReadOnlyCollection<SurveyAssignmentDto>>.Conflict(
+                "A survey assignment for the same academic context already exists.");
+        }
+
+        if (_dbContext.Database.IsRelational())
+        {
+            await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+            var transactionResult = await InsertValidatedAssignmentsAsync(validatedAssignments, cancellationToken);
+
+            if (transactionResult.Status == ApplicationResultStatus.Success)
+            {
+                await transaction.CommitAsync(cancellationToken);
+            }
+
+            return transactionResult;
+        }
+
+        return await InsertValidatedAssignmentsAsync(validatedAssignments, cancellationToken);
+    }
+
     public Task<ApplicationResult> ActivateAssignmentAsync(
         Guid id,
         CancellationToken cancellationToken) =>
@@ -149,6 +235,71 @@ public sealed class SurveyAssignmentService : ISurveyAssignmentService
         Guid id,
         CancellationToken cancellationToken) =>
         ChangeAssignmentStateAsync(id, isActive: false, cancellationToken);
+
+    private async Task<ApplicationResult<IReadOnlyCollection<SurveyAssignmentDto>>> InsertValidatedAssignmentsAsync(
+        IReadOnlyCollection<(CreateSurveyAssignmentRequest Request, int? ExpectedRespondentCount)> validatedAssignments,
+        CancellationToken cancellationToken)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var assignments = validatedAssignments
+            .Select(item => new SurveyAssignment(
+                Guid.NewGuid(),
+                item.Request.SurveyId,
+                item.Request.CareerId,
+                item.Request.SubjectId,
+                item.Request.AcademicCycleId,
+                item.Request.TeacherSubjectAssignmentId,
+                item.ExpectedRespondentCount,
+                now))
+            .ToArray();
+
+        _dbContext.SurveyAssignments.AddRange(assignments);
+
+        foreach (var assignment in assignments)
+        {
+            await WriteAssignmentAuditAsync(
+                "survey_assignments.assignment.created",
+                assignment.Id,
+                "Creó una asignación de encuesta.",
+                new
+                {
+                    assignment.SurveyId,
+                    assignment.CareerId,
+                    assignment.SubjectId,
+                    assignment.AcademicCycleId,
+                    assignment.TeacherSubjectAssignmentId,
+                    assignment.ExpectedRespondentCount
+                },
+                cancellationToken);
+        }
+
+        var saveResult = await SaveChangesAsync(
+            "The survey assignments could not be saved.",
+            cancellationToken);
+
+        if (saveResult.Status != ApplicationResultStatus.Success)
+        {
+            return saveResult.Status switch
+            {
+                ApplicationResultStatus.Validation => ApplicationResult<IReadOnlyCollection<SurveyAssignmentDto>>.Validation(
+                    saveResult.Errors),
+                ApplicationResultStatus.Conflict => ApplicationResult<IReadOnlyCollection<SurveyAssignmentDto>>.Conflict(
+                    saveResult.Errors.First().Message),
+                _ => ApplicationResult<IReadOnlyCollection<SurveyAssignmentDto>>.Failure(saveResult.Errors.First().Message)
+            };
+        }
+
+        var ids = assignments.Select(assignment => assignment.Id).ToArray();
+        var createdAssignments = await _dbContext.SurveyAssignments
+            .AsNoTracking()
+            .Where(assignment => ids.Contains(assignment.Id))
+            .OrderBy(assignment => assignment.TeacherSubjectAssignment.Teacher.LastName)
+            .ThenBy(assignment => assignment.TeacherSubjectAssignment.Teacher.FirstName)
+            .Select(MapDtoExpression())
+            .ToArrayAsync(cancellationToken);
+
+        return ApplicationResult<IReadOnlyCollection<SurveyAssignmentDto>>.Success(createdAssignments);
+    }
 
     private async Task<ApplicationResult<int?>> ValidateRelatedEntitiesAsync(
         CreateSurveyAssignmentRequest request,
@@ -318,6 +469,20 @@ public sealed class SurveyAssignmentService : ISurveyAssignmentService
                 assignment.Deactivate(DateTimeOffset.UtcNow);
             }
 
+            await WriteAssignmentAuditAsync(
+                isActive
+                    ? "survey_assignments.assignment.activated"
+                    : "survey_assignments.assignment.deactivated",
+                assignment.Id,
+                isActive ? "Activó una asignación de encuesta." : "Desactivó una asignación de encuesta.",
+                new
+                {
+                    assignment.SurveyId,
+                    assignment.CareerId,
+                    assignment.SubjectId,
+                    assignment.AcademicCycleId
+                },
+                cancellationToken);
             await _dbContext.SaveChangesAsync(cancellationToken);
 
             return ApplicationResult.Success();
@@ -365,6 +530,23 @@ public sealed class SurveyAssignmentService : ISurveyAssignmentService
     {
         return exception.InnerException is PostgresException postgresException
             && postgresException.SqlState == UniqueViolationSqlState;
+    }
+
+    private Task WriteAssignmentAuditAsync(
+        string action,
+        Guid assignmentId,
+        string description,
+        object? metadata,
+        CancellationToken cancellationToken)
+    {
+        return _auditWriter.WriteAsync(
+            action,
+            "survey_assignments",
+            "SurveyAssignment",
+            assignmentId,
+            description,
+            metadata,
+            cancellationToken);
     }
 
     private static Expression<Func<SurveyAssignment, SurveyAssignmentDto>> MapDtoExpression()

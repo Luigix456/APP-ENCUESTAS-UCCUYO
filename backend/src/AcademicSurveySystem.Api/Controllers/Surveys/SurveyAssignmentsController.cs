@@ -111,6 +111,40 @@ public sealed class SurveyAssignmentsController : ControllerBase
     }
 
     /// <summary>
+    /// Crea varias asignaciones de encuesta para la misma carrera, materia y ciclo.
+    /// </summary>
+    /// <remarks>Requiere permiso de escritura: surveys.templates.manage.</remarks>
+    [HttpPost("batch")]
+    [RequirePermission(ManagePermission)]
+    [ProducesResponseType(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> CreateBatch(
+        CreateSurveyAssignmentBatchRequest? request,
+        CancellationToken cancellationToken)
+    {
+        if (request is null)
+        {
+            return BadRequest(CreateErrorResponse([
+                new ApplicationError("Request.Required", "Request body is required.")
+            ]));
+        }
+
+        var result = await _surveyAssignmentService.CreateAssignmentsAsync(request, cancellationToken);
+
+        if (result.Status == ApplicationResultStatus.Success)
+        {
+            return StatusCode(StatusCodes.Status201Created, result.Value);
+        }
+
+        return ToActionResult(result);
+    }
+
+    /// <summary>
     /// Activa una asignación de encuesta.
     /// </summary>
     /// <remarks>Requiere permiso de escritura: surveys.templates.manage.</remarks>

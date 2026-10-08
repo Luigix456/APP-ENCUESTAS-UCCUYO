@@ -8,6 +8,7 @@ using AcademicSurveySystem.Domain.Surveys.Enums;
 using AcademicSurveySystem.Infrastructure.Persistence;
 using AcademicSurveySystem.Infrastructure.Surveys.Results;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace AcademicSurveySystem.UnitTests.Surveys;
 
@@ -179,6 +180,55 @@ public sealed class SurveyResultsServiceDiscoveryTests
         Assert.Equal(summaryResult.Value.TotalResponses, item.TotalResponses);
         Assert.Equal(summaryResult.Value.FirstSubmittedAtUtc, item.FirstSubmittedAtUtc);
         Assert.Equal(summaryResult.Value.LastSubmittedAtUtc, item.LastSubmittedAtUtc);
+    }
+
+    [Fact]
+    public async Task GetSurveyAssignmentSummaryAsync_WhenBelowPrivacyThreshold_ReturnsSafeMetadata()
+    {
+        using var context = CreateContext();
+        var fixture = SeedResultsFixture(context);
+        var service = new SurveyResultsService(context);
+
+        var result = await service.GetSurveyAssignmentSummaryAsync(
+            fixture.AssignmentAId,
+            CancellationToken.None);
+
+        Assert.Equal(ApplicationResultStatus.Success, result.Status);
+        Assert.Equal(3, result.Value!.TotalResponses);
+        Assert.False(result.Value.DetailedResultsAvailable);
+        Assert.Equal(5, result.Value.MinimumResponsesRequired);
+        Assert.Equal(2, result.Value.ResponsesNeededToUnlock);
+    }
+
+    [Fact]
+    public async Task GetSurveyAssignmentQuestionResultsAsync_WhenBelowPrivacyThreshold_ReturnsConflict()
+    {
+        using var context = CreateContext();
+        var fixture = SeedResultsFixture(context);
+        var service = new SurveyResultsService(context);
+
+        var result = await service.GetSurveyAssignmentQuestionResultsAsync(
+            fixture.AssignmentAId,
+            CancellationToken.None);
+
+        Assert.Equal(ApplicationResultStatus.Conflict, result.Status);
+        Assert.Contains(result.Errors, error => error.Code == "Results.PrivacyThresholdNotReached");
+    }
+
+    [Fact]
+    public async Task GetSurveyAssignmentQuestionResultsAsync_WhenThresholdIsReached_ReturnsDetails()
+    {
+        using var context = CreateContext();
+        var fixture = SeedResultsFixture(context);
+        var service = new SurveyResultsService(
+            context,
+            Options.Create(new ResultsPrivacyOptions { MinimumResponsesForDetailedResults = 3 }));
+
+        var result = await service.GetSurveyAssignmentQuestionResultsAsync(
+            fixture.AssignmentAId,
+            CancellationToken.None);
+
+        Assert.Equal(ApplicationResultStatus.Success, result.Status);
     }
 
     [Fact]

@@ -26,14 +26,16 @@ export function ResponseProgress({
 
   if (!hasExpectedCount) {
     return (
-      <section className={`response-progress ${compact ? 'response-progress--compact' : ''}`}>
-        <div className="response-progress__main">
-          <span>Respuestas recibidas</span>
-          <strong>{responseCount}</strong>
+      <section className={`response-progress response-progress--unbounded ${compact ? 'response-progress--compact' : ''}`}>
+        <div className="response-progress__unbounded-content">
+          <div>
+            <span className="response-progress__label">Respuestas recibidas</span>
+            <p className="response-progress__hint">Sin cantidad esperada de alumnos configurada para esta encuesta.</p>
+          </div>
+          <strong className="response-progress__count">{responseCount}</strong>
         </div>
-        <p>Esta encuesta no tiene una cantidad esperada de alumnos asociada.</p>
         {typeof sessionResponseCount === 'number' ? (
-          <small>En esta sesión: {sessionResponseCount}</small>
+          <div className="response-progress__session-count">En esta sesión: <strong>{sessionResponseCount}</strong></div>
         ) : null}
       </section>
     );

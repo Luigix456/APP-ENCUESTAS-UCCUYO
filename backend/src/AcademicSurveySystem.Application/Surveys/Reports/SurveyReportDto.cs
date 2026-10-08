@@ -26,7 +26,10 @@ public sealed record SurveyReportDto(
     IReadOnlyCollection<SurveyQuestionResultsDto> Questions,
     int? ExpectedRespondentCount = null,
     int? RemainingCount = null,
-    decimal? ParticipationPercentage = null);
+    decimal? ParticipationPercentage = null,
+    bool DetailedResultsAvailable = false,
+    int MinimumResponsesRequired = 5,
+    int ResponsesNeededToUnlock = 0);
 
 public sealed record ReportInstitutionDto(
     string InstitutionName,

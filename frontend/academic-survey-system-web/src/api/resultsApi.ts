@@ -1,7 +1,9 @@
 import { apiRequest } from './apiClient';
 import type {
   ResultsAssignmentFilters,
+  QuestionHistoryDto,
   SurveyAssignmentResultListItemDto,
+  SurveyHistoryDto,
   SurveyQuestionResultsDto,
   SurveyResultsSummaryDto
 } from '../types/results';
@@ -93,6 +95,50 @@ export function getSurveySessionResultSummary(
 ): Promise<SurveyResultsSummaryDto> {
   return apiRequest<SurveyResultsSummaryDto>(
     `/api/results/survey-sessions/${encodeURIComponent(surveySessionId)}/summary`,
+    {
+      token: accessToken,
+      onUnauthorized,
+      signal
+    }
+  );
+}
+
+export function getSurveyHistory(
+  accessToken: string,
+  onUnauthorized: UnauthorizedHandler,
+  query: {
+    careerId: string;
+    subjectId: string;
+    teacherId: string;
+    surveyVersionGroupId: string;
+  },
+  signal?: AbortSignal
+): Promise<SurveyHistoryDto> {
+  const searchParams = new URLSearchParams(query);
+
+  return apiRequest<SurveyHistoryDto>(`/api/results/history?${searchParams.toString()}`, {
+    token: accessToken,
+    onUnauthorized,
+    signal
+  });
+}
+
+export function getQuestionHistory(
+  accessToken: string,
+  onUnauthorized: UnauthorizedHandler,
+  questionLineageId: string,
+  query: {
+    careerId: string;
+    subjectId: string;
+    teacherId: string;
+    surveyVersionGroupId: string;
+  },
+  signal?: AbortSignal
+): Promise<QuestionHistoryDto> {
+  const searchParams = new URLSearchParams(query);
+
+  return apiRequest<QuestionHistoryDto>(
+    `/api/results/history/questions/${encodeURIComponent(questionLineageId)}?${searchParams.toString()}`,
     {
       token: accessToken,
       onUnauthorized,

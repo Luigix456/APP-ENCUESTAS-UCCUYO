@@ -75,6 +75,72 @@ public sealed class ResultsController : ControllerBase
     }
 
     /// <summary>
+    /// Obtiene la evolución histórica general de participación para una familia de encuesta.
+    /// </summary>
+    [HttpGet("history")]
+    [ProducesResponseType(typeof(SurveyHistoryDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> GetHistory(
+        [FromQuery] Guid careerId,
+        [FromQuery] Guid subjectId,
+        [FromQuery] Guid teacherId,
+        [FromQuery] Guid surveyVersionGroupId,
+        CancellationToken cancellationToken = default)
+    {
+        var accessScope = await GetResultsAccessScopeAsync(cancellationToken);
+
+        if (accessScope is null)
+        {
+            return Forbid();
+        }
+
+        var result = await _surveyResultsService.GetSurveyHistoryAsync(
+            accessScope,
+            new SurveyHistoryQuery(careerId, subjectId, teacherId, surveyVersionGroupId),
+            cancellationToken);
+
+        return ToActionResult(result);
+    }
+
+    /// <summary>
+    /// Obtiene la comparación histórica de una pregunta por lineage.
+    /// </summary>
+    [HttpGet("history/questions/{questionLineageId:guid}")]
+    [ProducesResponseType(typeof(QuestionHistoryDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> GetQuestionHistory(
+        Guid questionLineageId,
+        [FromQuery] Guid careerId,
+        [FromQuery] Guid subjectId,
+        [FromQuery] Guid teacherId,
+        [FromQuery] Guid surveyVersionGroupId,
+        CancellationToken cancellationToken = default)
+    {
+        var accessScope = await GetResultsAccessScopeAsync(cancellationToken);
+
+        if (accessScope is null)
+        {
+            return Forbid();
+        }
+
+        var result = await _surveyResultsService.GetQuestionHistoryAsync(
+            accessScope,
+            questionLineageId,
+            new SurveyHistoryQuery(careerId, subjectId, teacherId, surveyVersionGroupId),
+            cancellationToken);
+
+        return ToActionResult(result);
+    }
+
+    /// <summary>
     /// Obtiene el resumen general de resultados de una asignación de encuesta.
     /// </summary>
     [HttpGet("survey-assignments/{surveyAssignmentId:guid}/summary")]
@@ -209,6 +275,22 @@ public sealed class ResultsController : ControllerBase
             cancellationToken);
 
         return ToAuthorizationResult(decision);
+    }
+
+    private async Task<ResultsAccessScope?> GetResultsAccessScopeAsync(CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(out var userId))
+        {
+            return null;
+        }
+
+        var accessScope = await _resultsAccessService.GetDiscoveryScopeAsync(
+            userId,
+            HasPermission(ReadAllPermission),
+            HasPermission(ReadCareerPermission),
+            cancellationToken);
+
+        return accessScope.IsAllowed ? accessScope : null;
     }
 
     private async Task<IActionResult?> AuthorizeSurveySessionResultsAsync(

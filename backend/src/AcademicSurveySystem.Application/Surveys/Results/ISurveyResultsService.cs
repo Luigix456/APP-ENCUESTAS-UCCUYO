@@ -25,4 +25,15 @@ public interface ISurveyResultsService
     Task<ApplicationResult<SurveyResultsSummaryDto>> GetSurveySessionSummaryAsync(
         Guid surveySessionId,
         CancellationToken cancellationToken);
+
+    Task<ApplicationResult<SurveyHistoryDto>> GetSurveyHistoryAsync(
+        ResultsAccessScope accessScope,
+        SurveyHistoryQuery query,
+        CancellationToken cancellationToken);
+
+    Task<ApplicationResult<QuestionHistoryDto>> GetQuestionHistoryAsync(
+        ResultsAccessScope accessScope,
+        Guid questionLineageId,
+        SurveyHistoryQuery query,
+        CancellationToken cancellationToken);
 }

@@ -91,8 +91,56 @@ export interface SubjectEnrollmentDto {
   updatedAtUtc: string;
 }
 
+export interface AcademicAttentionDto {
+  items: AcademicAttentionItemDto[];
+}
+
+export interface AcademicAttentionItemDto {
+  code: string;
+  severity: 'info' | 'warning';
+  title: string;
+  description: string;
+  entityType: string;
+  entityId: string | null;
+  actionCode: string;
+  count: number;
+}
+
 export interface SetSubjectEnrollmentRequest {
   enrolledStudentCount: number;
+}
+
+export type SubjectEnrollmentImportRowStatus = 'Create' | 'Update' | 'Unchanged' | 'Error';
+
+export interface SubjectEnrollmentImportPreviewRowDto {
+  rowNumber: number;
+  subjectCode: string;
+  providedSubjectName: string | null;
+  subjectId: string | null;
+  subjectName: string | null;
+  currentEnrolledStudentCount: number | null;
+  newEnrolledStudentCount: number | null;
+  status: SubjectEnrollmentImportRowStatus;
+  errorCode: string | null;
+  errorMessage: string | null;
+}
+
+export interface SubjectEnrollmentImportPreviewDto {
+  fileName: string;
+  totalRows: number;
+  validRows: number;
+  createRows: number;
+  updateRows: number;
+  unchangedRows: number;
+  errorRows: number;
+  rows: SubjectEnrollmentImportPreviewRowDto[];
+}
+
+export interface SubjectEnrollmentImportResultDto {
+  createdCount: number;
+  updatedCount: number;
+  unchangedCount: number;
+  totalProcessed: number;
 }
 
 export interface TeacherSubjectAssignmentFilters {
