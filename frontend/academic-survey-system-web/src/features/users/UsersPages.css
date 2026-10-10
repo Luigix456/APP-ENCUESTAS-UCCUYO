@@ -1,0 +1,184 @@
+/* Extracted from src/styles.css. Keep selectors semantic; avoid Bootstrap-style utility classes. */
+
+.dashboard-page,
+.users-page {
+  display: grid;
+  gap: 1rem;
+}
+
+.dashboard-metrics,
+.quick-link-grid,
+.users-filters,
+.user-detail-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.dashboard-metric-card:hover,
+.user-row:hover {
+  border-color: var(--color-accent);
+  background: #f3f7f3;
+}
+
+.users-filters {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 1rem;
+  background: var(--color-surface-soft);
+}
+
+.users-table {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.user-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 0.85rem;
+  color: inherit;
+  background: var(--color-surface);
+  text-decoration: none;
+}
+
+.user-row__identity {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.user-row__identity-text {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.18rem;
+}
+
+.user-row__identity-text strong {
+  min-width: 0;
+  color: var(--color-heading);
+  font-weight: 900;
+}
+
+.user-row__identity-text span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.92rem;
+}
+
+.user-row strong,
+.user-row span,
+.user-row small,
+.user-row__roles {
+  overflow-wrap: anywhere;
+}
+
+.user-row span,
+.user-row small,
+.user-row__roles {
+  color: var(--color-muted);
+}
+
+.user-row__roles {
+  font-weight: 700;
+}
+
+.user-security-meta {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.user-security-meta div {
+  min-width: 0;
+  border-left: 4px solid var(--color-border);
+  padding-left: 0.75rem;
+}
+
+.user-security-meta dt {
+  color: var(--color-muted);
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.user-security-meta dd {
+  margin: 0.1rem 0 0;
+  font-weight: 800;
+}
+
+@media (min-width: 720px) {
+  .quick-link-grid,
+    .users-filters,
+    .user-detail-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (min-width: 720px) {
+  .user-row {
+      grid-template-columns: minmax(240px, 1.3fr) minmax(150px, 0.8fr) auto auto;
+    }
+}
+
+@media (max-width: 560px) {
+  .surveys-filters,
+    .users-filters,
+    .survey-card-meta,
+    .session-meta,
+    .result-context-meta,
+    .metric-grid,
+    .report-summary-grid,
+    .report-context-grid {
+      grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 560px) {
+  .user-row__identity {
+      align-items: flex-start;
+    }
+}
+
+@media (max-width: 560px) {
+  .user-row__identity-text span {
+      overflow: visible;
+      text-overflow: clip;
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+}
+
+.dashboard-metric-card,
+.academic-unit-card,
+.crud-summary-card,
+.filter-panel,
+.users-filters,
+.result-card,
+.metric-card,
+.survey-section,
+.survey-header,
+.status-panel,
+.response-progress {
+  border-color: var(--color-border);
+  border-radius: 14px;
+}
+
+.dashboard-metric-card:hover,
+.user-row:hover {
+  border-color: rgba(36, 91, 70, 0.36);
+  background: #f8faf7;
+}
+
+.crud-toolbar,
+.filter-panel,
+.users-filters {
+  background: #fbfaf7;
+}

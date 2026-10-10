@@ -1,0 +1,315 @@
+/* Extracted from src/styles.css. Keep selectors semantic; avoid Bootstrap-style utility classes. */
+
+.primary-button {
+  width: 100%;
+  min-height: 48px;
+  border: 0;
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
+  color: #ffffff;
+  background: #245b46;
+  font-weight: 800;
+}
+
+.primary-button:hover:not(:disabled) {
+  background: #173f31;
+}
+
+.primary-button:disabled {
+  background: #9ca9a1;
+}
+
+.secondary-button {
+  min-height: 44px;
+  border: 1px solid #c6c0b5;
+  border-radius: 8px;
+  padding: 0.7rem 0.9rem;
+  color: #245b46;
+  background: #ffffff;
+  font-weight: 800;
+}
+
+.secondary-button:hover {
+  background: #f1f6f2;
+}
+
+.danger-button {
+  min-height: 44px;
+  border: 0;
+  border-radius: 8px;
+  padding: 0.7rem 0.9rem;
+  color: #ffffff;
+  background: #99344a;
+  font-weight: 800;
+}
+
+.danger-button:hover:not(:disabled) {
+  background: #762638;
+}
+
+.danger-button:disabled {
+  background: #c08b98;
+}
+
+.link-button {
+  min-height: 32px;
+  border: 0;
+  padding: 0;
+  color: var(--color-primary);
+  background: transparent;
+  font-weight: 900;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.link-button:hover {
+  color: var(--color-primary-strong);
+}
+
+.pagination-actions .secondary-button {
+  min-height: 38px;
+  padding: 0.45rem 0.7rem;
+}
+
+.secondary-link-button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  border: 1px solid #c6c0b5;
+  border-radius: 8px;
+  padding: 0.7rem 0.9rem;
+  color: #245b46;
+  background: #ffffff;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.primary-link-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
+  color: #ffffff;
+  background: #245b46;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.primary-link-button:hover {
+  background: #173f31;
+}
+
+@media (min-width: 680px) {
+  .primary-button {
+      width: auto;
+      min-width: 210px;
+    }
+}
+
+@media (max-width: 700px) {
+  .attention-card .secondary-button {
+      grid-column: 1 / -1;
+      justify-self: start;
+    }
+}
+
+@media (max-width: 819px) {
+  .pagination-actions .secondary-button,
+    .survey-card-actions .secondary-button,
+    .survey-card-actions .danger-button,
+    .survey-card-actions .primary-link-button,
+    .survey-card-actions .secondary-link-button {
+      flex: 1 1 140px;
+      justify-content: center;
+      text-align: center;
+    }
+}
+
+@media print {
+  .primary-button,
+    .secondary-button,
+    .primary-link-button,
+    .secondary-link-button {
+      box-shadow: none !important;
+    }
+}
+
+.context-entity-actions .secondary-button,
+.context-entity-actions .danger-button {
+  min-height: 38px;
+  padding: 0.55rem 0.75rem;
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .context-entity-actions .secondary-button,
+    .context-entity-actions .danger-button {
+      flex: 1 1 150px;
+    }
+}
+
+.text-danger-button {
+  flex: 0 0 auto;
+  border: 0;
+  background: transparent;
+  color: var(--color-danger);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0.35rem 0.45rem;
+  border-radius: 8px;
+}
+
+.text-danger-button:hover,
+.text-danger-button:focus-visible {
+  background: color-mix(in srgb, var(--color-danger) 9%, transparent);
+}
+
+@media (max-width: 760px) {
+  .subject-teacher-chip .text-danger-button {
+      align-self: flex-start;
+    }
+}
+
+.primary-button,
+.secondary-button,
+.danger-button,
+.primary-link-button,
+.secondary-link-button,
+.menu-button {
+  border-radius: 11px;
+  font-weight: 850;
+  transition: transform 120ms ease, box-shadow 150ms ease, background 150ms ease, border-color 150ms ease;
+}
+
+.primary-button,
+.primary-link-button {
+  color: #fff;
+  background: var(--color-primary);
+  box-shadow: 0 7px 16px rgba(36, 91, 70, 0.16);
+}
+
+.primary-button:hover:not(:disabled),
+.primary-link-button:hover:not(:disabled) {
+  background: var(--color-primary-strong);
+  box-shadow: 0 9px 20px rgba(36, 91, 70, 0.2);
+  transform: translateY(-1px);
+}
+
+.primary-button:disabled {
+  background: #9ca9a1;
+  box-shadow: none;
+}
+
+.secondary-button,
+.secondary-link-button,
+.menu-button {
+  border-color: var(--color-border-strong);
+  color: var(--color-primary);
+  background: #fff;
+}
+
+.secondary-button:hover:not(:disabled),
+.secondary-link-button:hover:not(:disabled),
+.menu-button:hover:not(:disabled) {
+  border-color: rgba(36, 91, 70, 0.45);
+  background: #f2f7f4;
+}
+
+.danger-button {
+  background: var(--color-danger);
+}
+
+.danger-button:hover:not(:disabled) {
+  background: var(--color-danger-strong);
+}
+
+.login-form .primary-button {
+  margin-top: 0.25rem;
+  min-height: 50px;
+}
+
+.audit-state-card .secondary-button {
+  justify-self: start;
+}
+
+.filter-toggle-button {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  border: 1px solid var(--color-border-strong, var(--color-border));
+  border-radius: 10px;
+  padding: 0.65rem 0.85rem;
+  color: var(--color-primary);
+  background: #fff;
+  font: inherit;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.filter-toggle-button:hover,
+.filter-toggle-button:focus-visible,
+.filter-toggle-button--active {
+  border-color: color-mix(in srgb, var(--color-primary) 48%, white);
+  background: color-mix(in srgb, var(--color-primary) 7%, white);
+}
+
+.filter-toggle-button svg {
+  width: 1.15rem;
+  height: 1.15rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-width: 2;
+}
+
+.filter-toggle-button strong {
+  display: grid;
+  min-width: 1.35rem;
+  height: 1.35rem;
+  place-items: center;
+  border-radius: 999px;
+  padding: 0 0.3rem;
+  color: #fff;
+  background: var(--color-primary);
+  font-size: 0.73rem;
+}
+
+@media (max-width: 760px) {
+  .survey-search-row > .link-button {
+      grid-column: 1 / -1;
+      justify-self: start;
+    }
+}
+
+@media (max-width: 760px) {
+  .filter-toggle-button > span {
+      display: none;
+    }
+}
+
+.filter-toggle-button > span {
+  display: none;
+}
+
+.filter-toggle-button {
+  min-width: 46px;
+  padding-inline: 0.75rem;
+}
+
+@media (max-width: 700px) {
+  .participation-list-header label,
+    .classroom-mode__topbar .secondary-button,
+    .classroom-mode__progress .danger-button {
+      width: 100%;
+    }
+}
+
+.academic-unit-card strong,
+.career-entry-card .primary-link-button {
+  align-self: end;
+}

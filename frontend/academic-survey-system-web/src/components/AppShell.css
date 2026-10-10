@@ -1,0 +1,349 @@
+/* Extracted from src/styles.css. Keep selectors semantic; avoid Bootstrap-style utility classes. */
+
+.private-shell {
+  min-height: 100vh;
+  padding: 1rem;
+}
+
+@media (min-width: 680px) {
+  .private-shell {
+      padding: 2rem;
+    }
+}
+
+.private-shell {
+  min-height: 100vh;
+  padding: 0;
+  background: var(--color-page);
+}
+
+.brand-block {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  min-width: 0;
+}
+
+.brand-block > span,
+.avatar-token {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 42px;
+  height: 42px;
+  border-radius: 8px;
+  color: #ffffff;
+  background: var(--color-primary);
+  font-weight: 900;
+}
+
+.brand-block strong,
+.brand-block small,
+.user-summary strong,
+.user-summary span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.brand-block strong {
+  color: var(--color-heading);
+  font-size: 0.95rem;
+}
+
+.brand-block small {
+  color: var(--color-muted);
+  font-weight: 700;
+}
+
+.app-main {
+  min-width: 0;
+  margin-left: 304px;
+  padding: 1rem;
+}
+
+.app-topbar {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+  width: min(100%, 1180px);
+  margin: 0 auto 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: var(--shadow-panel);
+  backdrop-filter: blur(10px);
+}
+
+.app-topbar h1 {
+  margin: 0;
+  font-size: 1.35rem;
+}
+
+.menu-button {
+  display: none;
+  min-height: 42px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 8px;
+  padding: 0.65rem 0.8rem;
+  color: var(--color-primary);
+  background: var(--color-surface);
+  font-weight: 900;
+}
+
+.app-main .app-content {
+  width: min(100%, 1180px);
+  margin: 0 auto;
+  border-color: var(--color-border);
+  box-shadow: var(--shadow-panel);
+}
+
+@media (max-width: 819px) {
+  .mobile-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      border: 0;
+      padding: 0;
+      background: rgba(18, 32, 51, 0.38);
+    }
+}
+
+@media (max-width: 819px) {
+  .mobile-overlay[hidden] {
+      display: none;
+    }
+}
+
+@media (max-width: 819px) {
+  .app-main {
+      margin-left: 0;
+      padding: 0.75rem;
+    }
+}
+
+@media (max-width: 819px) {
+  .menu-button {
+      display: inline-flex;
+      align-items: center;
+    }
+}
+
+@media (max-width: 819px) {
+  .app-topbar {
+      align-items: flex-start;
+      justify-content: flex-start;
+      flex-wrap: wrap;
+      padding: 0.85rem;
+    }
+}
+
+@media (max-width: 819px) {
+  .app-topbar > div {
+      min-width: 0;
+    }
+}
+
+@media (max-width: 819px) {
+  .app-topbar h1 {
+      font-size: 1.15rem;
+    }
+}
+
+@media (max-width: 560px) {
+  .app-main {
+      padding: 0.5rem;
+    }
+}
+
+@media (max-width: 560px) {
+  .app-main .app-content {
+      padding: 0.9rem;
+    }
+}
+
+@media print {
+  .private-shell,
+    .app-main,
+    .app-main .app-content,
+    .report-page {
+      width: 100% !important;
+      min-width: 0 !important;
+      margin: 0 !important;
+      border: 0 !important;
+      padding: 0 !important;
+      background: #ffffff !important;
+      box-shadow: none !important;
+    }
+}
+
+.institution-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  min-width: 0;
+}
+
+.institution-brand__mark {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 50px;
+  height: 50px;
+  overflow: hidden;
+  border-radius: 13px;
+  color: #fff;
+  background: var(--color-primary);
+  box-shadow: inset 0 -5px 0 var(--color-brand-gold);
+  font-size: 0.95rem;
+  font-weight: 950;
+  letter-spacing: 0.03em;
+}
+
+.institution-brand__mark::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 18px;
+  height: 5px;
+  background: var(--color-brand-burgundy);
+}
+
+.institution-brand__copy {
+  min-width: 0;
+}
+
+.institution-brand__copy strong,
+.institution-brand__copy span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.institution-brand__copy strong {
+  color: var(--color-heading);
+  font-size: 0.96rem;
+  line-height: 1.2;
+}
+
+.institution-brand__copy span {
+  margin-top: 0.15rem;
+  color: var(--color-muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.institution-brand--compact .institution-brand__mark {
+  width: 42px;
+  height: 42px;
+  border-radius: 11px;
+  font-size: 0.82rem;
+}
+
+.institution-brand--compact .institution-brand__copy strong {
+  font-size: 0.9rem;
+}
+
+.private-shell {
+  background: transparent;
+}
+
+.brand-block {
+  min-height: 54px;
+  padding-top: 0.2rem;
+}
+
+.brand-block > .institution-brand {
+  width: 100%;
+}
+
+.brand-block > .institution-brand .institution-brand__mark {
+  color: #fff;
+  background: var(--color-primary);
+}
+
+.app-main {
+  padding: 1.15rem 1.25rem 2rem;
+}
+
+.app-topbar {
+  position: relative;
+  overflow: hidden;
+  border-radius: 14px;
+  padding: 1rem 1.25rem 1rem 1.45rem;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 8px 24px rgba(35, 47, 41, 0.07);
+}
+
+.app-topbar::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: linear-gradient(180deg, var(--color-primary), var(--color-brand-gold));
+}
+
+.app-topbar h1 {
+  font-size: clamp(1.25rem, 2.3vw, 1.55rem);
+}
+
+.app-main .app-content {
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow: var(--shadow-panel);
+}
+
+.survey-header > .institution-brand {
+  margin-bottom: 1.35rem;
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 1rem;
+}
+
+@media (max-width: 819px) {
+  .app-main {
+      padding: 0.75rem;
+    }
+}
+
+@media (max-width: 819px) {
+  .app-topbar {
+      border-radius: 12px;
+      padding: 0.85rem 0.9rem;
+    }
+}
+
+@media (max-width: 819px) {
+  .institution-brand__copy strong {
+      white-space: normal;
+    }
+}
+
+@media (max-width: 560px) {
+  .survey-header > .institution-brand {
+      align-items: flex-start;
+    }
+}
+
+@media (max-width: 560px) {
+  .institution-brand__mark {
+      width: 44px;
+      height: 44px;
+    }
+}
+
+.app-main > .app-content,
+.career-workspace-shell {
+  width: min(100%, 1440px);
+  margin-inline: auto;
+}
+
+@media (max-width: 860px) {
+  .app-main {
+      padding-inline: 0.85rem;
+    }
+}

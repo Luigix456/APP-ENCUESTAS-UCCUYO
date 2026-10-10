@@ -8,28 +8,25 @@ import {
   getSurveys
 } from '../../api/surveysApi';
 import { useAuth } from '../../auth/AuthProvider';
-import { PaginationControls, usePagination } from '../../components/Pagination';
 import { ConfirmDialog, Modal } from '../../components/ui/Modal';
 import { useToast } from '../../components/ui/ToastProvider';
 import type { SurveyAssignmentDto } from '../../types/surveyAssignments';
 import type { SurveyFilters, SurveyStatus, SurveySummaryDto, SurveyTarget } from '../../types/surveys';
 import { SURVEY_STATUSES, SURVEY_STATUS_LABELS, SURVEY_TARGETS } from '../../types/surveys';
 import {
-  ActivityBadge,
   formatDateTime,
   formatSurveyTarget,
   getFriendlySurveyError,
   MANAGE_SURVEY_TEMPLATES_PERMISSION,
   READ_SURVEY_TEMPLATES_PERMISSION,
   PermissionDeniedPanel,
-  SurveyVersionBadge,
   SurveyStatusBadge,
+  SurveyVersionBadge,
   trimmedOrNull
 } from './surveyUi';
 
 type LoadState = 'loading' | 'ready' | 'error';
-type ActivityFilter = '' | 'active' | 'inactive';
-type SortOption = 'updated-desc' | 'updated-asc' | 'title-asc' | 'title-desc';
+type FamilyStatusFilter = SurveyStatus | '';
 
 interface SurveyCreateFormState {
   title: string;
@@ -38,18 +35,46 @@ interface SurveyCreateFormState {
   isAnonymous: boolean;
 }
 
-interface SurveyAcademicGroup {
-  key: string;
-  careerName: string;
-  subjectName: string;
-  surveys: SurveySummaryDto[];
+interface SurveyTemplateFamily {
+  versionGroupId: string;
+  title: string;
+  description: string | null;
+  target: SurveyTarget;
+  primary: SurveySummaryDto;
+  draft: SurveySummaryDto | null;
+  published: SurveySummaryDto | null;
+  archived: SurveySummaryDto | null;
+  versions: SurveySummaryDto[];
+  sectionCount: number;
+  questionCount: number;
+  updatedAtUtc: string;
 }
 
-const initialFilters: SurveyFilters = {
-  includeInactive: true,
-  status: '',
-  target: ''
-};
+interface SurveyTemplateInCareer extends SurveyTemplateFamily {
+  assignmentCount: number;
+  subjectNames: string[];
+}
+
+interface SurveyCareerGroup {
+  careerId: string;
+  careerName: string;
+  academicUnitName: string | null;
+  templates: SurveyTemplateInCareer[];
+  isUnassigned?: boolean;
+}
+
+interface SurveyCareerCatalog {
+  careerGroups: SurveyCareerGroup[];
+  unassignedTemplates: SurveyTemplateInCareer[];
+  allFamilies: SurveyTemplateFamily[];
+}
+
+interface FilteredCatalog {
+  careerGroups: SurveyCareerGroup[];
+  unassignedTemplates: SurveyTemplateInCareer[];
+}
+
+const unassignedCareerId = 'unassigned-templates';
 
 const initialCreateForm: SurveyCreateFormState = {
   title: '',
@@ -62,13 +87,14 @@ export function SurveysPage() {
   const auth = useAuth();
   const navigate = useNavigate();
   const toast = useToast();
-  const [filters, setFilters] = useState<SurveyFilters>(initialFilters);
   const [search, setSearch] = useState('');
-  const [activityFilter, setActivityFilter] = useState<ActivityFilter>('');
-  const [sortBy, setSortBy] = useState<SortOption>('updated-desc');
+  const [statusFilter, setStatusFilter] = useState<FamilyStatusFilter>('');
+  const [targetFilter, setTargetFilter] = useState<SurveyTarget | ''>('');
   const [surveys, setSurveys] = useState<SurveySummaryDto[]>([]);
   const [assignments, setAssignments] = useState<SurveyAssignmentDto[]>([]);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [expandedCareerId, setExpandedCareerId] = useState<string | null>(null);
+  const [expandedFamilyIds, setExpandedFamilyIds] = useState<Set<string>>(new Set());
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const [pageError, setPageError] = useState<string | null>(null);
   const [activeActionId, setActiveActionId] = useState<string | null>(null);
@@ -87,57 +113,55 @@ export function SurveysPage() {
       setLoadState('ready');
       return;
     }
-    void loadSurveys(accessToken, filters);
-  }, [accessToken, canReadTemplates, filters]);
+    void loadSurveys(accessToken, targetFilter);
+  }, [accessToken, canReadTemplates, targetFilter]);
 
-  const filteredSurveys = useMemo(() => {
-    const normalizedSearch = search.trim().toLocaleLowerCase('es');
-    return [...surveys]
-      .filter((survey) => !normalizedSearch || survey.title.toLocaleLowerCase('es').includes(normalizedSearch))
-      .filter((survey) => {
-        if (activityFilter === 'active') return survey.isActive;
-        if (activityFilter === 'inactive') return !survey.isActive;
-        return true;
-      })
-      .sort((left, right) => {
-        if (sortBy === 'updated-asc') return Date.parse(left.updatedAtUtc) - Date.parse(right.updatedAtUtc);
-        if (sortBy === 'title-asc') return left.title.localeCompare(right.title, 'es');
-        if (sortBy === 'title-desc') return right.title.localeCompare(left.title, 'es');
-        return Date.parse(right.updatedAtUtc) - Date.parse(left.updatedAtUtc);
-      });
-  }, [activityFilter, search, sortBy, surveys]);
-
-  const summary = useMemo(
-    () => ({
-      total: surveys.length,
-      drafts: surveys.filter((survey) => survey.status === 'Draft').length,
-      published: surveys.filter((survey) => survey.status === 'Published').length,
-      archived: surveys.filter((survey) => survey.status === 'Archived').length
-    }),
-    [surveys]
+  const catalog = useMemo(
+    () => buildSurveyCatalogByCareer(surveys, assignments),
+    [assignments, surveys]
   );
-
-  const surveyPagination = usePagination(filteredSurveys, 8);
-  const groupedSurveys = useMemo(
-    () => groupSurveysByAcademicContext(surveyPagination.items, assignments),
-    [assignments, surveyPagination.items]
+  const catalogForStatusCounts = useMemo(
+    () => filterCatalog(catalog, search, ''),
+    [catalog, search]
   );
+  const filteredCatalog = useMemo(
+    () => filterCatalog(catalog, search, statusFilter),
+    [catalog, search, statusFilter]
+  );
+  const uniqueTemplateCount = useMemo(
+    () => countUniqueTemplates(filteredCatalog),
+    [filteredCatalog]
+  );
+  const statusCounts = useMemo(
+    () => countCatalogByStatus(catalogForStatusCounts),
+    [catalogForStatusCounts]
+  );
+  const visibleCareerCount = filteredCatalog.careerGroups.length;
+  const hasVisibleUnassigned = filteredCatalog.unassignedTemplates.length > 0;
+  const hasVisibleTemplates = visibleCareerCount > 0 || hasVisibleUnassigned;
+  const hasFilters = Boolean(search || statusFilter || targetFilter);
+  const advancedFilterCount = targetFilter ? 1 : 0;
 
   if (!canReadTemplates) return <PermissionDeniedPanel mode="read" />;
 
-  async function loadSurveys(token: string, nextFilters = filters) {
+  async function loadSurveys(token: string, nextTargetFilter = targetFilter) {
     setLoadState('loading');
     setPageError(null);
     try {
+      const surveyFilters: SurveyFilters = {
+        includeInactive: true,
+        status: '',
+        target: nextTargetFilter
+      };
       const [nextSurveys, nextAssignments] = await Promise.all([
-        getSurveys(nextFilters, token, auth.logout),
+        getSurveys(surveyFilters, token, auth.logout),
         getSurveyAssignments(token, auth.logout, { includeInactive: true })
       ]);
       setSurveys(nextSurveys);
       setAssignments(nextAssignments);
       setLoadState('ready');
     } catch (error) {
-      setPageError(getFriendlySurveyError(error, 'No fue posible cargar las plantillas de encuesta.'));
+      setPageError(getFriendlySurveyError(error, 'No fue posible cargar las plantillas.'));
       setLoadState('error');
     }
   }
@@ -216,31 +240,33 @@ export function SurveysPage() {
 
   function clearFilters() {
     setSearch('');
-    setActivityFilter('');
-    setSortBy('updated-desc');
-    setFilters(initialFilters);
+    setStatusFilter('');
+    setTargetFilter('');
   }
 
-  const advancedFilterCount = [
-    activityFilter,
-    filters.status,
-    filters.target,
-    !filters.includeInactive ? 'active-only' : '',
-    sortBy !== 'updated-desc' ? sortBy : ''
-  ].filter(Boolean).length;
-  const hasFilters = Boolean(search || advancedFilterCount > 0);
+  function toggleCareer(careerId: string) {
+    setExpandedCareerId((current) => current === careerId ? null : careerId);
+  }
+
+  function toggleVersions(versionGroupId: string) {
+    setExpandedFamilyIds((current) => {
+      const next = new Set(current);
+      if (next.has(versionGroupId)) {
+        next.delete(versionGroupId);
+      } else {
+        next.add(versionGroupId);
+      }
+      return next;
+    });
+  }
 
   return (
     <section className="app-content surveys-page">
       <header className="surveys-header surveys-header--templates">
         <div>
-          <p className="eyebrow">{canManageTemplates ? 'Administración' : 'Consulta'}</p>
-          <h2>Plantillas de encuestas</h2>
-          <p>
-            {canManageTemplates
-              ? 'Buscá por nombre y administrá las plantillas agrupadas según las carreras y materias donde se utilizan.'
-              : 'Consultá las plantillas disponibles y revisá su vista previa. Las acciones de edición están reservadas a administración.'}
-          </p>
+          <p className="eyebrow">Plantillas de encuestas</p>
+          <h2>Plantillas</h2>
+          <p>Administrá las plantillas organizadas por carrera.</p>
         </div>
         <div className="surveys-actions">
           <button className="secondary-button" disabled={!accessToken || loadState === 'loading'} onClick={() => accessToken && void loadSurveys(accessToken)} type="button">
@@ -248,33 +274,38 @@ export function SurveysPage() {
           </button>
           {canManageTemplates ? (
             <button className="primary-button" onClick={() => setShowCreateModal(true)} type="button">
-              Nueva plantilla
+              + Nueva plantilla
             </button>
           ) : null}
         </div>
       </header>
 
-      <div className="template-summary-grid" aria-label="Resumen de plantillas">
-        <div><span>Total</span><strong>{summary.total}</strong></div>
-        <div><span>Borradores</span><strong>{summary.drafts}</strong></div>
-        <div><span>Publicadas</span><strong>{summary.published}</strong></div>
-        <div><span>Archivadas</span><strong>{summary.archived}</strong></div>
-      </div>
-
-      <section className="survey-search-panel" aria-label="Buscar y filtrar plantillas">
-        <div className="survey-search-row">
+      <section className="survey-template-toolbar" aria-label="Buscar y filtrar plantillas">
+        <div className="survey-template-toolbar__main survey-template-toolbar__main--career">
           <label className="survey-search-input">
-            <span className="sr-only">Buscar encuesta por nombre</span>
+            <span className="sr-only">Buscar carrera o plantilla</span>
             <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m21 21-4.35-4.35m2.35-5.65a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z" /></svg>
             <input
               className="text-input"
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Buscar encuesta por nombre..."
+              placeholder="Buscar carrera o plantilla"
               type="search"
               value={search}
             />
           </label>
+          <label className="survey-template-status-filter">
+            <span className="sr-only">Estado</span>
+            <select className="text-input" onChange={(event) => setStatusFilter(event.target.value as FamilyStatusFilter)} value={statusFilter}>
+              <option value="">Todos los estados</option>
+              {SURVEY_STATUSES.map((status) => (
+                <option key={status} value={status}>
+                  {SURVEY_STATUS_LABELS[status]} ({statusCounts[status]})
+                </option>
+              ))}
+            </select>
+          </label>
           <button
+            aria-controls="survey-template-advanced-filters"
             aria-expanded={filtersOpen}
             aria-label={filtersOpen ? 'Ocultar filtros' : 'Mostrar filtros'}
             className={`filter-toggle-button ${filtersOpen ? 'filter-toggle-button--active' : ''}`}
@@ -286,106 +317,95 @@ export function SurveysPage() {
             <span>Filtros</span>
             {advancedFilterCount > 0 ? <strong>{advancedFilterCount}</strong> : null}
           </button>
-          {hasFilters ? <button className="link-button" onClick={clearFilters} type="button">Limpiar</button> : null}
+          {hasFilters ? <button className="link-button" onClick={clearFilters} type="button">Limpiar filtros</button> : null}
         </div>
 
         {filtersOpen ? (
-          <div className="survey-advanced-filters">
-            <label>
-              <span>Estado</span>
-              <select className="text-input" onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value as SurveyStatus | '' }))} value={filters.status}>
-                <option value="">Todos</option>
-                {SURVEY_STATUSES.map((status) => <option key={status} value={status}>{SURVEY_STATUS_LABELS[status]}</option>)}
-              </select>
-            </label>
+          <div className="survey-template-advanced-filters" id="survey-template-advanced-filters">
             <label>
               <span>Audiencia</span>
-              <select className="text-input" onChange={(event) => setFilters((current) => ({ ...current, target: event.target.value as SurveyTarget | '' }))} value={filters.target}>
+              <select className="text-input" onChange={(event) => setTargetFilter(event.target.value as SurveyTarget | '')} value={targetFilter}>
                 <option value="">Todas</option>
                 {SURVEY_TARGETS.map((target) => <option key={target} value={target}>{formatSurveyTarget(target)}</option>)}
               </select>
             </label>
-            <label>
-              <span>Disponibilidad</span>
-              <select className="text-input" onChange={(event) => setActivityFilter(event.target.value as ActivityFilter)} value={activityFilter}>
-                <option value="">Todas</option>
-                <option value="active">Activas</option>
-                <option value="inactive">Inactivas</option>
-              </select>
-            </label>
-            <label>
-              <span>Ordenar</span>
-              <select className="text-input" onChange={(event) => setSortBy(event.target.value as SortOption)} value={sortBy}>
-                <option value="updated-desc">Actualizadas recientemente</option>
-                <option value="updated-asc">Actualizadas hace más tiempo</option>
-                <option value="title-asc">Nombre A-Z</option>
-                <option value="title-desc">Nombre Z-A</option>
-              </select>
-            </label>
-            <label className="checkbox-field filter-checkbox">
-              <input checked={filters.includeInactive} onChange={(event) => setFilters((current) => ({ ...current, includeInactive: event.target.checked }))} type="checkbox" />
-              <span>Incluir plantillas inactivas</span>
-            </label>
           </div>
         ) : null}
 
-        <div className="filter-results-count" aria-live="polite">
-          {filteredSurveys.length} {filteredSurveys.length === 1 ? 'plantilla encontrada' : 'plantillas encontradas'}
+        <div className="survey-template-count" aria-live="polite">
+          <strong>{visibleCareerCount}</strong> {visibleCareerCount === 1 ? 'carrera con plantillas' : 'carreras con plantillas'}
+          <span>·</span>
+          <strong>{uniqueTemplateCount}</strong> {uniqueTemplateCount === 1 ? 'plantilla única' : 'plantillas únicas'}
+          {hasVisibleUnassigned ? <span>· Incluye plantillas sin asignar</span> : null}
         </div>
       </section>
 
-      {loadState === 'loading' ? <p aria-live="polite">Cargando plantillas...</p> : null}
+      {loadState === 'loading' ? <p className="survey-template-loading" aria-live="polite">Cargando plantillas...</p> : null}
       {loadState === 'error' ? (
-        <div className="empty-detail" role="alert"><h3>No pudimos cargar las plantillas</h3><p>{pageError}</p></div>
+        <div className="survey-template-empty survey-template-empty--compact" role="alert">
+          <h3>No pudimos cargar las plantillas.</h3>
+          <p>{pageError}</p>
+          <button className="secondary-button" disabled={!accessToken} onClick={() => accessToken && void loadSurveys(accessToken)} type="button">
+            Reintentar
+          </button>
+        </div>
       ) : null}
-      {loadState === 'ready' && filteredSurveys.length === 0 ? (
-        <div className="empty-detail">
-          <h3>{surveys.length === 0 ? 'Todavía no hay plantillas' : 'No encontramos coincidencias'}</h3>
-          <p>{surveys.length === 0 ? 'Creá la primera plantilla para comenzar.' : 'Probá cambiar o limpiar los filtros de búsqueda.'}</p>
+      {loadState === 'ready' && catalog.allFamilies.length === 0 ? (
+        <div className="survey-template-empty">
+          <h3>No hay plantillas de encuestas todavía.</h3>
+          <p>Creá una plantilla para empezar a diseñar encuestas académicas.</p>
+          {canManageTemplates ? (
+            <button className="primary-button" onClick={() => setShowCreateModal(true)} type="button">
+              Crear primera plantilla
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+      {loadState === 'ready' && catalog.allFamilies.length > 0 && !hasVisibleTemplates ? (
+        <div className="survey-template-empty">
+          <h3>No hay plantillas que coincidan con los filtros.</h3>
+          <p>Probá ajustar la búsqueda, el estado o la audiencia.</p>
+          <button className="secondary-button" onClick={clearFilters} type="button">Limpiar filtros</button>
         </div>
       ) : null}
 
-      {loadState === 'ready' && filteredSurveys.length > 0 ? (
-        <>
-          <div className="survey-academic-groups">
-            {groupedSurveys.map((group) => (
-              <section className="survey-academic-group" key={group.key}>
-                <header className="survey-academic-group__header">
-                  <div>
-                    <span>{group.careerName}</span>
-                    <h3>{group.subjectName}</h3>
-                  </div>
-                  <small>{group.surveys.length} {group.surveys.length === 1 ? 'encuesta' : 'encuestas'}</small>
-                </header>
-                <div className="surveys-table" role="list">
-                  {group.surveys.map((survey) => (
-                    <SurveyTemplateCard
-                      activeActionId={activeActionId}
-                      canManageTemplates={canManageTemplates}
-                      key={`${group.key}-${survey.id}`}
-                      onArchive={setArchiveTarget}
-                      onEdit={handleEdit}
-                      survey={survey}
-                    />
-                  ))}
-                </div>
-              </section>
-            ))}
-          </div>
-          <PaginationControls
-            firstItem={surveyPagination.firstItem}
-            itemLabel="plantillas"
-            lastItem={surveyPagination.lastItem}
-            onPageChange={surveyPagination.setPage}
-            onPageSizeChange={surveyPagination.setPageSize}
-            page={surveyPagination.page}
-            pageSize={surveyPagination.pageSize}
-            showPageSize={false}
-            showSummary={false}
-            totalItems={surveyPagination.totalItems}
-            totalPages={surveyPagination.totalPages}
-          />
-        </>
+      {loadState === 'ready' && hasVisibleTemplates ? (
+        <div className="survey-career-list">
+          {filteredCatalog.careerGroups.map((group) => (
+            <SurveyCareerGroupPanel
+              activeActionId={activeActionId}
+              canManageTemplates={canManageTemplates}
+              expanded={expandedCareerId === group.careerId}
+              expandedFamilyIds={expandedFamilyIds}
+              group={group}
+              key={group.careerId}
+              onArchive={setArchiveTarget}
+              onEdit={handleEdit}
+              onToggleCareer={toggleCareer}
+              onToggleVersions={toggleVersions}
+            />
+          ))}
+          {hasVisibleUnassigned ? (
+            <SurveyCareerGroupPanel
+              activeActionId={activeActionId}
+              canManageTemplates={canManageTemplates}
+              expanded={expandedCareerId === unassignedCareerId}
+              expandedFamilyIds={expandedFamilyIds}
+              group={{
+                careerId: unassignedCareerId,
+                careerName: 'Plantillas sin asignar',
+                academicUnitName: null,
+                templates: filteredCatalog.unassignedTemplates,
+                isUnassigned: true
+              }}
+              key={unassignedCareerId}
+              onArchive={setArchiveTarget}
+              onEdit={handleEdit}
+              onToggleCareer={toggleCareer}
+              onToggleVersions={toggleVersions}
+            />
+          ) : null}
+        </div>
       ) : null}
 
       <Modal
@@ -422,100 +442,403 @@ export function SurveysPage() {
   );
 }
 
-function SurveyTemplateCard({
+function SurveyCareerGroupPanel({
   activeActionId,
   canManageTemplates,
+  expanded,
+  expandedFamilyIds,
+  group,
   onArchive,
   onEdit,
-  survey
+  onToggleCareer,
+  onToggleVersions
 }: {
   activeActionId: string | null;
   canManageTemplates: boolean;
+  expanded: boolean;
+  expandedFamilyIds: Set<string>;
+  group: SurveyCareerGroup;
   onArchive: (survey: SurveySummaryDto) => void;
   onEdit: (survey: SurveySummaryDto) => Promise<void>;
-  survey: SurveySummaryDto;
+  onToggleCareer: (careerId: string) => void;
+  onToggleVersions: (versionGroupId: string) => void;
 }) {
+  const contentId = `survey-career-group-${group.careerId}`;
+
   return (
-    <article className="survey-list-card template-card" role="listitem">
-      <header>
-        <div>
-          <div className="template-card__title-row">
-            <h3>{survey.title}</h3>
-            <SurveyVersionBadge survey={survey} />
-          </div>
-          <p>{survey.description || 'Sin descripción'}</p>
+    <section className={`survey-career-group ${group.isUnassigned ? 'survey-career-group--unassigned' : ''}`}>
+      <button
+        aria-controls={contentId}
+        aria-expanded={expanded}
+        className="survey-career-group__trigger"
+        onClick={() => onToggleCareer(group.careerId)}
+        type="button"
+      >
+        <span className="survey-career-group__identity">
+          <strong className="survey-career-group__name">{group.careerName}</strong>
+          {group.academicUnitName ? <span className="survey-career-group__unit">{group.academicUnitName}</span> : null}
+        </span>
+        <span className="survey-career-group__count">{formatTemplateCount(group.templates.length)}</span>
+        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" /></svg>
+      </button>
+
+      {expanded ? (
+        <div className="survey-career-group__content" id={contentId}>
+          {group.templates.length > 0 ? (
+            <div className="survey-template-grid">
+              {group.templates.map((template) => (
+                <SurveyTemplateFamilyCard
+                  activeActionId={activeActionId}
+                  canManageTemplates={canManageTemplates}
+                  expanded={expandedFamilyIds.has(template.versionGroupId)}
+                  key={template.versionGroupId}
+                  onArchive={onArchive}
+                  onEdit={onEdit}
+                  onToggleVersions={onToggleVersions}
+                  template={template}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="survey-template-empty survey-template-empty--compact">
+              <h3>No hay plantillas que coincidan con los filtros.</h3>
+              <p>Probá ajustar la búsqueda o el estado seleccionado.</p>
+            </div>
+          )}
         </div>
-        <div className="badge-group">
-          <SurveyStatusBadge status={survey.status} />
-          <ActivityBadge isActive={survey.isActive} />
+      ) : null}
+    </section>
+  );
+}
+
+function SurveyTemplateFamilyCard({
+  activeActionId,
+  canManageTemplates,
+  expanded,
+  onArchive,
+  onEdit,
+  onToggleVersions,
+  template
+}: {
+  activeActionId: string | null;
+  canManageTemplates: boolean;
+  expanded: boolean;
+  onArchive: (survey: SurveySummaryDto) => void;
+  onEdit: (survey: SurveySummaryDto) => Promise<void>;
+  onToggleVersions: (versionGroupId: string) => void;
+  template: SurveyTemplateInCareer;
+}) {
+  const editableVersion = template.draft;
+  const viewVersion = template.published ?? template.primary;
+  const versionListId = `survey-template-versions-${template.versionGroupId}`;
+
+  return (
+    <article className="survey-template-family-card">
+      <header className="survey-template-family-card__header">
+        <div className="survey-template-family-card__title">
+          <h3>{template.title}</h3>
+          <p>{template.description || 'Sin descripción'}</p>
         </div>
+        <span className="survey-template-family-card__target">{formatSurveyTarget(template.target)}</span>
       </header>
-      <dl className="survey-card-meta">
-        <div><dt>Audiencia</dt><dd>{formatSurveyTarget(survey.target)}</dd></div>
-        <div><dt>Secciones</dt><dd>{survey.sectionCount}</dd></div>
-        <div><dt>Preguntas</dt><dd>{survey.questionCount}</dd></div>
-        <div><dt>Actualizada</dt><dd>{formatDateTime(survey.updatedAtUtc)}</dd></div>
-      </dl>
-      <div className="survey-card-actions">
-        <Link className="secondary-link-button" to={`/app/surveys/${survey.id}/preview`}>Vista previa</Link>
-        {canManageTemplates ? (
-          <>
-            <button className="secondary-button" disabled={activeActionId === survey.id} onClick={() => void onEdit(survey)} type="button">
-              {activeActionId === survey.id ? 'Preparando...' : 'Editar'}
-            </button>
-            {survey.status === 'Published' ? (
-              <button className="danger-button" disabled={activeActionId === survey.id} onClick={() => onArchive(survey)} type="button">Archivar</button>
-            ) : null}
-          </>
+
+      <div className="survey-template-family-card__statuses" aria-label="Estado de versiones principales">
+        {template.published ? (
+          <div>
+            <SurveyStatusBadge status="Published" />
+            <SurveyVersionBadge survey={template.published} />
+          </div>
+        ) : null}
+        {template.draft ? (
+          <div className="survey-template-family-card__draft">
+            <SurveyStatusBadge status="Draft" />
+            <SurveyVersionBadge survey={template.draft} />
+            <span>Borrador en edición</span>
+          </div>
+        ) : null}
+        {!template.draft && !template.published && template.archived ? (
+          <div>
+            <SurveyStatusBadge status="Archived" />
+            <SurveyVersionBadge survey={template.archived} />
+          </div>
         ) : null}
       </div>
+
+      <dl className="survey-template-family-card__meta">
+        <div><dt>Contenido</dt><dd>{template.sectionCount} {template.sectionCount === 1 ? 'sección' : 'secciones'} · {template.questionCount} {template.questionCount === 1 ? 'pregunta' : 'preguntas'}</dd></div>
+        <div><dt>Asignaciones</dt><dd>{formatCareerAssignmentCount(template.assignmentCount)}</dd></div>
+        {template.subjectNames.length > 0 ? (
+          <div><dt>Asignada en</dt><dd>{formatSubjectNames(template.subjectNames)}</dd></div>
+        ) : null}
+        <div><dt>Actualizada</dt><dd>{formatDateTime(template.updatedAtUtc)}</dd></div>
+      </dl>
+
+      <div className="survey-template-family-card__actions">
+        {editableVersion && canManageTemplates ? (
+          <button className="primary-button" disabled={activeActionId === editableVersion.id} onClick={() => void onEdit(editableVersion)} type="button">
+            {activeActionId === editableVersion.id ? 'Abriendo...' : 'Editar borrador'}
+          </button>
+        ) : (
+          <Link className="primary-link-button" to={`/app/surveys/${viewVersion.id}/preview`}>Ver</Link>
+        )}
+        {!editableVersion && template.published && canManageTemplates ? (
+          <button className="secondary-button" disabled={activeActionId === template.published.id} onClick={() => void onEdit(template.published!)} type="button">
+            {activeActionId === template.published.id ? 'Preparando...' : 'Crear versión editable'}
+          </button>
+        ) : null}
+        {template.published && canManageTemplates ? (
+          <Link className="secondary-link-button" to="/app/survey-assignments/new">Asignar</Link>
+        ) : null}
+        {editableVersion ? (
+          <Link className="secondary-link-button" to={`/app/surveys/${viewVersion.id}/preview`}>Vista previa</Link>
+        ) : null}
+        {template.published && canManageTemplates ? (
+          <button className="text-danger-button" disabled={activeActionId === template.published.id} onClick={() => onArchive(template.published!)} type="button">Archivar</button>
+        ) : null}
+      </div>
+
+      <button
+        aria-controls={versionListId}
+        aria-expanded={expanded}
+        className="survey-template-family-card__versions-toggle"
+        onClick={() => onToggleVersions(template.versionGroupId)}
+        type="button"
+      >
+        <span>Ver versiones</span>
+        <strong>{template.versions.length}</strong>
+        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" /></svg>
+      </button>
+
+      {expanded ? (
+        <div className="survey-template-version-list" id={versionListId}>
+          {template.versions.map((version) => (
+            <div className="survey-template-version-row" key={version.id}>
+              <div className="survey-template-version-row__status">
+                <SurveyVersionBadge survey={version} />
+                <SurveyStatusBadge status={version.status} />
+              </div>
+              <div className="survey-template-version-row__meta">
+                <span>{version.sectionCount} {version.sectionCount === 1 ? 'sección' : 'secciones'}</span>
+                <span>{version.questionCount} {version.questionCount === 1 ? 'pregunta' : 'preguntas'}</span>
+                <span>{formatDateTime(version.updatedAtUtc)}</span>
+              </div>
+              <div className="survey-template-version-row__actions">
+                <Link className="secondary-link-button" to={`/app/surveys/${version.id}/preview`}>Ver</Link>
+                {version.status === 'Draft' && canManageTemplates ? (
+                  <Link className="primary-link-button" to={`/app/surveys/${version.id}/edit`}>Editar</Link>
+                ) : null}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
     </article>
   );
 }
 
-function groupSurveysByAcademicContext(
+function buildSurveyCatalogByCareer(
   surveys: SurveySummaryDto[],
   assignments: SurveyAssignmentDto[]
-): SurveyAcademicGroup[] {
-  const visibleSurveyIds = new Set(surveys.map((survey) => survey.id));
+): SurveyCareerCatalog {
+  const families = groupSurveyFamilies(surveys);
+  const familyByVersionGroupId = new Map(families.map((family) => [family.versionGroupId, family]));
   const surveyById = new Map(surveys.map((survey) => [survey.id, survey]));
-  const groupMap = new Map<string, SurveyAcademicGroup>();
-  const assignedSurveyIds = new Set<string>();
+  const assignedVersionGroupIds = new Set<string>();
+  const careerMap = new Map<string, {
+    careerId: string;
+    careerName: string;
+    academicUnitName: string | null;
+    templates: Map<string, SurveyTemplateInCareer & { assignmentIds: Set<string>; subjectSet: Set<string> }>;
+  }>();
 
   assignments.forEach((assignment) => {
-    if (!visibleSurveyIds.has(assignment.surveyId)) return;
     const survey = surveyById.get(assignment.surveyId);
     if (!survey) return;
+    const family = familyByVersionGroupId.get(survey.versionGroupId);
+    if (!family) return;
 
-    assignedSurveyIds.add(survey.id);
-    const key = `${assignment.careerId}:${assignment.subjectId}`;
-    const group = groupMap.get(key) ?? {
-      key,
+    assignedVersionGroupIds.add(family.versionGroupId);
+    const careerGroup = careerMap.get(assignment.careerId) ?? {
+      careerId: assignment.careerId,
       careerName: assignment.careerName,
-      subjectName: assignment.subjectName,
-      surveys: []
+      academicUnitName: null,
+      templates: new Map<string, SurveyTemplateInCareer & { assignmentIds: Set<string>; subjectSet: Set<string> }>()
+    };
+    const template = careerGroup.templates.get(family.versionGroupId) ?? {
+      ...family,
+      assignmentCount: 0,
+      subjectNames: [],
+      assignmentIds: new Set<string>(),
+      subjectSet: new Set<string>()
     };
 
-    if (!group.surveys.some((item) => item.id === survey.id)) {
-      group.surveys.push(survey);
-    }
-    groupMap.set(key, group);
+    template.assignmentIds.add(assignment.id);
+    template.subjectSet.add(assignment.subjectName);
+    template.assignmentCount = template.assignmentIds.size;
+    template.subjectNames = [...template.subjectSet].sort((left, right) => left.localeCompare(right, 'es'));
+    careerGroup.templates.set(family.versionGroupId, template);
+    careerMap.set(assignment.careerId, careerGroup);
   });
 
-  const unassigned = surveys.filter((survey) => !assignedSurveyIds.has(survey.id));
-  if (unassigned.length > 0) {
-    groupMap.set('unassigned', {
-      key: 'unassigned',
-      careerName: 'Plantillas generales',
-      subjectName: 'Sin asignar a una carrera y materia',
-      surveys: unassigned
-    });
+  const careerGroups = [...careerMap.values()]
+    .map((group) => ({
+      careerId: group.careerId,
+      careerName: group.careerName,
+      academicUnitName: group.academicUnitName,
+      templates: [...group.templates.values()]
+        .sort(compareTemplates)
+    }))
+    .sort((left, right) => left.careerName.localeCompare(right.careerName, 'es'));
+
+  const unassignedTemplates = families
+    .filter((family) => !assignedVersionGroupIds.has(family.versionGroupId))
+    .map((family) => ({
+      ...family,
+      assignmentCount: 0,
+      subjectNames: []
+    }))
+    .sort(compareTemplates);
+
+  return {
+    careerGroups,
+    unassignedTemplates,
+    allFamilies: families
+  };
+}
+
+function groupSurveyFamilies(surveys: SurveySummaryDto[]): SurveyTemplateFamily[] {
+  const groups = surveys.reduce<Map<string, SurveySummaryDto[]>>((map, survey) => {
+    const versions = map.get(survey.versionGroupId) ?? [];
+    versions.push(survey);
+    map.set(survey.versionGroupId, versions);
+    return map;
+  }, new Map<string, SurveySummaryDto[]>());
+
+  return [...groups.entries()]
+    .map(([versionGroupId, versions]) => buildSurveyFamily(versionGroupId, versions))
+    .sort(compareTemplates);
+}
+
+function buildSurveyFamily(versionGroupId: string, versions: SurveySummaryDto[]): SurveyTemplateFamily {
+  const orderedVersions = [...versions].sort(compareSurveyVersionsDescending);
+  const draft = orderedVersions.find((survey) => survey.status === 'Draft') ?? null;
+  const published = orderedVersions.find((survey) => survey.status === 'Published') ?? null;
+  const archived = orderedVersions.find((survey) => survey.status === 'Archived') ?? null;
+  const primary = draft ?? published ?? archived ?? orderedVersions[0];
+
+  return {
+    versionGroupId,
+    title: primary.title,
+    description: primary.description,
+    target: primary.target,
+    primary,
+    draft,
+    published,
+    archived,
+    versions: orderedVersions,
+    sectionCount: primary.sectionCount,
+    questionCount: primary.questionCount,
+    updatedAtUtc: primary.updatedAtUtc
+  };
+}
+
+function filterCatalog(catalog: SurveyCareerCatalog, search: string, status: FamilyStatusFilter): FilteredCatalog {
+  const normalizedSearch = search.trim().toLocaleLowerCase('es');
+  const careerGroups = catalog.careerGroups
+    .map((group) => {
+      const careerMatches = normalizedSearch
+        ? group.careerName.toLocaleLowerCase('es').includes(normalizedSearch)
+        : false;
+      const templates = group.templates.filter((template) => (
+        familyMatchesStatus(template, status) &&
+        (careerMatches || templateMatchesSearch(template, normalizedSearch))
+      ));
+
+      return { ...group, templates };
+    })
+    .filter((group) => group.templates.length > 0);
+
+  const unassignedSearchMatches = normalizedSearch
+    ? 'plantillas sin asignar'.includes(normalizedSearch) || 'sin asignar a una carrera'.includes(normalizedSearch)
+    : false;
+  const unassignedTemplates = catalog.unassignedTemplates.filter((template) => (
+    familyMatchesStatus(template, status) &&
+    (unassignedSearchMatches || templateMatchesSearch(template, normalizedSearch))
+  ));
+
+  return { careerGroups, unassignedTemplates };
+}
+
+function templateMatchesSearch(template: SurveyTemplateFamily, normalizedSearch: string): boolean {
+  if (!normalizedSearch) return true;
+  return (
+    template.title.toLocaleLowerCase('es').includes(normalizedSearch) ||
+    template.versions.some((version) => version.title.toLocaleLowerCase('es').includes(normalizedSearch))
+  );
+}
+
+function familyMatchesStatus(template: SurveyTemplateFamily, status: FamilyStatusFilter): boolean {
+  if (!status) return true;
+  if (status === 'Draft') return Boolean(template.draft);
+  if (status === 'Published') return Boolean(template.published);
+  return template.primary.status === 'Archived';
+}
+
+function countUniqueTemplates(catalog: FilteredCatalog): number {
+  const ids = new Set<string>();
+  catalog.careerGroups.forEach((group) => {
+    group.templates.forEach((template) => ids.add(template.versionGroupId));
+  });
+  catalog.unassignedTemplates.forEach((template) => ids.add(template.versionGroupId));
+  return ids.size;
+}
+
+function countCatalogByStatus(catalog: FilteredCatalog): Record<SurveyStatus, number> {
+  const familiesById = new Map<string, SurveyTemplateInCareer>();
+  catalog.careerGroups.forEach((group) => {
+    group.templates.forEach((template) => familiesById.set(template.versionGroupId, template));
+  });
+  catalog.unassignedTemplates.forEach((template) => familiesById.set(template.versionGroupId, template));
+  const families = [...familiesById.values()];
+
+  return {
+    Draft: families.filter((family) => Boolean(family.draft)).length,
+    Published: families.filter((family) => Boolean(family.published)).length,
+    Archived: families.filter((family) => family.primary.status === 'Archived').length
+  };
+}
+
+function compareSurveyVersionsDescending(left: SurveySummaryDto, right: SurveySummaryDto): number {
+  const versionComparison = right.versionNumber - left.versionNumber;
+  if (versionComparison !== 0) return versionComparison;
+  return Date.parse(right.updatedAtUtc) - Date.parse(left.updatedAtUtc);
+}
+
+function compareTemplates(left: SurveyTemplateFamily, right: SurveyTemplateFamily): number {
+  const priorityComparison = getTemplatePriority(left) - getTemplatePriority(right);
+  if (priorityComparison !== 0) return priorityComparison;
+  return left.title.localeCompare(right.title, 'es');
+}
+
+function getTemplatePriority(template: SurveyTemplateFamily): number {
+  if (template.draft) return 0;
+  if (template.published) return 1;
+  return 2;
+}
+
+function formatTemplateCount(count: number): string {
+  return count === 1 ? '1 plantilla' : `${count} plantillas`;
+}
+
+function formatCareerAssignmentCount(count: number): string {
+  if (count === 0) return 'Sin asignaciones';
+  return count === 1 ? '1 asignación en esta carrera' : `${count} asignaciones en esta carrera`;
+}
+
+function formatSubjectNames(subjectNames: string[]): string {
+  if (subjectNames.length <= 3) {
+    return subjectNames.join(' · ');
   }
 
-  return [...groupMap.values()].sort((left, right) => {
-    if (left.key === 'unassigned') return 1;
-    if (right.key === 'unassigned') return -1;
-    const careerComparison = left.careerName.localeCompare(right.careerName, 'es');
-    return careerComparison !== 0 ? careerComparison : left.subjectName.localeCompare(right.subjectName, 'es');
-  });
+  return `${subjectNames.length} materias`;
 }

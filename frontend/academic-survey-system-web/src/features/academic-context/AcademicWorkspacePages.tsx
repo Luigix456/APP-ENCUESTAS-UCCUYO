@@ -18,6 +18,10 @@ type LoadState = 'loading' | 'ready' | 'error';
 const READ_CATALOG = 'academic.catalog.read';
 const MANAGE_CATALOG = 'academic.catalog.manage';
 
+function formatActiveCareerCount(count: number): string {
+  return count === 1 ? '1 carrera activa' : `${count} carreras activas`;
+}
+
 export function AcademicUnitPage() {
   const auth = useAuth();
   const { unitId } = useParams();
@@ -123,7 +127,7 @@ export function AcademicUnitPage() {
           <h2>{unit.name}</h2>
           <p>Seleccioná una carrera para administrar su información académica.</p>
         </div>
-        <strong>{careers.filter((career) => career.isActive).length} carreras activas</strong>
+        <strong>{formatActiveCareerCount(careers.filter((career) => career.isActive).length)}</strong>
       </header>
 
       <div className="career-browser">
@@ -132,7 +136,7 @@ export function AcademicUnitPage() {
           <input
             className="text-input"
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Buscar por nombre o código"
+            placeholder="Buscar carrera por nombre"
             type="search"
             value={search}
           />
@@ -158,7 +162,6 @@ export function AcademicUnitPage() {
           {pagination.items.map((career) => (
             <article className="career-entry-card" key={career.id}>
               <div>
-                <p className="eyebrow">{career.code}</p>
                 <h3>{career.name}</h3>
                 <span>{formatCareerType(career.type)}</span>
               </div>
@@ -201,7 +204,6 @@ export function AcademicUnitsPage() {
   const [reloadKey, setReloadKey] = useState(0);
   const accessToken = auth.accessToken;
   const canReadCatalog = auth.hasPermission(READ_CATALOG) || auth.hasPermission(MANAGE_CATALOG);
-  const pagination = usePagination(units, 9);
 
   useEffect(() => {
     if (!accessToken || !canReadCatalog) {
@@ -275,19 +277,17 @@ export function AcademicUnitsPage() {
     <section className="app-content academic-workspace">
       <header className="workspace-hero">
         <div>
-          <p className="eyebrow">Catálogo académico</p>
           <h2>Unidades académicas</h2>
           <p>Seleccioná una unidad para acceder a sus carreras.</p>
         </div>
       </header>
 
-      {pagination.items.length > 0 ? (
+      {units.length > 0 ? (
         <div className="academic-unit-grid">
-          {pagination.items.map((unit) => (
+          {units.map((unit) => (
             <Link className="academic-unit-card" key={unit.id} to={`/app/academic/units/${unit.id}`}>
-              <span>{unit.code}</span>
               <h3>{unit.name}</h3>
-              <strong>{careerCountsByUnitId[unit.id] ?? 0} carreras activas</strong>
+              <strong>{formatActiveCareerCount(careerCountsByUnitId[unit.id] ?? 0)}</strong>
             </Link>
           ))}
         </div>
@@ -297,19 +297,6 @@ export function AcademicUnitsPage() {
           <p>Cuando exista una unidad activa, aparecerá en este listado.</p>
         </div>
       )}
-
-      <PaginationControls
-        firstItem={pagination.firstItem}
-        itemLabel="unidades"
-        lastItem={pagination.lastItem}
-        onPageChange={pagination.setPage}
-        onPageSizeChange={pagination.setPageSize}
-        page={pagination.page}
-        pageSize={pagination.pageSize}
-        pageSizeOptions={[9, 12, 18]}
-        totalItems={pagination.totalItems}
-        totalPages={pagination.totalPages}
-      />
     </section>
   );
 }

@@ -1,0 +1,42 @@
+/* Reusable status and version badges. */
+
+.status-badge {
+  display: inline-flex;
+  width: fit-content;
+  border-radius: 999px;
+  padding: 0.25rem 0.55rem;
+  color: var(--color-heading);
+  background: var(--color-surface-muted);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.status-badge--open,
+.status-badge--survey-published {
+  color: var(--color-success-strong);
+  background: var(--color-success-soft);
+}
+
+.status-badge--created,
+.status-badge--version {
+  color: var(--color-primary);
+  background: var(--color-primary-soft);
+}
+
+.status-badge--closed,
+.status-badge--cancelled,
+.status-badge--expired {
+  color: var(--color-danger-strong);
+  background: var(--color-danger-soft);
+}
+
+.status-badge--survey-draft,
+.status-badge--warning {
+  color: var(--color-warning);
+  background: var(--color-warning-soft);
+}
+
+.status-badge--survey-archived {
+  color: #686b66;
+  background: var(--color-surface-muted);
+}

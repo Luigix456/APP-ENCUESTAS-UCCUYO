@@ -1,0 +1,143 @@
+/* Extracted from src/styles.css. Keep selectors semantic; avoid Bootstrap-style utility classes. */
+
+.surveys-page,
+.survey-editor-page,
+.survey-preview-page,
+.assignments-page,
+.academic-page {
+  display: grid;
+  gap: 1rem;
+}
+
+.surveys-table,
+.survey-structure,
+.survey-preview-content,
+.structure-list,
+.assignment-card-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.assignment-form small {
+  color: #666b64;
+  font-weight: 600;
+}
+
+@media (min-width: 680px) {
+  .assignment-form {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+.response-progress__complete,
+.live-status,
+.subject-enrollment-summary,
+.enrollment-hint-panel {
+  border-radius: 8px;
+  padding: 0.8rem 0.9rem;
+  background: color-mix(in srgb, var(--color-primary) 6%, white);
+}
+
+.enrollment-hint-panel {
+  border: 1px solid var(--color-border);
+}
+
+.enrollment-hint-panel strong {
+  color: var(--color-heading);
+}
+
+.crud-toolbar,
+.filter-panel,
+.template-summary-grid > div,
+.context-entity-row,
+.subject-teacher-chip,
+.subject-enrollment-summary,
+.enrollment-hint-panel {
+  border-radius: 12px;
+}
+
+.participation-dashboard__header,
+.participation-list-header,
+.participation-assignment-card header {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.participation-dashboard__header h3,
+.participation-list-header h3,
+.participation-assignment-card h4 {
+  margin: 0;
+}
+
+.participation-assignment-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.participation-assignment-card {
+  display: grid;
+  gap: 0.9rem;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 1rem;
+  background: var(--color-surface-soft);
+}
+
+.participation-assignment-card__progress {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.participation-assignment-card__main {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1rem;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.participation-assignment-card__main strong {
+  color: var(--color-heading);
+  font-size: 1.1rem;
+}
+
+.participation-assignment-card__main span {
+  color: var(--color-muted);
+  font-weight: 800;
+}
+
+.participation-assignment-card__bar,
+.classroom-mode__bar {
+  height: 0.85rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-primary) 12%, white);
+}
+
+.participation-assignment-card__bar span,
+.classroom-mode__bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-primary);
+  transition: width 180ms ease;
+}
+
+@media (max-width: 700px) {
+  .participation-dashboard__header,
+    .participation-list-header,
+    .participation-assignment-card header,
+    .classroom-mode__topbar {
+      align-items: stretch;
+      flex-direction: column;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .participation-assignment-card__bar span,
+    .classroom-mode__bar span {
+      transition: none;
+    }
+}

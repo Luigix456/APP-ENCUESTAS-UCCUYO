@@ -1,0 +1,380 @@
+/* Extracted from src/styles.css. Keep selectors semantic; avoid Bootstrap-style utility classes. */
+
+.choice-control,
+.choice-control > label {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+}
+
+.choice-control {
+  min-height: 44px;
+  border: 1px solid #dedbd2;
+  border-radius: 8px;
+  padding: 0.75rem;
+  background: #fbfaf7;
+}
+
+.choice-control--stacked {
+  display: grid;
+}
+
+.choice-control input[type="radio"],
+.choice-control input[type="checkbox"],
+.matrix-question input,
+.rating-option input {
+  width: 1.05rem;
+  height: 1.05rem;
+  margin-top: 0.15rem;
+  accent-color: #2f765b;
+}
+
+.text-input,
+.text-area {
+  width: 100%;
+  border: 1px solid #c6c0b5;
+  border-radius: 8px;
+  padding: 0.75rem;
+  color: #2d302c;
+  background: #ffffff;
+}
+
+.text-input:disabled {
+  color: #7b7e78;
+  background: #efeee9;
+}
+
+.text-area {
+  resize: vertical;
+}
+
+.field-error,
+.submit-error,
+.inline-message {
+  margin: 0;
+  border-radius: 8px;
+  padding: 0.75rem;
+}
+
+.field-error,
+.submit-error {
+  color: #762638;
+  background: #fbedef;
+}
+
+.inline-message {
+  color: #6a5224;
+  background: #fbf3df;
+}
+
+.pagination-actions .text-input {
+  width: 78px;
+  min-height: 38px;
+  padding: 0.45rem 0.55rem;
+}
+
+.surveys-header h2,
+.survey-editor-header h2,
+.survey-preview-header h2,
+.survey-list-card h3,
+.survey-admin-form h3,
+.structure-card h3,
+.question-editor-card h4,
+.nested-block h5 {
+  margin: 0;
+}
+
+.surveys-actions,
+.survey-editor-toolbar,
+.form-actions,
+.badge-group,
+.toggle-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.badge-group {
+  align-items: flex-start;
+}
+
+.surveys-filters label,
+.survey-admin-form label,
+.nested-form label,
+.compact-form label {
+  display: grid;
+  gap: 0.4rem;
+  color: #3e453f;
+  font-weight: 800;
+}
+
+.checkbox-field {
+  display: flex !important;
+  gap: 0.55rem !important;
+  align-items: center;
+}
+
+.checkbox-field input {
+  width: 1.05rem;
+  height: 1.05rem;
+  accent-color: #2f765b;
+}
+
+.survey-list-card,
+.survey-admin-form,
+.structure-card,
+.question-editor-card,
+.nested-block {
+  display: grid;
+  gap: 1rem;
+  border: 1px solid #dedbd2;
+  border-radius: 8px;
+  padding: 1rem;
+  background: #ffffff;
+}
+
+.assignment-form__wide {
+  grid-column: 1 / -1;
+}
+
+.academic-context-panel .text-input {
+  min-height: 38px;
+  padding: 0.45rem 0.55rem;
+  font-size: 0.9rem;
+}
+
+.checkbox-list {
+  display: grid;
+  gap: 0.6rem;
+  min-width: 0;
+  margin: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 0.85rem;
+  background: var(--color-surface-soft);
+}
+
+.checkbox-list legend {
+  padding: 0 0.25rem;
+  color: #3e453f;
+  font-weight: 900;
+}
+
+.checkbox-list:disabled {
+  opacity: 0.68;
+}
+
+@media (max-width: 560px) {
+  .pagination-actions .text-input {
+      width: 100%;
+    }
+}
+
+@media print {
+  .app-sidebar,
+    .app-topbar,
+    .mobile-overlay,
+    .report-actions,
+    .report-breadcrumb,
+    .report-back-link,
+    .submit-error {
+      display: none !important;
+    }
+}
+
+.modal-form { display: grid; gap: 1rem; }
+
+.modal-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+.modal-form label { display: grid; gap: 0.4rem; color: var(--color-text); font-weight: 800; }
+
+.modal-form label small { color: var(--color-muted); font-weight: 600; }
+
+.filter-checkbox { align-self: end; min-height: 43px; }
+
+@media (max-width: 819px) {
+  .modal-form-grid { grid-template-columns: 1fr; }
+}
+
+.modal-section-divider small,
+.form-helper {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.response-progress__main span,
+.response-progress__details,
+.subject-enrollment-summary span,
+.enrollment-context span {
+  color: var(--color-text-muted);
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
+.subject-enrollment-summary > div,
+.enrollment-context {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.enrollment-context {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 0.75rem;
+  background: var(--color-background);
+}
+
+.enrollment-context div,
+.enrollment-hint-panel {
+  display: grid;
+  gap: 0.35rem;
+}
+
+@media (max-width: 760px) {
+  .enrollment-context,
+    .import-template-actions,
+    .import-summary-grid {
+      grid-template-columns: 1fr;
+    }
+}
+
+.text-input,
+.text-area,
+select.text-input {
+  min-height: 46px;
+  border-color: var(--color-border-strong);
+  border-radius: 11px;
+  padding: 0.72rem 0.82rem;
+  color: var(--color-text);
+  background: #fff;
+  transition: border-color 150ms ease, box-shadow 150ms ease, background 150ms ease;
+}
+
+.text-input:hover:not(:disabled),
+.text-area:hover:not(:disabled),
+select.text-input:hover:not(:disabled) {
+  border-color: #9ca89f;
+}
+
+.text-input:focus,
+.text-area:focus,
+select.text-input:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 4px rgba(36, 91, 70, 0.11);
+  outline: none;
+}
+
+.text-input:disabled,
+.text-area:disabled,
+select.text-input:disabled {
+  color: #7b7e78;
+  background: #efeee9;
+}
+
+.choice-control {
+  border-radius: 11px;
+  background: #fbfaf7;
+}
+
+.choice-control:hover {
+  border-color: rgba(36, 91, 70, 0.34);
+  background: #f5f8f5;
+}
+
+.choice-control input[type="radio"],
+.choice-control input[type="checkbox"],
+.matrix-question input,
+.rating-option input {
+  accent-color: var(--color-primary);
+}
+
+.inline-message {
+  color: #6a5224;
+  background: #fbf3df;
+}
+
+.field-error,
+.submit-error {
+  color: #762638;
+  background: #fbedef;
+}
+
+.survey-search-input .text-input {
+  width: 100%;
+  padding-left: 2.65rem;
+}
+
+.survey-advanced-filters > label:not(.checkbox-field) {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--color-text-muted);
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.pagination-meta .text-input {
+  width: 74px;
+  min-height: 36px;
+  padding: 0.35rem 0.5rem;
+}
+
+.career-browser label,
+.teacher-checkbox-list {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.teacher-checkbox-list {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 0.85rem;
+}
+
+.teacher-checkbox-list legend {
+  padding: 0 0.35rem;
+  font-weight: 900;
+}
+
+.teacher-checkbox-list label {
+  display: flex;
+  gap: 0.55rem;
+  align-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 0.55rem 0.65rem;
+  background: var(--color-surface-soft);
+}
+
+.teacher-checkbox-list input {
+  accent-color: var(--color-primary);
+}
+
+.app-sidebar::-webkit-scrollbar,
+.career-local-nav::-webkit-scrollbar,
+.teacher-checkbox-list::-webkit-scrollbar {
+  width: 0.55rem;
+  height: 0.55rem;
+}
+
+.app-sidebar::-webkit-scrollbar-thumb,
+.career-local-nav::-webkit-scrollbar-thumb,
+.teacher-checkbox-list::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-primary) 28%, transparent);
+}
+
+.teacher-checkbox-list {
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.teacher-checkbox-list__action {
+  justify-self: start;
+}

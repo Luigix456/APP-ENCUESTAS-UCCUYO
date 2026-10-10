@@ -1,0 +1,44 @@
+/* Shared page-surface primitives used across private application screens. */
+
+.eyebrow {
+  margin: 0 0 0.5rem;
+  color: var(--color-primary);
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
+
+.app-content {
+  width: min(100%, 1120px);
+  margin: 1rem auto 0;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 1.25rem;
+  background: var(--color-surface);
+  box-shadow: 0 14px 34px rgba(24, 33, 47, 0.08);
+}
+
+.app-content h2 {
+  margin: 0 0 0.4rem;
+  font-size: 1.4rem;
+}
+
+.app-content p:not(.eyebrow) {
+  margin: 0;
+  color: var(--color-muted);
+}
+
+.success-message {
+  border-radius: 8px;
+  padding: 0.75rem;
+  color: var(--color-success-strong);
+  background: var(--color-success-soft);
+  font-weight: 700;
+}
+
+@media (min-width: 680px) {
+  .app-content {
+    padding: 1.5rem;
+  }
+}

@@ -1,0 +1,13 @@
+/* Minimal reset. Keep browser defaults unless the application explicitly overrides them. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}

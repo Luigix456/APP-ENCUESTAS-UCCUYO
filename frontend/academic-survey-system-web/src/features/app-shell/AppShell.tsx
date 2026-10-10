@@ -37,6 +37,12 @@ export function AppShell({ children }: { children?: ReactNode }) {
   const navItems = useMemo<NavItem[]>(
     () => [
       {
+        label: 'Inicio',
+        to: '/app',
+        end: true,
+        visible: true
+      },
+      {
         label: 'Unidades académicas',
         to: '/app/academic/units',
         visible: canReadCatalog

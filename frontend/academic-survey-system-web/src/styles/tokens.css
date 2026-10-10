@@ -1,0 +1,48 @@
+/* Design tokens shared across the application. */
+
+:root {
+  --color-primary: #245b46;
+  --color-primary-strong: #173f31;
+  --color-primary-soft: #eaf2ed;
+
+  --color-accent: #823449;
+  --color-accent-strong: #67273a;
+  --color-secondary: #2f765b;
+
+  --color-success: #2f765b;
+  --color-success-strong: #235f48;
+  --color-success-soft: #eaf4ed;
+  --color-warning: #6a5224;
+  --color-warning-soft: #fbf3df;
+  --color-danger: #99344a;
+  --color-danger-strong: #762638;
+  --color-danger-soft: #fbedef;
+
+  --color-brand-gold: #c99332;
+  --color-brand-burgundy: #823449;
+
+  --color-text: #2d302c;
+  --color-heading: #1f2b26;
+  --color-muted: #666b64;
+  --color-text-muted: #666b64;
+  --color-text-subtle: #72766f;
+
+  --color-surface: #ffffff;
+  --color-surface-soft: #fbfaf7;
+  --color-surface-muted: #efeee9;
+  --color-background: #f5f3ed;
+  --color-page: #f5f3ed;
+
+  --color-border: #dedbd2;
+  --color-border-strong: #c6c0b5;
+  --color-border-soft: #e8e5de;
+
+  --shadow-panel: 0 12px 30px rgba(35, 47, 41, 0.08);
+  --shadow-raised: 0 18px 42px rgba(35, 47, 41, 0.12);
+
+  --radius-sm: 9px;
+  --radius-md: 13px;
+  --radius-lg: 18px;
+
+  --content-max-width: 1440px;
+}

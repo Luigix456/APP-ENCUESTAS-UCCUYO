@@ -1,0 +1,32 @@
+/* Extracted from src/styles.css. Keep selectors semantic; avoid Bootstrap-style utility classes. */
+
+.catalog-home-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.catalog-home-card {
+  display: grid;
+  gap: 0.4rem;
+  border: 1px solid #dedbd2;
+  border-radius: 8px;
+  padding: 1rem;
+  color: #2d302c;
+  background: #fbfaf7;
+  text-decoration: none;
+}
+
+.catalog-home-card:hover {
+  border-color: #2f765b;
+  background: #f3f7f3;
+}
+
+.catalog-home-card h3 {
+  margin: 0;
+}
+
+@media (min-width: 680px) {
+  .catalog-home-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}

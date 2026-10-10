@@ -1,0 +1,24 @@
+/* Extracted from src/styles.css. Keep selectors semantic; avoid Bootstrap-style utility classes. */
+
+.access-denied-panel {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.sessions-header h2,
+.session-summary h3,
+.qr-panel h3,
+.session-form h3,
+.sessions-list h3,
+.empty-detail h3 {
+  margin: 0;
+}
+
+.session-summary,
+.qr-panel,
+.empty-detail {
+  border: 1px solid #dedbd2;
+  border-radius: 8px;
+  padding: 1rem;
+  background: #ffffff;
+}

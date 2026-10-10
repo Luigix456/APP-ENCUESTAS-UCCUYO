@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { getAcademicUnits, getCareers, getTeachers } from '../../api/academicCatalogApi';
 import { getResultAssignments } from '../../api/resultsApi';
 import { getSurveyAssignments } from '../../api/surveyAssignmentsApi';
@@ -24,12 +24,12 @@ interface DashboardMetric {
 export function DashboardPage() {
   const auth = useAuth();
   const academicContext = useAcademicContext();
-  const navigate = useNavigate();
   const [metrics, setMetrics] = useState<DashboardMetric[]>([]);
   const [academicUnits, setAcademicUnits] = useState<AcademicUnitDto[]>([]);
   const [allCareers, setAllCareers] = useState<CareerDto[]>([]);
   const [state, setState] = useState<DashboardState>('loading');
   const [error, setError] = useState<string | null>(null);
+  const [expandedUnitId, setExpandedUnitId] = useState<string | null>(null);
   const accessToken = auth.accessToken;
   const hasContext = Boolean(academicContext.selectedCareer && academicContext.selectedAcademicCycle);
 
@@ -224,14 +224,16 @@ export function DashboardPage() {
     return steps;
   }, [permissions]);
 
-  const dashboardIntro = permissions.sessions
-    ? 'Podés comenzar directamente desde Sesiones o elegir una unidad académica, carrera y ciclo lectivo para trabajar con un contexto específico.'
-    : 'Elegí una unidad académica y una carrera para comenzar. El sistema organizará las opciones según tu perfil y ese contexto.';
+  const dashboardIntro = 'Seleccioná una unidad académica para ver sus carreras y comenzar a trabajar.';
 
-  function chooseCareer(unitId: string, careerId: string) {
+  function handleCareerClick(unitId: string, careerId: string) {
     academicContext.selectCareerContext(unitId, careerId);
-    navigate('/app/context');
   }
+
+  function toggleUnit(unitId: string) {
+    setExpandedUnitId((current) => (current === unitId ? null : unitId));
+  }
+
 
   return (
     <section className="app-content dashboard-page">
@@ -248,50 +250,65 @@ export function DashboardPage() {
       </header>
 
       {permissions.catalogRead ? (
-        <section className="academic-directory" aria-labelledby="academic-directory-title">
+        <section className="academic-directory" aria-label="Estructura académica">
           <div className="section-heading-row">
             <div>
               <p className="eyebrow">Estructura académica</p>
-              <h3 id="academic-directory-title">Unidades académicas y carreras</h3>
-              <p>Seleccioná la carrera sobre la que querés trabajar.</p>
+              <p>Seleccioná una unidad académica para ver sus carreras y comenzar a trabajar.</p>
             </div>
           </div>
 
           {state === 'loading' && academicUnits.length === 0 ? <p aria-live="polite">Cargando estructura académica...</p> : null}
 
-          <div className="academic-unit-grid">
+          <div className="home-academic-structure">
             {academicUnits.map((unit) => {
               const careers = careersByUnit.get(unit.id) ?? [];
+              const isExpanded = expandedUnitId === unit.id;
+              const contentId = 'academic-unit-careers-' + unit.id;
+
               return (
-                <article className="academic-unit-card" key={unit.id}>
-                  <header>
-                    <div className="academic-unit-mark" aria-hidden="true">UA</div>
-                    <div>
-                      <span>{unit.code}</span>
-                      <h4>{unit.name}</h4>
-                      <small>{careers.length} {careers.length === 1 ? 'carrera' : 'carreras'}</small>
+                <article className={['academic-unit-accordion', isExpanded ? 'academic-unit-accordion--open' : ''].filter(Boolean).join(' ')} key={unit.id}>
+                  <button
+                    aria-controls={contentId}
+                    aria-expanded={isExpanded}
+                    className="academic-unit-accordion__trigger"
+                    onClick={() => toggleUnit(unit.id)}
+                    type="button"
+                  >
+                    <span className="academic-unit-accordion__identity">
+                      <span className="academic-unit-mark" aria-hidden="true">UA</span>
+                      <span>
+                        <span className="academic-unit-accordion__name">{unit.name}</span>
+                        <span className="academic-unit-accordion__count">{formatCareerCount(careers.length)}</span>
+                      </span>
+                    </span>
+                    <span className="academic-unit-accordion__chevron" aria-hidden="true">{isExpanded ? '▲' : '▼'}</span>
+                  </button>
+
+                  {isExpanded ? (
+                    <div className="academic-unit-accordion__content" id={contentId}>
+                      {careers.length > 0 ? (
+                        <div className="academic-unit-accordion__careers">
+                          {careers.map((career) => (
+                            <Link
+                              className={['career-quick-link', academicContext.careerId === career.id ? 'career-quick-link--selected' : ''].filter(Boolean).join(' ')}
+                              key={career.id}
+                              onClick={() => handleCareerClick(unit.id, career.id)}
+                              to={'/app/academic/units/' + unit.id + '/careers/' + career.id}
+                            >
+                              <span>
+                                <span className="career-quick-link__name">{career.name}</span>
+                                <span className="career-quick-link__type">{formatCareerType(career.type)}</span>
+                              </span>
+                              <span className="career-quick-link__arrow" aria-hidden="true">→</span>
+                            </Link>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="empty-inline">Esta unidad académica todavía no tiene carreras activas.</p>
+                      )}
                     </div>
-                  </header>
-                  {careers.length > 0 ? (
-                    <div className="career-choice-list">
-                      {careers.map((career) => (
-                        <button
-                          className={`career-choice ${academicContext.careerId === career.id ? 'career-choice--selected' : ''}`}
-                          key={career.id}
-                          onClick={() => chooseCareer(unit.id, career.id)}
-                          type="button"
-                        >
-                          <span>
-                            <strong>{career.name}</strong>
-                            <small>{career.code} · {formatCareerType(career.type)}</small>
-                          </span>
-                          <span className="career-choice__arrow" aria-hidden="true">→</span>
-                        </button>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="empty-inline">Esta unidad académica todavía no tiene carreras activas.</p>
-                  )}
+                  ) : null}
                 </article>
               );
             })}
@@ -359,4 +376,8 @@ export function DashboardPage() {
       ) : null}
     </section>
   );
+}
+
+function formatCareerCount(count: number): string {
+  return count === 1 ? '1 carrera' : count + ' carreras';
 }

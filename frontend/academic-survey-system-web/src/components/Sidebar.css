@@ -1,0 +1,248 @@
+/* Extracted from src/styles.css. Keep selectors semantic; avoid Bootstrap-style utility classes. */
+
+.app-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.app-nav a {
+  border: 1px solid #dedbd2;
+  border-radius: 8px;
+  padding: 0.55rem 0.75rem;
+  color: #245b46;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.app-nav a.active {
+  color: #ffffff;
+  background: #245b46;
+  border-color: #245b46;
+}
+
+.user-summary {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.user-summary div {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.user-summary strong {
+  color: #1f2b26;
+}
+
+.user-summary span {
+  color: #666b64;
+  font-size: 0.92rem;
+}
+
+@media (min-width: 680px) {
+  .user-summary {
+      justify-items: end;
+      text-align: right;
+    }
+}
+
+.app-sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 30;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 1rem;
+  width: 304px;
+  max-height: 100vh;
+  border-right: 1px solid var(--color-border);
+  padding: 1rem;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-panel);
+  overflow: hidden;
+}
+
+.app-nav {
+  display: grid;
+  align-content: start;
+  gap: 0.35rem;
+  min-height: 0;
+  margin-top: 0.25rem;
+  overflow-y: auto;
+  padding-right: 0.2rem;
+  scrollbar-gutter: stable;
+}
+
+.app-nav::-webkit-scrollbar {
+  width: 8px;
+}
+
+.app-nav::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: #d6d2c8;
+}
+
+.app-nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.app-nav a {
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 0.7rem 0.75rem;
+  color: var(--color-muted);
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.app-nav a:hover {
+  color: var(--color-primary);
+  background: #f1f6f2;
+}
+
+.app-nav a.active {
+  color: #ffffff;
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+}
+
+.academic-context-panel,
+.nav-section {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.academic-context-panel label span,
+.nav-section > p {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.74rem;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.nav-section {
+  border-bottom: 1px solid var(--color-border);
+  padding: 0.75rem 0;
+}
+
+.nav-section--home {
+  padding-top: 0;
+}
+
+.nav-section:last-child {
+  border-bottom: 0;
+}
+
+.user-summary {
+  display: grid;
+  gap: 0.75rem;
+  border-top: 1px solid var(--color-border);
+  padding-top: 1rem;
+}
+
+.user-summary .avatar-token {
+  background: var(--color-accent);
+}
+
+@media (max-width: 819px) {
+  .app-sidebar {
+      width: min(88vw, 340px);
+      transform: translateX(-102%);
+      transition: transform 180ms ease;
+    }
+}
+
+@media (max-width: 819px) {
+  .app-sidebar--open {
+      transform: translateX(0);
+    }
+}
+
+@media (max-width: 819px) {
+  .app-sidebar { width: min(92vw, 360px); }
+}
+
+.app-sidebar {
+  border-right-color: var(--color-border);
+  padding: 1.1rem 1rem 1rem;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 8px 0 28px rgba(35, 47, 41, 0.07);
+}
+
+.app-sidebar::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 5px;
+  background: linear-gradient(
+    90deg,
+    var(--color-primary) 0 58%,
+    var(--color-brand-gold) 58% 77%,
+    var(--color-brand-burgundy) 77% 100%
+  );
+}
+
+.app-nav {
+  gap: 0.42rem;
+}
+
+.app-nav a {
+  position: relative;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  border-radius: 11px;
+  padding: 0.7rem 0.8rem 0.7rem 0.95rem;
+  color: #515a54;
+  font-weight: 800;
+}
+
+.app-nav a:hover {
+  color: var(--color-primary);
+  background: #f1f6f2;
+}
+
+.app-nav a.active {
+  border-color: var(--color-primary);
+  color: #fff;
+  background: var(--color-primary);
+  box-shadow: 0 7px 16px rgba(36, 91, 70, 0.15);
+}
+
+.app-nav a.active::before {
+  content: "";
+  position: absolute;
+  left: 0.3rem;
+  top: 50%;
+  width: 3px;
+  height: 54%;
+  border-radius: 999px;
+  background: var(--color-brand-gold);
+  transform: translateY(-50%);
+}
+
+.nav-section > p,
+.academic-context-panel label span {
+  color: #6c716a;
+  letter-spacing: 0.035em;
+}
+
+.user-summary {
+  border-top-color: var(--color-border);
+  padding-top: 0.9rem;
+}
+
+.user-summary .avatar-token {
+  background: var(--color-primary);
+  box-shadow: inset 0 -4px 0 var(--color-brand-gold);
+}
+
+.app-sidebar {
+  max-height: 100dvh;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}

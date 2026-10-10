@@ -1,0 +1,55 @@
+/* Extracted from src/styles.css. Keep selectors semantic; avoid Bootstrap-style utility classes. */
+
+.context-error {
+  margin: 0;
+  color: var(--color-danger);
+  font-size: 0.85rem;
+}
+
+.import-status--error {
+  background: color-mix(in srgb, var(--color-danger) 10%, white);
+  color: var(--color-danger);
+}
+
+.audit-state-card {
+  display: grid;
+  gap: 0.45rem;
+  max-width: 560px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 0.9rem;
+  background: #fff;
+}
+
+.audit-state-card h3,
+.audit-state-card p {
+  margin: 0;
+}
+
+.audit-state-card h3 {
+  color: var(--color-heading);
+  font-size: 1rem;
+}
+
+.audit-state-card p {
+  color: var(--color-muted);
+}
+
+.audit-state-card--error {
+  border-color: #e7b5a8;
+  background: #fff8f6;
+}
+
+.state-card {
+  display: grid;
+  justify-items: start;
+  gap: 0.75rem;
+  min-height: 180px;
+  align-content: center;
+}
+
+.state-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}

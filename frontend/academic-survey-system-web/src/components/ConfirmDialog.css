@@ -1,0 +1,16 @@
+/* Extracted from src/styles.css. Keep selectors semantic; avoid Bootstrap-style utility classes. */
+
+.confirm-dialog-icon {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  margin: 0 auto;
+  border-radius: 50%;
+  font-size: 1.35rem;
+  font-weight: 900;
+}
+
+.confirm-dialog-icon--primary { color: var(--color-primary); background: #eaf2ed; }
+
+.confirm-dialog-icon--danger { color: #8b2533; background: #f8e9ed; }
